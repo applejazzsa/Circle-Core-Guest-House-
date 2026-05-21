@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}POS Shifts — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Point of Sale</div>
+    <h1 class="page-title">Cash Shifts</h1>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:pos_terminal' %}" class="btn btn-ghost btn-sm">Open Terminal</a>
+    {% if not open_shift %}
+    <button onclick="document.getElementById('open-shift-panel').style.display='block'" class="btn btn-primary">Open Shift</button>
+    {% endif %}
+  </div>
+</div>
+
+{% if messages %}
+{% for msg in messages %}
+<div class="alert alert-{{ msg.tags }}" style="margin-bottom:16px;">{{ msg }}</div>
+{% endfor %}
+{% endif %}
+
+<!-- Open shift banner -->
+{% if open_shift %}
+<div class="card" style="padding:20px 24px; margin-bottom:20px; border-color:var(--color-green-border); background:var(--color-green-glow);">
+  <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+    <div>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+        <div style="width:8px; height:8px; border-radius:50%; background:var(--color-green-400); box-shadow:0 0 8px var(--color-green-400);"></div>
+        <div style="font-size:14px; font-weight:600; color:var(--color-green-400);">Shift Open</div>
+      </div>
+      <div style="font-size:12.5px; color:var(--color-text-secondary);">
+        Opened {{ open_shift.opened_at|date:"d M Y H:i" }} by {{ open_shift.opened_by.get_full_name|default:open_shift.opened_by.username }} · Float: R{{ open_shift.opening_float }}
+      </div>
+      <div style="font-size:12.5px; color:var(--color-green-400); margin-top:4px;">
+        Total sales this shift: R{{ open_shift.total_sales }}
+      </div>
+    </div>
+    <button onclick="document.getElementById('close-shift-panel').style.display='block'" class="btn btn-sm" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;">
+      Close Shift
+    </button>
+  </div>
+</div>
+{% endif %}
+
+<!-- Open shift form -->
+<div id="open-shift-panel" style="display:none; margin-bottom:20px;">
+  <div class="card" style="padding:24px; max-width:480px;">
+    <div style="font-size:15px; font-weight:700; color:var(--color-text-primary); margin-bottom:16px;">Open New Shift</div>
+    <form method="post" action="{% url 'core:pos_open_shift' %}">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label" for="opening_float">Opening Cash Float (R)</label>
+        <input type="number" id="opening_float" name="opening_float" value="0" min="0" step="0.01"
+          style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:10px 14px; width:100%; color:var(--color-text-primary); font-size:14px; outline:none; box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="notes">Notes (optional)</label>
+        <input type="text" id="notes" name="notes"
+          style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:10px 14px; width:100%; color:var(--color-text-primary); font-size:14px; outline:none; box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+      </div>
+      <div style="display:flex; gap:10px; margin-top:4px;">
+        <button type="submit" class="btn btn-primary">Open Shift</button>
+        <button type="button" onclick="this.closest('#open-shift-panel').style.display='none'" class="btn btn-ghost">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Close shift form -->
+{% if open_shift %}
+<div id="close-shift-panel" style="display:none; margin-bottom:20px;">
+  <div class="card" style="padding:24px; max-width:480px; border:1px solid rgba(239,68,68,0.2);">
+    <div style="font-size:15px; font-weight:700; color:#f87171; margin-bottom:16px;">Close Shift</div>
+    <form method="post" action="{% url 'core:pos_close_shift' open_shift.pk %}">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label" for="closing_cash">Closing Cash Count (R)</label>
+        <input type="number" id="closing_cash" name="closing_cash" value="0" min="0" step="0.01"
+          style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:10px 14px; width:100%; color:var(--color-text-primary); font-size:14px; outline:none; box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="notes_close">Notes (optional)</label>
+        <input type="text" id="notes_close" name="notes"
+          style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:10px 14px; width:100%; color:var(--color-text-primary); font-size:14px; outline:none; box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+      </div>
+      <div style="display:flex; gap:10px; margin-top:4px;">
+        <button type="submit" class="btn btn-sm" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;">Close Shift</button>
+        <button type="button" onclick="document.getElementById('close-shift-panel').style.display='none'" class="btn btn-ghost btn-sm">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<!-- Past shifts table -->
+<div class="card" style="padding:0; overflow:hidden;">
+  <div style="padding:14px 20px; border-bottom:1px solid var(--color-border);"><div class="section-label">Shift History</div></div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Opened</th>
+        <th>Closed</th>
+        <th>Opened By</th>
+        <th>Float</th>
+        <th>Closing Cash</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for shift in past_shifts %}
+      <tr>
+        <td style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-text-secondary);">{{ shift.opened_at|date:"d M Y H:i" }}</td>
+        <td style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-text-tertiary);">{{ shift.closed_at|date:"d M Y H:i" }}</td>
+        <td style="font-size:13px;">{{ shift.opened_by.get_full_name|default:shift.opened_by.username }}</td>
+        <td style="font-family:var(--font-mono); font-size:13px;">R{{ shift.opening_float }}</td>
+        <td style="font-family:var(--font-mono); font-size:13px;">
+          {% if shift.closing_cash is not None %}R{{ shift.closing_cash }}{% else %}<span style="color:var(--color-text-tertiary);">—</span>{% endif %}
+        </td>
+        <td style="font-size:12.5px; color:var(--color-text-secondary);">{{ shift.notes|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6" style="text-align:center; padding:40px; color:var(--color-text-tertiary); font-size:13.5px;">No closed shifts yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

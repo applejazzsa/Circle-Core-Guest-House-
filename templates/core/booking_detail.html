@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block title %}{{ booking.booking_reference }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Bookings</div>
+    <h1 class="page-title" style="font-size:1.5rem; display:flex; align-items:center; gap:12px;">
+      <span style="font-family:var(--font-mono); font-size:1.25rem; color:var(--color-green-400);">{{ booking.booking_reference }}</span>
+      <span class="badge
+        {% if booking.status == 'Confirmed' %}badge-blue
+        {% elif booking.status == 'Checked In' %}badge-green
+        {% elif booking.status == 'Checked Out' %}badge-gray
+        {% elif booking.status == 'Cancelled' %}badge-red
+        {% elif booking.status == 'No Show' %}badge-purple
+        {% else %}badge-amber{% endif %}">{{ booking.status }}</span>
+    </h1>
+    <p class="page-subtitle">{{ booking.guest.full_name }} · {{ booking.room.name }}</p>
+  </div>
+  <div class="page-header-actions">
+    {% if not payments %}
+    <a href="{% url 'core:booking_edit' booking.pk %}" class="btn btn-secondary btn-sm">Edit Booking</a>
+    {% endif %}
+    <a href="{% url 'core:booking_list' %}" class="btn btn-ghost btn-sm">← Bookings</a>
+  </div>
+</div>
+
+<div class="detail-grid">
+
+  <!-- Left: main details -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+
+    <!-- Stay details -->
+    <div class="card" style="padding:24px;">
+      <div class="section-label" style="margin-bottom:16px;">Stay Details</div>
+
+      <div class="grid-2" style="gap:0;">
+        <div class="detail-row">
+          <span class="detail-label">Guest</span>
+          <a href="{% url 'core:guest_detail' booking.guest.pk %}" style="font-size:14px; color:var(--color-green-400); text-decoration:none;">{{ booking.guest.full_name }}</a>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Room</span>
+          <a href="{% url 'core:room_detail' booking.room.pk %}" style="font-size:14px; color:var(--color-green-400); text-decoration:none;">{{ booking.room.name }}</a>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Check-in</span>
+          <span class="detail-value" style="font-family:var(--font-mono);">{{ booking.check_in_date|date:"D, d M Y" }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Check-out</span>
+          <span class="detail-value" style="font-family:var(--font-mono);">{{ booking.check_out_date|date:"D, d M Y" }}</span>
+        </div>
+        {% if booking.is_hourly %}
+        <div class="detail-row">
+          <span class="detail-label">Start Time</span>
+          <span class="detail-value" style="font-family:var(--font-mono);">{{ booking.booking_start_time|time:"H:i" }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">End Time</span>
+          <span class="detail-value" style="font-family:var(--font-mono);">{{ booking.booking_end_time|time:"H:i"|default:"TBD" }}</span>
+        </div>
+        {% endif %}
+        <div class="detail-row">
+          <span class="detail-label">Duration</span>
+          <span class="detail-value">{{ booking.duration_label }}{% if booking.num_nights and not booking.is_hourly %} · {{ booking.num_nights }} night{{ booking.num_nights|pluralize }}{% endif %}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Guests</span>
+          <span class="detail-value">{{ booking.num_guests }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Source</span>
+          <span class="detail-value">{{ booking.booking_source }}</span>
+        </div>
+        {% if booking.check_in_time %}
+        <div class="detail-row">
+          <span class="detail-label">Checked In</span>
+          <span class="detail-value" style="font-family:var(--font-mono); font-size:12.5px;">{{ booking.check_in_time|date:"d M Y H:i" }}</span>
+        </div>
+        {% endif %}
+        {% if booking.check_out_time %}
+        <div class="detail-row">
+          <span class="detail-label">Checked Out</span>
+          <span class="detail-value" style="font-family:var(--font-mono); font-size:12.5px;">{{ booking.check_out_time|date:"d M Y H:i" }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if booking.notes %}
+      <div style="margin-top:16px; background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px;">
+        <div style="font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); margin-bottom:6px;">Notes</div>
+        <p style="font-size:13.5px; color:var(--color-text-secondary); line-height:1.6;">{{ booking.notes }}</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Payment history -->
+    <div class="card" style="padding:24px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div class="section-label">Payment History</div>
+        {% if latest_payment %}
+        <a href="{% url 'core:payment_receipt_pdf' booking.pk latest_payment.pk %}" class="btn btn-ghost btn-sm" target="_blank">Receipt PDF</a>
+        {% endif %}
+      </div>
+
+      {% if payments %}
+      <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Method</th>
+            <th>Amount</th>
+            <th class="hide-mobile">Balance After</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for payment in payments %}
+          <tr>
+            <td style="font-family:var(--font-mono); font-size:12.5px;">{{ payment.payment_date|date:"d M Y" }}</td>
+            <td>
+              <span class="badge badge-gray" style="font-size:9.5px;">{{ payment.payment_method }}</span>
+            </td>
+            <td style="font-family:var(--font-mono); font-size:13px; color:var(--color-green-400); font-weight:500;">R {{ payment.amount }}</td>
+            <td class="hide-mobile" style="font-family:var(--font-mono); font-size:12.5px; color:{% if payment.balance_after > 0 %}#fbbf24{% else %}var(--color-green-400){% endif %};">R {{ payment.balance_after }}</td>
+            <td>
+              <div style="display:flex; gap:4px; justify-content:flex-end;">
+                <a href="{% url 'core:payment_receipt_pdf' booking.pk payment.pk %}" class="btn btn-ghost btn-sm" title="Receipt" target="_blank">Receipt PDF</a>
+                {% if booking.status != 'Checked Out' and is_owner %}
+                <form method="post" action="{% url 'core:payment_delete' booking.pk payment.pk %}" onsubmit="return confirm('Delete this payment of R {{ payment.amount }}?');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-ghost btn-sm" style="color:#f87171; border-color:rgba(239,68,68,0.25);">Delete</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div style="text-align:center; padding:24px 0; color:var(--color-text-tertiary); font-size:13px;">No payments recorded yet.</div>
+      {% endif %}
+    </div>
+
+    {% if refunds %}
+    <div class="card" style="padding:24px;">
+      <div class="section-label" style="margin-bottom:16px;">Refund History</div>
+      <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Date</th><th>Method</th><th>Amount</th><th class="hide-mobile">Approved By</th><th class="hide-mobile">Reason</th></tr></thead>
+        <tbody>
+          {% for refund in refunds %}
+          <tr>
+            <td style="font-family:var(--font-mono); font-size:12.5px;">{{ refund.refund_date|date:"d M Y" }}</td>
+            <td><span class="badge badge-red" style="font-size:9.5px;">{{ refund.refund_method }}</span></td>
+            <td style="font-family:var(--font-mono); font-size:13px; color:#f87171; font-weight:500;">- R {{ refund.amount }}</td>
+            <td class="hide-mobile" style="font-size:13px;">{{ refund.approved_by|default:"-" }}</td>
+            <td class="hide-mobile" style="font-size:13px; color:var(--color-text-secondary);">{{ refund.reason|truncatechars:80 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Actions row -->
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:14px;">Actions</div>
+      {% if booking.status == 'Confirmed' and payment_totals.balance_due <= 0 %}
+      <form method="post" action="{% url 'core:booking_checkin' booking.pk %}" style="margin-bottom:12px;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary" style="width:100%; padding:14px 20px; font-size:15px; font-weight:700; letter-spacing:0.03em; justify-content:center;">Check In Guest</button>
+      </form>
+      {% endif %}
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        {% if not payments and booking.status == 'Pending' or not payments and booking.status == 'Confirmed' %}
+        <a href="{% url 'core:booking_edit' booking.pk %}" class="btn btn-secondary">Back to Edit Booking</a>
+        {% endif %}
+        {% if booking.status == 'Checked In' %}
+        <form method="post" action="{% url 'core:booking_checkout' booking.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-secondary">Check Out Guest</button>
+        </form>
+        {% endif %}
+        {% if can_mark_no_show %}
+        <form method="post" action="{% url 'core:booking_no_show' booking.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-ghost btn-sm">Mark No Show</button>
+        </form>
+        {% endif %}
+        {% if booking.status not in 'Cancelled,Checked Out,No Show' %}
+        <a href="{% url 'core:booking_cancel' booking.pk %}" class="btn btn-danger btn-sm">Cancel Booking</a>
+        {% endif %}
+        {% if latest_payment %}
+        <a href="{% url 'core:payment_receipt_pdf' booking.pk latest_payment.pk %}" class="btn btn-primary btn-sm" target="_blank">Receipt PDF</a>
+        <a href="{% url 'core:booking_refund' booking.pk %}" class="btn btn-danger btn-sm">Record Refund</a>
+        {% endif %}
+        {% if payment_totals.balance_due <= 0 %}
+        <a href="{% url 'core:booking_confirmation_pdf' booking.pk %}" class="btn btn-ghost btn-sm" target="_blank">Confirmation PDF</a>
+        <a href="{% url 'core:booking_invoice_pdf' booking.pk %}" class="btn btn-ghost btn-sm" target="_blank">Invoice PDF</a>
+        {% endif %}
+        {% if booking.guest.phone and payment_totals.balance_due <= 0 %}
+        <a href="{% url 'core:booking_whatsapp' booking.pk 'confirmation' %}" class="btn btn-ghost btn-sm" style="color:#25d366; border-color:rgba(37,211,102,0.3);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          WhatsApp Confirmation
+        </a>
+        <a href="{% url 'core:booking_whatsapp' booking.pk 'balance_reminder' %}" class="btn btn-ghost btn-sm" style="color:#25d366; border-color:rgba(37,211,102,0.3);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          WhatsApp Balance
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: financial summary -->
+  <div style="display:flex; flex-direction:column; gap:16px; position:sticky; top:88px;">
+
+    <!-- Financial summary -->
+    <div class="card" style="padding:24px;">
+      <div class="section-label" style="margin-bottom:16px;">Financial Summary</div>
+
+      <div class="detail-row">
+        <span class="detail-label">Rate</span>
+        <span class="detail-value" style="font-family:var(--font-mono);">R {{ booking.rate_per_night }} / {{ booking.duration_label }}</span>
+      </div>
+      {% if not booking.is_hourly %}
+      <div class="detail-row">
+        <span class="detail-label">Nights</span>
+        <span class="detail-value" style="font-family:var(--font-mono);">{{ booking.num_nights }}</span>
+      </div>
+      {% endif %}
+      <div class="detail-row">
+        <span class="detail-label">Subtotal</span>
+        <span class="detail-value" style="font-family:var(--font-mono);">R {{ subtotal }}</span>
+      </div>
+      {% if booking.discount > 0 %}
+      <div class="detail-row">
+        <span class="detail-label">Discount</span>
+        <span class="detail-value" style="font-family:var(--font-mono); color:#f87171;">- R {{ booking.discount }}</span>
+      </div>
+      {% endif %}
+
+      <!-- Total bar -->
+      <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:14px; margin:16px 0; border:1px solid var(--color-border);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary);">Total</div>
+          <div style="font-family:var(--font-mono); font-size:18px; font-weight:700; color:var(--color-text-primary);">R {{ booking.total_amount|floatformat:2 }}</div>
+        </div>
+      </div>
+
+      <div class="detail-row">
+        <span class="detail-label">Deposit Required</span>
+        <span class="detail-value" style="font-family:var(--font-mono);">R {{ booking.deposit_required|floatformat:2 }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Total Paid</span>
+        <span class="detail-value" style="font-family:var(--font-mono); color:var(--color-green-400); font-weight:600;">R {{ payment_totals.total_paid|floatformat:2 }}</span>
+      </div>
+      {% if payment_totals.total_refunded > 0 %}
+      <div class="detail-row">
+        <span class="detail-label">Refunded</span>
+        <span class="detail-value" style="font-family:var(--font-mono); color:#f87171; font-weight:600;">- R {{ payment_totals.total_refunded|floatformat:2 }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Net Paid</span>
+        <span class="detail-value" style="font-family:var(--font-mono); color:var(--color-green-400); font-weight:600;">R {{ payment_totals.net_paid|floatformat:2 }}</span>
+      </div>
+      {% endif %}
+
+      {% if payment_totals.balance_due > 0 %}
+      <div style="background:rgba(239,68,68,0.07); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); padding:12px; margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-size:12px; font-weight:600; color:#f87171;">Balance Due</div>
+        <div style="font-family:var(--font-mono); font-size:16px; font-weight:700; color:#f87171;">R {{ payment_totals.balance_due|floatformat:2 }}</div>
+      </div>
+      {% if booking.status not in 'Cancelled,No Show,Checked Out' %}
+      <a href="{% url 'core:payment_add' booking.pk %}" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:10px; display:flex;">Record Payment</a>
+      {% endif %}
+      {% else %}
+      <div style="background:var(--color-green-glow); border:1px solid var(--color-green-border); border-radius:var(--radius-md); padding:12px; margin-top:12px; text-align:center;">
+        <span style="font-size:12.5px; font-weight:600; color:var(--color-green-400);">✓ Fully Settled</span>
+      </div>
+      {% if change_due > 0 %}
+      <div style="background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.3); border-radius:var(--radius-md); padding:12px; margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-size:12px; font-weight:600; color:#fbbf24;">Change Due</div>
+        <div style="font-family:var(--font-mono); font-size:16px; font-weight:700; color:#fbbf24;">R {{ change_due }}</div>
+      </div>
+      {% endif %}
+      {% endif %}
+    </div>
+
+    <!-- Guest quick info -->
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:12px;">Guest</div>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+        <div class="avatar avatar-md avatar-green">{{ booking.guest.first_name|first }}{{ booking.guest.last_name|first }}</div>
+        <div>
+          <div style="font-size:14px; font-weight:600; color:var(--color-text-primary);">{{ booking.guest.full_name }}</div>
+          <div style="font-size:12px; color:var(--color-text-tertiary); font-family:var(--font-mono);">{{ booking.guest.phone }}</div>
+        </div>
+      </div>
+      {% if booking.guest.is_repeat_guest %}
+      <span class="badge badge-amber" style="font-size:9.5px; margin-bottom:10px;">Returning Guest</span>
+      {% endif %}
+      <a href="{% url 'core:guest_detail' booking.guest.pk %}" class="btn btn-ghost btn-sm" style="width:100%; justify-content:center;">View Profile</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Add Payment — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+        <nav class="mb-2 text-sm text-slate-500">
+            <a href="{% url 'core:home' %}" class="hover:text-slate-900">Dashboard</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'core:booking_list' %}" class="hover:text-slate-900">Bookings</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'core:booking_detail' booking.pk %}" class="hover:text-slate-900">{{ booking.booking_reference }}</a>
+            <span class="mx-2">/</span>
+            <span class="text-slate-900">Add Payment</span>
+        </nav>
+        <p class="text-sm font-medium uppercase tracking-wider text-gold">Payments</p>
+        <h2 class="text-2xl font-semibold text-slate-950">Add Payment</h2>
+    </div>
+    <a href="{% url 'core:booking_detail' booking.pk %}" class="text-sm font-medium text-slate-600 hover:text-slate-900">
+        &larr; Back to {{ booking.booking_reference }}
+    </a>
+</div>
+
+<div class="max-w-4xl space-y-6">
+    <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Booking Summary</h3>
+        <dl class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+                <dt class="text-xs font-medium text-slate-400">Guest</dt>
+                <dd class="mt-0.5 text-sm font-semibold text-slate-900">{{ booking.guest.full_name }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs font-medium text-slate-400">Room</dt>
+                <dd class="mt-0.5 text-sm font-semibold text-slate-900">{{ booking.room.name }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs font-medium text-slate-400">Total</dt>
+                <dd class="mt-0.5 text-sm font-semibold text-slate-900">
+                    {{ guest_house_settings.currency|default:"R" }} {{ booking.total_amount }}
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs font-medium text-slate-400">Current balance</dt>
+                <dd class="mt-0.5 text-sm font-semibold {% if booking.balance_due > 0 %}text-red-700{% else %}text-green-700{% endif %}">
+                    {{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due }}
+                </dd>
+            </div>
+        </dl>
+    </section>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="text-base font-semibold text-slate-950">Payment Details</h3>
+            <div class="mt-5 grid gap-5 md:grid-cols-2">
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="{{ form.amount.id_for_label }}">Amount</label>
+                    {{ form.amount }}
+                    {{ form.amount.errors }}
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="{{ form.payment_date.id_for_label }}">Date</label>
+                    {{ form.payment_date }}
+                    {{ form.payment_date.errors }}
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="{{ form.payment_method.id_for_label }}">Method</label>
+                    {{ form.payment_method }}
+                    {{ form.payment_method.errors }}
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="{{ form.payment_type.id_for_label }}">Type</label>
+                    {{ form.payment_type }}
+                    {{ form.payment_type.errors }}
+                </div>
+                <div class="md:col-span-2">
+                    <label class="text-sm font-medium text-slate-700" for="{{ form.reference.id_for_label }}">Reference</label>
+                    {{ form.reference }}
+                    {{ form.reference.errors }}
+                </div>
+                <div class="md:col-span-2">
+                    <label class="text-sm font-medium text-slate-700" for="{{ form.notes.id_for_label }}">Notes</label>
+                    {{ form.notes }}
+                    {{ form.notes.errors }}
+                </div>
+            </div>
+        </section>
+
+        <div class="flex items-center justify-between">
+            <a href="{% url 'core:booking_detail' booking.pk %}" class="text-sm text-slate-600 hover:text-slate-900">Cancel</a>
+            <button type="submit"
+                    class="rounded-md bg-gold px-5 py-2.5 text-sm font-semibold text-navy shadow-sm hover:bg-gold/90 focus:outline-none focus:ring-2 focus:ring-gold/40">
+                Save payment
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

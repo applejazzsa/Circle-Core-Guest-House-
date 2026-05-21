@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Search — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Search</div>
+    <h1 class="page-title">Search Results</h1>
+    {% if query %}<p class="page-subtitle">Results for "{{ query }}"</p>{% endif %}
+  </div>
+</div>
+
+{% if query %}
+<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+
+  <!-- Guests -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:14px 18px; border-bottom:1px solid var(--color-border);"><div class="section-label">Guests</div></div>
+    <div style="display:flex; flex-direction:column;">
+      {% for guest in guest_results %}
+      <a href="{% url 'core:guest_detail' guest.pk %}" style="display:block; padding:14px 18px; border-bottom:1px solid var(--color-border); text-decoration:none; transition:background 0.1s;"
+        onmouseover="this.style.background='var(--color-bg-elevated)'" onmouseout="this.style.background='transparent'">
+        <div style="font-weight:500; color:var(--color-text-primary); font-size:13.5px;">{{ guest.full_name }}</div>
+        <div style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-text-tertiary); margin-top:2px;">{{ guest.phone }}{% if guest.email %} · {{ guest.email }}{% endif %}</div>
+      </a>
+      {% empty %}
+      <div style="padding:28px 18px; text-align:center; font-size:13px; color:var(--color-text-tertiary);">No guests found.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Bookings -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:14px 18px; border-bottom:1px solid var(--color-border);"><div class="section-label">Bookings</div></div>
+    <div style="display:flex; flex-direction:column;">
+      {% for booking in booking_results %}
+      <a href="{% url 'core:booking_detail' booking.pk %}" style="display:block; padding:14px 18px; border-bottom:1px solid var(--color-border); text-decoration:none; transition:background 0.1s;"
+        onmouseover="this.style.background='var(--color-bg-elevated)'" onmouseout="this.style.background='transparent'">
+        <div style="font-family:var(--font-mono); font-size:13px; color:var(--color-green-400); font-weight:500;">{{ booking.booking_reference }}</div>
+        <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:2px;">{{ booking.guest.full_name }} · {{ booking.room.name }}</div>
+      </a>
+      {% empty %}
+      <div style="padding:28px 18px; text-align:center; font-size:13px; color:var(--color-text-tertiary);">No bookings found.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Rooms -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:14px 18px; border-bottom:1px solid var(--color-border);"><div class="section-label">Rooms</div></div>
+    <div style="display:flex; flex-direction:column;">
+      {% for room in room_results %}
+      <a href="{% url 'core:room_detail' room.pk %}" style="display:block; padding:14px 18px; border-bottom:1px solid var(--color-border); text-decoration:none; transition:background 0.1s;"
+        onmouseover="this.style.background='var(--color-bg-elevated)'" onmouseout="this.style.background='transparent'">
+        <div style="font-weight:500; color:var(--color-text-primary); font-size:13.5px;">{{ room.name }}</div>
+        <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:2px;">{{ room.room_type }} · {{ room.status }}</div>
+      </a>
+      {% empty %}
+      <div style="padding:28px 18px; text-align:center; font-size:13px; color:var(--color-text-tertiary);">No rooms found.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card empty-state">
+  <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <div class="empty-state-title">Enter a search term</div>
+  <p class="empty-state-body">Type a guest name, booking reference, phone number, or room name to search.</p>
+</div>
+{% endif %}
+{% endblock %}

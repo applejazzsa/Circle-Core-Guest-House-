@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{% if editing %}Edit Staff Member{% else %}Add Staff Member{% endif %} — Circle Core{% endblock %}
+{% block content %}
+<div style="max-width:560px; margin:0 auto;">
+
+  <div style="margin-bottom:28px;">
+    <div class="section-label">System / Staff</div>
+    <h1 class="page-title">{% if editing %}Edit {{ staff_user.username }}{% else %}Add Staff Member{% endif %}</h1>
+    <p class="page-subtitle">{% if editing %}Update role, password, or account status.{% else %}Create a login and assign a role.{% endif %}</p>
+  </div>
+
+  <div class="card" style="padding:28px;">
+    <form method="post">
+      {% csrf_token %}
+
+      <!-- Name row -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">First Name</label>
+          <input type="text" name="first_name" value="{{ staff_user.first_name|default:post.first_name }}" placeholder="First name"
+            style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-body); box-sizing:border-box;"
+            onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Last Name</label>
+          <input type="text" name="last_name" value="{{ staff_user.last_name|default:post.last_name }}" placeholder="Last name"
+            style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-body); box-sizing:border-box;"
+            onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+        </div>
+      </div>
+
+      <!-- Username -->
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Username <span style="color:#f87171;">*</span></label>
+        {% if editing %}
+        <input type="text" value="{{ staff_user.username }}" disabled
+          style="width:100%; background:var(--color-bg-muted); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-tertiary); font-size:13.5px; font-family:var(--font-mono); box-sizing:border-box; cursor:not-allowed;">
+        {% else %}
+        <input type="text" name="username" value="{{ post.username }}" placeholder="e.g. john_cleaner" required autocomplete="off"
+          style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-mono); box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+        <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:5px;">Used to log in. No spaces allowed.</div>
+        {% endif %}
+      </div>
+
+      <!-- Email -->
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Email</label>
+        <input type="email" name="email" value="{{ staff_user.email|default:post.email }}" placeholder="email@example.com"
+          style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-body); box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+      </div>
+
+      <!-- Password -->
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">
+          {% if editing %}New Password <span style="font-weight:400; color:var(--color-text-tertiary);">(leave blank to keep current)</span>
+          {% else %}Password <span style="color:#f87171;">*</span>{% endif %}
+        </label>
+        <input type="password" name="{% if editing %}new_password{% else %}password{% endif %}" {% if not editing %}required{% endif %} placeholder="{% if editing %}Enter new password to change it{% else %}Set a strong password{% endif %}" autocomplete="new-password"
+          style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-body); box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+      </div>
+
+      <!-- Role -->
+      <div style="margin-bottom:{% if editing %}16px{% else %}24px{% endif %};">
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:10px; letter-spacing:0.04em;">Role <span style="color:#f87171;">*</span></label>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          {% for role in roles %}
+          <label style="display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md); cursor:pointer; transition:border-color 0.15s;"
+            onmouseover="this.style.borderColor='var(--color-border-bright)'" onmouseout="if(!this.querySelector('input').checked)this.style.borderColor='var(--color-border)'" id="role-label-{{ role }}">
+            <input type="radio" name="role" value="{{ role }}" {% if current_role == role or post.role == role %}checked{% endif %} required
+              style="margin-top:2px; accent-color:var(--color-green-500);"
+              onchange="document.querySelectorAll('[id^=role-label-]').forEach(l=>l.style.borderColor='var(--color-border)'); this.closest('label').style.borderColor='var(--color-green-500)'">
+            <div>
+              <div style="font-size:13.5px; font-weight:600; color:var(--color-text-primary); margin-bottom:2px;">{{ role }}</div>
+              <div style="font-size:12px; color:var(--color-text-tertiary); line-height:1.5;">
+                {% if role == "Cleaner" %}Rooms, Cleaning board, Housekeeping, Maintenance tasks only.
+                {% elif role == "Operator" %}Full operations access — Bookings, Guests, Payments, POS, Reports. Cannot change system settings.
+                {% elif role == "Owner" %}Complete access including Settings, Subscription, and Staff management.
+                {% endif %}
+              </div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Active toggle (editing only) -->
+      {% if editing %}
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:24px;">
+        <div>
+          <div style="font-size:13.5px; font-weight:500; color:var(--color-text-primary);">Account Active</div>
+          <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:2px;">Inactive accounts cannot log in.</div>
+        </div>
+        <label style="position:relative; display:inline-block; width:40px; height:22px; cursor:pointer;">
+          <input type="checkbox" name="is_active" {% if staff_user.is_active %}checked{% endif %}
+            style="opacity:0; width:0; height:0; position:absolute;"
+            onchange="this.parentElement.querySelector('.toggle-track').style.background=this.checked?'var(--color-green-500)':'var(--color-bg-muted)'">
+          <span class="toggle-track" style="position:absolute; inset:0; border-radius:22px; transition:background 0.2s;
+            background:{% if staff_user.is_active %}var(--color-green-500){% else %}var(--color-bg-muted){% endif %}; border:1px solid var(--color-border-bright);">
+          </span>
+          <span style="position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:transform 0.2s;
+            transform:{% if staff_user.is_active %}translateX(18px){% else %}translateX(0){% endif %};" id="toggle-thumb"></span>
+        </label>
+      </div>
+      {% endif %}
+
+      <!-- Actions -->
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <a href="{% url 'core:staff_list' %}" class="btn btn-ghost">Cancel</a>
+        <button type="submit" class="btn btn-primary">
+          {% if editing %}Save Changes{% else %}Create Account{% endif %}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Highlight selected role on page load
+document.querySelectorAll('input[name="role"]').forEach(radio => {
+  if (radio.checked) radio.closest('label').style.borderColor = 'var(--color-green-500)';
+});
+// Toggle thumb position on checkbox change
+const cb = document.querySelector('input[name="is_active"]');
+const thumb = document.getElementById('toggle-thumb');
+if (cb && thumb) {
+  cb.addEventListener('change', () => {
+    thumb.style.transform = cb.checked ? 'translateX(18px)' : 'translateX(0)';
+  });
+}
+</script>
+{% endblock %}

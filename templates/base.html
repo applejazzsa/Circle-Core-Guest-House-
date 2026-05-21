@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Circle Core Guest House{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+  <style>
+    /* Chart.js global dark config */
+    :root { color-scheme: dark; }
+  </style>
+</head>
+<body style="background: var(--color-bg-base); display: flex; min-height: 100vh; overflow-x: hidden;">
+
+<!-- ─── SIDEBAR ──────────────────────────────────────────── -->
+<aside id="sidebar" style="
+  width: 240px; min-width: 240px; height: 100vh;
+  background: var(--color-bg-surface);
+  border-right: 1px solid var(--color-border);
+  display: flex; flex-direction: column;
+  position: sticky; top: 0;
+  transition: transform 0.3s ease;
+  z-index: 50;
+  overflow: hidden;
+">
+
+  <!-- Logo -->
+  <div style="padding: 24px 20px 18px; border-bottom: 1px solid var(--color-border); flex-shrink: 0;">
+    <a href="{% url 'core:home' %}" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+      <div style="
+        width: 32px; height: 32px; border-radius: 8px;
+        background: var(--color-green-500);
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: var(--shadow-green); flex-shrink: 0;
+      ">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
+          <rect x="9" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
+          <rect x="2" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
+          <rect x="9" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
+        </svg>
+      </div>
+      <div>
+        <div style="font-family: var(--font-display); font-weight: 700; font-size: 14.5px; color: var(--color-text-primary); letter-spacing: -0.02em; line-height: 1.2;">Circle Core</div>
+        <div style="font-size: 9.5px; color: var(--color-text-tertiary); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 1px;">Guest House</div>
+      </div>
+    </a>
+  </div>
+
+  <!-- Navigation -->
+  <nav style="flex: 1; padding: 12px 10px; overflow-y: auto; overflow-x: hidden;">
+
+    {% with u=request.resolver_match.url_name %}
+
+    {% if not is_cleaner %}
+    <a href="{% url 'core:home' %}" class="nav-item {% if u == 'home' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      Dashboard
+    </a>
+    {% endif %}
+
+    <div class="nav-group-label">Management</div>
+
+    <a href="{% url 'core:room_list' %}" class="nav-item {% if 'room' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+        <polyline points="9,22 9,12 15,12 15,22"/>
+      </svg>
+      Rooms
+    </a>
+
+    {% if not is_cleaner %}
+    <a href="{% url 'core:guest_list' %}" class="nav-item {% if 'guest' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+      Guests
+    </a>
+
+    <a href="{% url 'core:booking_list' %}" class="nav-item {% if 'booking' in u or u == 'payment_add' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      Bookings
+    </a>
+
+    <a href="{% url 'core:availability' %}" class="nav-item {% if u == 'availability' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
+      </svg>
+      Availability
+    </a>
+
+    <a href="{% url 'core:room_calendar' %}" class="nav-item {% if u == 'room_calendar' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      Calendar
+    </a>
+
+    <a href="{% url 'core:communications' %}" class="nav-item {% if u == 'communications' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a4 4 0 01-4 4H7l-4 4V7a4 4 0 014-4h10a4 4 0 014 4z"/>
+      </svg>
+      Messages
+    </a>
+    {% endif %}
+
+    <div class="nav-group-label">Operations</div>
+
+    {% if not is_cleaner %}
+    <a href="{% url 'core:payment_list' %}" class="nav-item {% if u == 'payment_list' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="4" width="22" height="16" rx="2"/>
+        <line x1="1" y1="10" x2="23" y2="10"/>
+      </svg>
+      Payments
+    </a>
+    {% endif %}
+
+    <a href="{% url 'core:cleaning' %}" class="nav-item {% if 'cleaning' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/>
+        <path d="M12 7V4m0 0H9m3 0h3"/>
+      </svg>
+      Cleaning
+      {% if cleaning_notification_count > 0 %}
+      <span class="nav-badge nav-badge-amber">{{ cleaning_notification_count }}</span>
+      {% endif %}
+    </a>
+
+    {% if can_manage_system %}
+    <a href="{% url 'core:cleaning_proof_review' %}" class="nav-item {% if u == 'cleaning_proof_review' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+      </svg>
+      Cleaning Proofs
+    </a>
+    {% endif %}
+
+    <a href="{% url 'core:housekeeping_mobile' %}" class="nav-item {% if u == 'housekeeping_mobile' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>
+      </svg>
+      Housekeeping
+    </a>
+
+    {% if plan and plan.feature_maintenance_requests %}
+    <a href="{% url 'core:maintenance_board' %}" class="nav-item {% if 'maintenance' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+      </svg>
+      Maintenance
+      {% if not is_cleaner and urgent_maintenance_count > 0 %}
+      <span class="nav-badge nav-badge-red">{{ urgent_maintenance_count }}</span>
+      {% endif %}
+    </a>
+    {% elif not is_cleaner %}
+    <a href="{% url 'core:subscription_upgrade' %}?feature=maintenance_requests" class="nav-item nav-item-locked">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      Maintenance
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto; opacity:0.35"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    </a>
+    {% endif %}
+
+    {% if not is_cleaner %}
+    <div class="nav-group-label">Finance</div>
+
+    {% if plan and plan.feature_expenses %}
+    <a href="{% url 'core:expense_list' %}" class="nav-item {% if 'expense' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+      </svg>
+      Expenses
+    </a>
+    {% else %}
+    <a href="{% url 'core:subscription_upgrade' %}?feature=expenses" class="nav-item nav-item-locked">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Expenses
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto; opacity:0.35"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    </a>
+    {% endif %}
+    {% endif %}
+
+    {% if not is_cleaner %}
+    {% if plan and plan.feature_inventory %}
+    <a href="{% url 'core:inventory_dashboard' %}" class="nav-item {% if 'inventory' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+      </svg>
+      Inventory
+      {% if low_stock_inventory_count > 0 %}
+      <span class="nav-badge nav-badge-amber">{{ low_stock_inventory_count }}</span>
+      {% endif %}
+    </a>
+    {% else %}
+    <a href="{% url 'core:subscription_upgrade' %}?feature=inventory" class="nav-item nav-item-locked">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+      Inventory
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto; opacity:0.35"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    </a>
+    {% endif %}
+    {% endif %}
+
+    {% if not is_cleaner %}
+    <a href="{% url 'core:reports' %}" class="nav-item {% if u == 'reports' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      Reports
+    </a>
+
+    {% if can_manage_system %}
+    <a href="{% url 'core:daily_close' %}" class="nav-item {% if u == 'daily_close' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+      </svg>
+      Daily Close
+    </a>
+    {% endif %}
+
+    <a href="{% url 'core:pos_transactions' %}" class="nav-item {% if u == 'pos_transactions' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+      </svg>
+      POS Integrations
+    </a>
+
+    {% if can_manage_system %}
+    <a href="{% url 'core:exception_report' %}" class="nav-item {% if u == 'exception_report' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2l8 4v6c0 5-3.4 9.4-8 10-4.6-.6-8-5-8-10V6l8-4z"/><path d="M12 8v5"/><path d="M12 17h.01"/>
+      </svg>
+      Exceptions
+    </a>
+    {% endif %}
+
+    <div class="nav-group-label">Point of Sale</div>
+
+    <a href="{% url 'core:pos_terminal' %}" class="nav-item {% if u == 'pos_terminal' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><polyline points="8,21 12,17 16,21"/><line x1="12" y1="17" x2="12" y2="21"/>
+      </svg>
+      Terminal
+    </a>
+
+    <a href="{% url 'core:pos_items_list' %}" class="nav-item {% if 'pos_item' in u or 'pos_categor' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+      </svg>
+      Items & Menu
+    </a>
+
+    <a href="{% url 'core:pos_sales_list' %}" class="nav-item {% if 'pos_sale' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+      </svg>
+      Sales History
+    </a>
+
+    <a href="{% url 'core:pos_shifts' %}" class="nav-item {% if 'pos_shift' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
+      </svg>
+      Shifts
+    </a>
+
+    <a href="{% url 'core:pos_reports' %}" class="nav-item {% if u == 'pos_reports' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      POS Reports
+    </a>
+    {% endif %}
+
+    {% if can_manage_system %}
+    <div class="nav-group-label">System</div>
+
+    <a href="{% url 'core:staff_list' %}" class="nav-item {% if 'staff' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+      Staff
+    </a>
+
+    <a href="{% url 'core:settings' %}" class="nav-item {% if u == 'settings' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+      Settings
+    </a>
+
+    <a href="{% url 'core:audit_timeline' %}" class="nav-item {% if u == 'audit_timeline' or u == 'exception_report' %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+      </svg>
+      Audit Trail
+    </a>
+
+    <a href="{% url 'core:subscription_status' %}" class="nav-item {% if 'subscription' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+      Subscription
+      {% if subscription and subscription.is_in_warning_period %}
+      <span class="nav-badge nav-badge-amber" style="margin-left:auto;">!</span>
+      {% endif %}
+    </a>
+    {% endif %}
+
+    {% endwith %}
+  </nav>
+
+  <!-- User footer -->
+  <div style="padding: 14px 16px; border-top: 1px solid var(--color-border); flex-shrink: 0;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="avatar avatar-sm avatar-green" style="font-size: 11px; font-weight: 700;">
+        {{ request.user.username|first|upper }}
+      </div>
+      <div style="flex:1; min-width:0; overflow:hidden;">
+        <div style="font-size:12.5px; font-weight:500; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ request.user.username }}</div>
+        <div style="font-size:10.5px; color:var(--color-text-tertiary); margin-top:1px;">{{ user_role }}</div>
+      </div>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" style="background:none; border:none; cursor:pointer; color:var(--color-text-tertiary); padding:4px; border-radius:6px; display:flex; align-items:center; transition: color 0.15s;" title="Sign out">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+</aside>
+
+<!-- Mobile overlay -->
+<div id="sidebar-overlay" onclick="closeSidebar()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:40; backdrop-filter:blur(2px);"></div>
+
+<!-- ─── MAIN CONTENT ──────────────────────────────────────── -->
+<div style="flex:1; display:flex; flex-direction:column; min-width:0; overflow-x:hidden;">
+
+  <!-- Top Bar -->
+  <header class="topbar-header" style="
+    height: 60px; background: var(--color-bg-surface);
+    border-bottom: 1px solid var(--color-border);
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 28px; position: sticky; top: 0; z-index: 30;
+    flex-shrink: 0;
+  ">
+    <!-- Mobile hamburger -->
+    <button id="hamburger" onclick="openSidebar()" style="display:none; background:none; border:none; cursor:pointer; color:var(--color-text-secondary); padding:4px; border-radius:6px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+
+    <!-- Property switcher -->
+    <div style="flex-shrink:0; position:relative;" id="prop-switcher-wrap">
+      <button onclick="togglePropSwitcher()" style="background:none; border:none; cursor:pointer; text-align:left; padding:4px 6px; border-radius:var(--radius-md); transition:background 0.15s;" onmouseover="this.style.background='var(--color-bg-elevated)'" onmouseout="this.style.background='none'">
+        <div style="font-size:9.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--color-green-500); font-weight:700; line-height:1.2; display:flex; align-items:center; gap:4px;">
+          Guest House
+          {% if all_properties|length > 1 or can_manage_system %}
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          {% endif %}
+        </div>
+        <div style="font-family:var(--font-display); font-size:14px; font-weight:600; color:var(--color-text-primary); line-height:1.2; margin-top:1px; max-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          {{ active_property.name|default:guest_house_settings.guest_house_name|default:'Circle Core' }}
+        </div>
+      </button>
+      <!-- Dropdown -->
+      <div id="prop-switcher-menu" style="display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:220px; background:var(--color-bg-surface); border:1px solid var(--color-border); border-radius:var(--radius-lg); box-shadow:var(--shadow-elevated); z-index:200; padding:6px; overflow:hidden;">
+        {% for p in all_properties %}
+        <a href="{% url 'core:property_switch' p.pk %}?next={{ request.path }}"
+          style="display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:var(--radius-md); text-decoration:none; transition:background 0.12s; {% if active_property.pk == p.pk %}background:var(--color-green-glow);{% endif %}"
+          onmouseover="this.style.background='var(--color-bg-elevated)'" onmouseout="this.style.background='{% if active_property.pk == p.pk %}var(--color-green-glow){% else %}transparent{% endif %}'">
+          <div style="width:8px; height:8px; border-radius:50%; background:{% if active_property.pk == p.pk %}var(--color-green-500){% else %}var(--color-border-bright){% endif %}; flex-shrink:0;"></div>
+          <span style="font-size:13px; font-weight:{% if active_property.pk == p.pk %}600{% else %}400{% endif %}; color:{% if active_property.pk == p.pk %}var(--color-green-400){% else %}var(--color-text-secondary){% endif %}; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ p.name }}</span>
+          <span style="font-size:10px; color:var(--color-text-tertiary);">{{ p.room_count }}r</span>
+        </a>
+        {% endfor %}
+        {% if can_manage_system %}
+        <div style="border-top:1px solid var(--color-border); margin:6px 0;"></div>
+        <a href="{% url 'core:property_add' %}" style="display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:var(--radius-md); text-decoration:none; color:var(--color-text-tertiary); font-size:12.5px; transition:background 0.12s;" onmouseover="this.style.background='var(--color-bg-elevated)'" onmouseout="this.style.background='transparent'">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add property
+        </a>
+        <a href="{% url 'core:property_list' %}" style="display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:var(--radius-md); text-decoration:none; color:var(--color-text-tertiary); font-size:12.5px; transition:background 0.12s;" onmouseover="this.style.background='var(--color-bg-elevated)'" onmouseout="this.style.background='transparent'">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          Manage properties
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Search bar -->
+    {% if not is_cleaner %}
+    <div class="topbar-search" style="flex:1; max-width:400px; margin: 0 auto;">
+      <form action="{% url 'core:search' %}" method="get" style="position:relative;">
+        <svg style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--color-text-tertiary); pointer-events:none;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input name="q" type="search" value="{{ request.GET.q }}" placeholder="Search guests, bookings, rooms…"
+          style="
+            width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright);
+            border-radius: var(--radius-full); padding: 7px 14px 7px 32px;
+            color:var(--color-text-primary); font-family:var(--font-body); font-size:13px; outline:none;
+            transition: border-color 0.15s;
+          "
+          onfocus="this.style.borderColor='var(--color-green-500)'"
+          onblur="this.style.borderColor='var(--color-border-bright)'">
+      </form>
+    </div>
+    {% else %}
+    <div style="flex:1;"></div>
+    {% endif %}
+
+    <!-- Right actions -->
+    <div class="topbar-actions" style="display:flex; align-items:center; gap:10px; margin-left:auto; flex-shrink:0;">
+      {% if not is_cleaner %}
+      <a href="{% url 'core:pos_terminal' %}" class="btn btn-secondary btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><path d="M6 15h.01"/><path d="M10 15h4"/>
+        </svg>
+        POS
+      </a>
+      <a href="{% url 'core:booking_add' %}?source=Walk-in&status=Confirmed" class="btn btn-primary btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Walk-in
+      </a>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- Subscription banners -->
+  {% if subscription and can_manage_system %}
+    {% if subscription.is_trial and subscription.days_remaining <= 7 and subscription.days_remaining > 0 %}
+    <div style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18); padding:9px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span style="font-size:12.5px; color:#fbbf24; font-weight:500;">Trial expires in <strong>{{ subscription.days_remaining }} day{{ subscription.days_remaining|pluralize }}</strong></span>
+      <a href="{% url 'core:plans_page' %}" style="font-size:12px; color:#f59e0b; font-weight:600; margin-left:8px; text-decoration:underline;">Upgrade now →</a>
+    </div>
+    {% elif subscription.is_trial and subscription.days_remaining > 7 %}
+    <div style="background:rgba(34,197,94,0.04); border-bottom:1px solid rgba(34,197,94,0.12); padding:8px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+      <span style="font-size:12px; color:var(--color-green-300);">Trial active · <strong>{{ subscription.days_remaining }} days</strong> remaining</span>
+      <a href="{% url 'core:plans_page' %}" style="font-size:12px; color:var(--color-green-400); font-weight:500; margin-left:auto; text-decoration:none;">View plans →</a>
+    </div>
+    {% elif subscription.status == 'active' and subscription.days_remaining <= 7 %}
+    <div style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18); padding:9px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+      <span style="font-size:12.5px; color:#fbbf24; font-weight:500;">Subscription renews in <strong>{{ subscription.days_remaining }} days</strong></span>
+      <a href="{% url 'core:subscription_status' %}" style="font-size:12px; color:#f59e0b; font-weight:600; margin-left:8px;">Manage →</a>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  {% if is_cleaner and cleaning_notification_count > 0 %}
+  <div style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18); padding:9px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+    <span style="font-size:12.5px; color:#fbbf24; font-weight:500;">{{ cleaning_notification_count }} room{{ cleaning_notification_count|pluralize }} waiting for cleaning</span>
+    <a href="{% url 'core:cleaning' %}" style="font-size:12px; color:#f59e0b; font-weight:600; margin-left:8px;">Open board</a>
+  </div>
+  {% endif %}
+
+  <!-- Flash messages -->
+  {% if messages %}
+  <div style="padding: 14px 28px 0; flex-shrink:0;">
+    {% for message in messages %}
+    <div data-message style="
+      display:flex; align-items:center; gap:10px;
+      padding: 11px 14px; border-radius: var(--radius-md); margin-bottom:8px;
+      font-size:13.5px; font-weight:500;
+      {% if message.level_tag == 'success' %}background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); color:var(--color-green-300);
+      {% elif message.level_tag == 'error' %}background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); color:#fca5a5;
+      {% elif message.level_tag == 'warning' %}background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); color:#fbbf24;
+      {% else %}background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); color:#93c5fd;{% endif %}
+    ">
+      {% if message.level_tag == 'success' %}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      {% elif message.level_tag == 'error' %}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      {% else %}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      {% endif %}
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Page content -->
+  <main class="main-content" style="flex:1; padding:28px 28px 40px; overflow-y:auto; overflow-x:hidden;">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<!-- ─── SIDEBAR STYLES + JS ──────────────────────────────── -->
+<div id="booking-reminder-stack" aria-live="polite"></div>
+
+<style>
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 11px; border-radius: var(--radius-md);
+  color: var(--color-text-tertiary); font-size: 13px; font-weight: 400;
+  text-decoration: none; transition: all 0.15s; margin-bottom: 1px;
+  position: relative; border: 1px solid transparent;
+}
+.nav-item:hover { background: var(--color-bg-elevated); color: var(--color-text-secondary); border-color: transparent; }
+.nav-item.active {
+  background: var(--color-green-glow); color: var(--color-green-400);
+  font-weight: 500; border-color: var(--color-green-border);
+}
+.nav-item.active svg { color: var(--color-green-400); }
+.nav-item-locked { opacity: 0.4; cursor: default; }
+.nav-item-locked:hover { background: none; color: var(--color-text-tertiary); }
+.nav-group-label {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--color-text-tertiary);
+  padding: 14px 11px 5px; opacity: 0.55;
+}
+.nav-badge {
+  margin-left: auto; font-size: 9.5px; font-weight: 700;
+  padding: 1px 6px; border-radius: var(--radius-full);
+  min-width: 18px; text-align: center; flex-shrink: 0;
+}
+.nav-badge-red { background: rgba(239,68,68,0.15); color: #f87171; }
+.nav-badge-amber { background: rgba(245,158,11,0.15); color: #fbbf24; }
+
+#booking-reminder-stack {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 36px));
+}
+
+.booking-reminder {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  background: var(--color-bg-surface);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
+  color: var(--color-text-primary);
+}
+
+.booking-reminder-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+}
+
+.booking-reminder-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+.booking-reminder-body {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+.booking-reminder-close {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+@media (max-width: 768px) {
+  #sidebar { position: fixed; transform: translateX(-100%); }
+  #sidebar.open { transform: translateX(0); }
+  #hamburger { display: flex !important; }
+  #sidebar-overlay.visible { display: block !important; }
+  .topbar-search { display: none !important; }
+  .topbar-header { padding: 0 14px !important; gap: 10px !important; }
+  .topbar-actions .btn span { display: none; }
+  .main-content { padding: 16px 14px 32px !important; }
+}
+
+@media (max-width: 480px) {
+  .topbar-actions .btn-secondary { display: none !important; }
+}
+</style>
+<script>
+// Chart.js global dark defaults
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.color = '#64748b';
+  Chart.defaults.borderColor = '#1e2433';
+  Chart.defaults.backgroundColor = 'transparent';
+}
+function togglePropSwitcher() {
+  const menu = document.getElementById('prop-switcher-menu');
+  if (!menu) return;
+  const open = menu.style.display !== 'none';
+  menu.style.display = open ? 'none' : 'block';
+}
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('prop-switcher-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const menu = document.getElementById('prop-switcher-menu');
+    if (menu) menu.style.display = 'none';
+  }
+});
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  const overlay = document.getElementById('sidebar-overlay');
+  overlay.style.display = 'block';
+  setTimeout(() => overlay.classList.add('visible'), 10);
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  const overlay = document.getElementById('sidebar-overlay');
+  overlay.classList.remove('visible');
+  setTimeout(() => { overlay.style.display = 'none'; }, 300);
+}
+// Auto-dismiss flash messages
+setTimeout(() => {
+  document.querySelectorAll('[data-message]').forEach(el => {
+    el.style.transition = 'opacity 0.5s, max-height 0.5s';
+    el.style.opacity = '0';
+    el.style.maxHeight = '0';
+    setTimeout(() => el.remove(), 500);
+  });
+}, 5000);
+
+(function() {
+  const endpoint = "{% url 'core:completed_booking_reminders_api' %}";
+  const storageKey = 'circlecore.completedBookingReminders';
+  const lastCheckKey = 'circlecore.completedBookingReminderLastCheck';
+  const stack = document.getElementById('booking-reminder-stack');
+  let audioContext = null;
+
+  function getSeen() {
+    try { return JSON.parse(localStorage.getItem(storageKey) || '{}'); }
+    catch (err) { return {}; }
+  }
+
+  function saveSeen(seen) {
+    localStorage.setItem(storageKey, JSON.stringify(seen));
+  }
+
+  function markSeen(reminder) {
+    const seen = getSeen();
+    seen[reminder.id + ':' + reminder.ended_at] = Date.now();
+    const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    Object.keys(seen).forEach(key => {
+      if (seen[key] < cutoff) delete seen[key];
+    });
+    saveSeen(seen);
+  }
+
+  function wasSeen(reminder) {
+    const seen = getSeen();
+    return Boolean(seen[reminder.id + ':' + reminder.ended_at]);
+  }
+
+  function unlockAudio() {
+    if (audioContext) return;
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return;
+    audioContext = new AudioCtor();
+    if (audioContext.state === 'suspended') audioContext.resume();
+  }
+
+  function playBell() {
+    unlockAudio();
+    if (!audioContext) return;
+    if (audioContext.state === 'suspended') audioContext.resume();
+
+    const now = audioContext.currentTime;
+    [0, 0.22].forEach(offset => {
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, now + offset);
+      osc.frequency.exponentialRampToValueAtTime(1320, now + offset + 0.12);
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.28, now + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.45);
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.48);
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char]));
+  }
+
+  function showReminder(reminder) {
+    if (!stack) return;
+    const item = document.createElement('div');
+    item.className = 'booking-reminder';
+    item.innerHTML = `
+      <div class="booking-reminder-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 01-3.46 0"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="booking-reminder-title">Booking session completed</div>
+        <div class="booking-reminder-body">
+          ${escapeHtml(reminder.room)} · ${escapeHtml(reminder.duration)}<br>
+          ${escapeHtml(reminder.guest)} · ${escapeHtml(reminder.reference)}
+        </div>
+      </div>
+      <button type="button" class="booking-reminder-close" aria-label="Dismiss reminder">&times;</button>
+    `;
+    item.querySelector('.booking-reminder-close').addEventListener('click', () => item.remove());
+    stack.prepend(item);
+    setTimeout(() => item.remove(), 30000);
+    playBell();
+  }
+
+  async function pollCompletedBookings() {
+    const fallbackSince = Date.now();
+    const since = Number(localStorage.getItem(lastCheckKey) || fallbackSince);
+    try {
+      const response = await fetch(endpoint + '?since=' + encodeURIComponent(since), {
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+        credentials: 'same-origin'
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      localStorage.setItem(lastCheckKey, String(data.server_time || Date.now()));
+      (data.reminders || []).forEach(reminder => {
+        if (wasSeen(reminder)) return;
+        markSeen(reminder);
+        showReminder(reminder);
+      });
+    } catch (err) {
+      localStorage.setItem(lastCheckKey, String(Date.now()));
+    }
+  }
+
+  ['pointerdown', 'keydown'].forEach(eventName => {
+    window.addEventListener(eventName, unlockAudio, {once: true});
+  });
+
+  if (!localStorage.getItem(lastCheckKey)) {
+    localStorage.setItem(lastCheckKey, String(Date.now()));
+  }
+  setTimeout(pollCompletedBookings, 5000);
+  setInterval(pollCompletedBookings, 30000);
+})();
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

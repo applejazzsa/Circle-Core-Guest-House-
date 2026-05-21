@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Circle Core Guest House{% endblock %}
+
+{% block content %}
+{{ last_6_months_revenue|json_script:"revenue-data" }}
+<style>
+  .metric-card .metric-value { font-family: var(--font-body); letter-spacing: 0; }
+
+  .dash-metric-row  { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:16px; }
+  .dash-finance-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
+  .dash-main-grid   { display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start; }
+  .dash-ops-grid    { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+
+  @media (max-width:1200px) {
+    .dash-main-grid { grid-template-columns:1fr 280px; }
+  }
+  @media (max-width:1024px) {
+    .dash-metric-row, .dash-finance-row { grid-template-columns:repeat(2,1fr); }
+  }
+  @media (max-width:900px) {
+    .dash-main-grid { grid-template-columns:1fr; }
+    .dash-ops-grid  { grid-template-columns:1fr 1fr; }
+  }
+  @media (max-width:580px) {
+    .dash-metric-row, .dash-finance-row { grid-template-columns:repeat(2,1fr); gap:10px; }
+    .dash-ops-grid  { grid-template-columns:1fr; }
+  }
+  @media (max-width:420px) {
+    .dash-metric-row, .dash-finance-row { grid-template-columns:1fr; }
+  }
+</style>
+
+<!-- Page header -->
+<div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px;">
+  <div>
+    <div class="section-label">Overview</div>
+    <h1 class="page-title">Dashboard</h1>
+  </div>
+  <div style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-tertiary);">{{ today|date:"D, d M Y" }}</div>
+</div>
+
+<!-- ── Row 1: Room metrics ─────────────────────────────── -->
+{% if can_manage_system %}
+<div class="card" style="margin-bottom:18px; padding:16px 18px; border-left:3px solid {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#f59e0b{% else %}var(--color-green-500){% endif %};">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <div class="section-label" style="margin-bottom:4px;">Owner Watch</div>
+      <div style="font-size:13.5px; color:var(--color-text-secondary);">
+        {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}
+        {{ owner_exception_count }} exception{{ owner_exception_count|pluralize }}, {{ owner_refund_count }} refund{{ owner_refund_count|pluralize }}, {{ owner_open_shift_count }} open shift{{ owner_open_shift_count|pluralize }} today.
+        {% else %}
+        No risky activity flagged today.
+        {% endif %}
+        {% if owner_locked_today %}<span style="color:var(--color-green-400); font-weight:700;">Daily close is locked.</span>{% else %}<span style="color:#f59e0b; font-weight:700;">Daily close is still open.</span>{% endif %}
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="{% url 'core:audit_timeline' %}?date={{ today|date:'Y-m-d' }}" class="btn btn-ghost btn-sm">Audit Trail</a>
+      <a href="{% url 'core:daily_close' %}?date={{ today|date:'Y-m-d' }}" class="btn btn-secondary btn-sm">Daily Close</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="dash-metric-row">
+
+  <div class="metric-card" style="--accent-color:var(--color-green-500);">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div class="metric-label">Total Rooms</div>
+      <div class="metric-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+      </div>
+    </div>
+    <div class="metric-value">{{ total_rooms }}</div>
+    <div class="metric-sub">rooms configured</div>
+  </div>
+
+  <div class="metric-card" style="--accent-color:#ef4444;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div class="metric-label">Booked</div>
+      <div class="metric-icon" style="background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.25); color:#f87171;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+    </div>
+    <div class="metric-value">{{ booked_rooms }}</div>
+    <div class="metric-sub">confirmed reservations</div>
+  </div>
+
+  <div class="metric-card" style="--accent-color:var(--color-blue);">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div class="metric-label">Occupied</div>
+      <div class="metric-icon" style="background:rgba(59,130,246,0.1); border-color:rgba(59,130,246,0.25); color:#60a5fa;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      </div>
+    </div>
+    <div class="metric-value">{{ occupied_rooms }}</div>
+    <div class="metric-sub">{{ occupied_capacity_rate }}% of capacity</div>
+  </div>
+
+  <div class="metric-card" style="--accent-color:var(--color-green-500);">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div class="metric-label">Available</div>
+      <div class="metric-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+    </div>
+    <div class="metric-value">{{ available_rooms }}</div>
+    <div class="metric-sub">of {{ total_rooms }} total</div>
+  </div>
+
+  <a href="{% url 'core:cleaning' %}" class="metric-card" style="--accent-color:var(--color-amber); text-decoration:none;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div class="metric-label">Needs Cleaning</div>
+      <div class="metric-icon" style="background:rgba(245,158,11,0.1); border-color:rgba(245,158,11,0.25); color:#f59e0b;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6v14m8-14v14M5 20h14"/></svg>
+      </div>
+    </div>
+    <div class="metric-value">{{ rooms_needing_cleaning }}</div>
+    <div class="metric-sub">open cleaning tasks</div>
+  </a>
+</div>
+
+<!-- ── Row 2: Finance metrics ─────────────────────────── -->
+<div class="dash-finance-row">
+
+  <div class="metric-card" style="--accent-color:var(--color-green-500);">
+    <div class="metric-label">Revenue This Month</div>
+    <div class="metric-value" style="font-size:1.75rem;">R {{ monthly_revenue }}</div>
+    <div class="metric-sub">collected payments</div>
+  </div>
+
+  <div class="metric-card" style="--accent-color:{% if outstanding_balances > 0 %}var(--color-red){% else %}var(--color-green-500){% endif %};">
+    <div class="metric-label">Outstanding</div>
+    <div class="metric-value" style="font-size:1.75rem; color:{% if outstanding_balances > 0 %}#f87171{% else %}var(--color-text-primary){% endif %};">
+      R {{ outstanding_balances }}
+    </div>
+    <div class="metric-sub">{% if outstanding_balances > 0 %}requires collection{% else %}all settled{% endif %}</div>
+  </div>
+
+  <div class="metric-card" style="--accent-color:var(--color-blue);">
+    <div class="metric-label">Bookings This Month</div>
+    <div class="metric-value">{{ bookings_this_month }}</div>
+    <div class="metric-sub">active arrivals</div>
+  </div>
+
+  <div class="metric-card" style="--accent-color:var(--color-purple);">
+    <div class="metric-label">Occupancy Rate</div>
+    <div class="metric-value" style="color:var(--color-purple);">{{ occupancy_rate }}%</div>
+    <div class="metric-sub">month to date</div>
+  </div>
+</div>
+
+<!-- ── Main content grid ───────────────────────────────── -->
+<div class="dash-main-grid">
+
+  <!-- Left column -->
+  <div style="display:flex; flex-direction:column; gap:20px; min-width:0;">
+
+    <!-- Revenue chart -->
+    <div class="card" style="padding:24px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+        <div>
+          <div class="section-label">Revenue Trend</div>
+          <div style="font-family:var(--font-display); font-size:16px; font-weight:600; color:var(--color-text-primary); margin-top:2px;">Last 6 Months</div>
+        </div>
+        <a href="{% url 'core:reports' %}" class="btn btn-ghost btn-sm">View Reports</a>
+      </div>
+      <div style="height:200px; position:relative;">
+        <canvas id="revenueChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Today's operations: 3 columns -->
+    <div class="card" style="padding:24px;">
+      <div class="section-label" style="margin-bottom:16px;">Today's Operations</div>
+      <div class="dash-ops-grid">
+
+        <!-- Check-ins -->
+        <div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <span style="font-size:12px; font-weight:600; color:var(--color-text-primary);">Check-ins</span>
+            <span style="font-family:var(--font-mono); font-size:11px; background:var(--color-bg-muted); color:var(--color-text-tertiary); padding:2px 8px; border-radius:var(--radius-full);">{{ todays_checkins|length }}</span>
+          </div>
+          {% for booking in todays_checkins %}
+          <div style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:10px; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <div class="avatar avatar-sm avatar-green">{{ booking.guest.first_name|first }}{{ booking.guest.last_name|first }}</div>
+              <div style="min-width:0;">
+                <div style="font-size:12.5px; font-weight:500; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ booking.guest.full_name }}</div>
+                <div style="font-size:11px; color:var(--color-text-tertiary);">{{ booking.room.name }}</div>
+              </div>
+            </div>
+            <form method="post" action="{% url 'core:booking_checkin' booking.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary btn-sm" style="width:100%; justify-content:center; font-size:11px;">Check In</button>
+            </form>
+          </div>
+          {% empty %}
+          <div style="text-align:center; padding:24px 0; color:var(--color-text-tertiary);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px; opacity:0.4;"><polyline points="20 6 9 17 4 12"/></svg>
+            <div style="font-size:11.5px;">No check-ins today</div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Check-outs -->
+        <div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <span style="font-size:12px; font-weight:600; color:var(--color-text-primary);">Check-outs</span>
+            <span style="font-family:var(--font-mono); font-size:11px; background:var(--color-bg-muted); color:var(--color-text-tertiary); padding:2px 8px; border-radius:var(--radius-full);">{{ todays_checkouts|length }}</span>
+          </div>
+          {% for booking in todays_checkouts %}
+          <div style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:10px; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <div class="avatar avatar-sm" style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); color:#fbbf24; font-size:11px;">{{ booking.guest.first_name|first }}{{ booking.guest.last_name|first }}</div>
+              <div style="min-width:0;">
+                <div style="font-size:12.5px; font-weight:500; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ booking.guest.full_name }}</div>
+                <div style="font-size:11px; color:{% if booking.balance_due > 0 %}#f87171{% else %}var(--color-text-tertiary){% endif %};">
+                  {% if booking.balance_due > 0 %}R {{ booking.balance_due|floatformat:2 }} due{% else %}Settled{% endif %}
+                </div>
+              </div>
+            </div>
+            <form method="post" action="{% url 'core:booking_checkout' booking.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; font-size:11px;">Check Out</button>
+            </form>
+          </div>
+          {% empty %}
+          <div style="text-align:center; padding:24px 0; color:var(--color-text-tertiary);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px; opacity:0.4;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+            <div style="font-size:11.5px;">No check-outs today</div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- In-house -->
+        <div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <span style="font-size:12px; font-weight:600; color:var(--color-text-primary);">In-House</span>
+            <span style="font-family:var(--font-mono); font-size:11px; background:var(--color-bg-muted); color:var(--color-text-tertiary); padding:2px 8px; border-radius:var(--radius-full);">{{ in_house_bookings|length }}</span>
+          </div>
+          {% for booking in in_house_bookings %}
+          <a href="{% url 'core:booking_detail' booking.pk %}" style="display:block; background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:10px; margin-bottom:8px; text-decoration:none; transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--color-border-bright)'" onmouseout="this.style.borderColor='var(--color-border)'">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="avatar avatar-sm avatar-blue" style="font-size:10px;">{{ booking.guest.first_name|first }}{{ booking.guest.last_name|first }}</div>
+              <div style="min-width:0;">
+                <div style="font-size:12.5px; font-weight:500; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ booking.guest.full_name }}</div>
+                <div style="font-size:11px; color:var(--color-text-tertiary);">{{ booking.room.name }} · {{ booking.nights_so_far }}n</div>
+              </div>
+            </div>
+          </a>
+          {% empty %}
+          <div style="text-align:center; padding:24px 0; color:var(--color-text-tertiary);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px; opacity:0.4;"><circle cx="12" cy="12" r="10"/></svg>
+            <div style="font-size:11.5px;">No guests in-house</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Upcoming arrivals -->
+    {% if upcoming_arrivals %}
+    <div class="card" style="padding:24px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div>
+          <div class="section-label">Upcoming</div>
+          <div style="font-size:14px; font-weight:600; color:var(--color-text-primary); margin-top:2px;">Arrivals in next 3 days</div>
+        </div>
+        <span class="badge badge-blue">{{ upcoming_arrivals_count }}</span>
+      </div>
+      {% for booking in upcoming_arrivals %}
+      <a href="{% url 'core:booking_detail' booking.pk %}" style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--color-border); text-decoration:none;" onmouseover="this.querySelector('.arr-name').style.color='var(--color-green-400)'" onmouseout="this.querySelector('.arr-name').style.color='var(--color-text-primary)'">
+        <div class="avatar avatar-sm avatar-purple" style="font-size:10px; flex-shrink:0;">{{ booking.guest.first_name|first }}{{ booking.guest.last_name|first }}</div>
+        <div style="flex:1; min-width:0;">
+          <div class="arr-name" style="font-size:13px; font-weight:500; color:var(--color-text-primary); transition:color 0.15s;">{{ booking.guest.full_name }}</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary);">{{ booking.room.name }} · {{ booking.check_in_date|date:"d M" }}</div>
+        </div>
+        <div class="badge badge-blue" style="flex-shrink:0;">{{ booking.booking_source }}</div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Outstanding balances -->
+    {% if unpaid_bookings %}
+    <div class="card" style="padding:24px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div>
+          <div class="section-label" style="color:var(--color-red);">Action Required</div>
+          <div style="font-size:14px; font-weight:600; color:var(--color-text-primary); margin-top:2px;">Outstanding Balances</div>
+        </div>
+        <span class="badge badge-red">{{ unpaid_balance_count }}</span>
+      </div>
+      {% for booking in unpaid_bookings %}
+      <a href="{% url 'core:booking_detail' booking.pk %}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--color-border); text-decoration:none;">
+        <div style="min-width:0;">
+          <div style="font-size:13px; font-weight:500; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ booking.guest.full_name }}</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary);">{{ booking.room.name }} · {{ booking.status }}</div>
+        </div>
+        <div style="font-family:var(--font-body); font-size:13px; font-weight:600; color:#f87171; flex-shrink:0;">R {{ booking.balance_due|floatformat:2 }}</div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Right column: sidebar panels -->
+  <div style="display:flex; flex-direction:column; gap:20px;">
+
+    <!-- Room status board -->
+    <div class="card" style="padding:20px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div class="section-label">Room Board</div>
+        <a href="{% url 'core:room_list' %}" class="btn btn-ghost btn-sm" style="font-size:11px; padding:3px 10px;">All rooms</a>
+      </div>
+      <div style="max-height:400px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+        {% for room in room_board %}
+        <a href="{% url 'core:room_detail' room.pk %}" style="display:block; background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:10px 12px; text-decoration:none; transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--color-border-bright)'" onmouseout="this.style.borderColor='var(--color-border)'">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <div style="min-width:0;">
+              <div style="font-size:12.5px; font-weight:500; color:var(--color-text-primary); display:flex; align-items:center; gap:6px;">
+                {{ room.name }}
+                {% if room.has_urgent_maintenance %}
+                <span style="color:#f87171;" title="Urgent maintenance">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </span>
+                {% endif %}
+              </div>
+              {% if room.current_guest_name %}<div style="font-size:10.5px; color:var(--color-text-tertiary);">{{ room.current_guest_name }}</div>{% endif %}
+            </div>
+            <span class="badge
+              {% if room.status == 'Available' %}badge-green
+              {% elif room.status == 'Booked' %}badge-red
+              {% elif room.status == 'Occupied' %}badge-blue
+              {% elif room.status == 'Cleaning' %}badge-amber
+              {% elif room.status == 'Maintenance' %}badge-amber
+              {% else %}badge-gray{% endif %}" style="font-size:10px; padding:2px 8px;">
+              {{ room.status }}
+            </span>
+          </div>
+          <div style="display:flex; align-items:center; gap:5px; margin-top:6px;">
+            <span class="status-dot {% if room.cleaning_status == 'Clean' %}status-dot-green{% elif room.cleaning_status == 'Needs Cleaning' %}status-dot-amber{% else %}status-dot-blue{% endif %}" style="width:5px; height:5px;"></span>
+            <span style="font-size:10px; color:var(--color-text-tertiary);">{{ room.cleaning_status }}</span>
+          </div>
+        </a>
+        {% empty %}
+        <div class="empty-state" style="padding:24px 0;">
+          <div style="font-size:12px; color:var(--color-text-tertiary);">No rooms configured</div>
+          <a href="{% url 'core:room_add' %}" class="btn btn-primary btn-sm" style="margin-top:10px;">Add Room</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Maintenance panel -->
+    <div class="card" style="padding:20px;">
+      {% if plan and plan.feature_maintenance_requests %}
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <div class="section-label">Maintenance</div>
+        <a href="{% url 'core:maintenance_board' %}" class="btn btn-ghost btn-sm" style="font-size:11px; padding:3px 10px;">Board</a>
+      </div>
+      <div style="font-size:12px; color:var(--color-text-tertiary); margin-bottom:12px;">{{ open_maintenance_count }} open request{{ open_maintenance_count|pluralize }}</div>
+      {% for req in urgent_maintenance_requests %}
+      <a href="{% url 'core:maintenance_detail' req.pk %}" style="display:block; background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); padding:10px; margin-bottom:6px; text-decoration:none;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <span style="font-size:12.5px; font-weight:500; color:var(--color-text-primary);">{{ req.title }}</span>
+          <span class="badge badge-red" style="font-size:9px;">{{ req.get_priority_display }}</span>
+        </div>
+        <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:4px;">{{ req.room|default:"No room" }}{% if req.scheduled_for %} · {{ req.scheduled_for|date:"d M" }}{% endif %}</div>
+      </a>
+      {% empty %}
+      <div style="text-align:center; padding:12px 0; color:var(--color-text-tertiary); font-size:12px;">
+        <span style="color:var(--color-green-500);">✓</span> No urgent requests
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="section-label">Maintenance</div>
+      <div style="font-size:12px; color:var(--color-text-tertiary); margin:10px 0 14px; line-height:1.6;">Upgrade to track repairs, contractors, and room blocks.</div>
+      <a href="{% url 'core:subscription_upgrade' %}?feature=maintenance_requests" class="btn btn-ghost btn-sm">Upgrade Plan</a>
+      {% endif %}
+    </div>
+
+    <!-- Inventory panel -->
+    {% if plan and plan.feature_inventory %}
+    <div class="card" style="padding:20px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <div class="section-label">Inventory</div>
+        <a href="{% url 'core:inventory_dashboard' %}" class="btn btn-ghost btn-sm" style="font-size:11px; padding:3px 10px;">All</a>
+      </div>
+      {% if low_stock_inventory_count > 0 %}
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <span class="badge badge-amber">{{ low_stock_inventory_count }} low stock</span>
+      </div>
+      {% endif %}
+      {% for item in low_stock_inventory_items %}
+      <a href="{% url 'core:inventory_detail' item.pk %}" style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--color-border); text-decoration:none;">
+        <span style="font-size:12.5px; color:var(--color-text-secondary);">{{ item.name }}</span>
+        <span style="font-family:var(--font-mono); font-size:11px; color:#fbbf24;">{{ item.current_stock|floatformat:0 }} {{ item.unit }}</span>
+      </a>
+      {% empty %}
+      <div style="font-size:12px; color:var(--color-green-400); text-align:center; padding:8px 0;">All levels healthy</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<script>
+(function() {
+  const raw = JSON.parse(document.getElementById('revenue-data').textContent || '[]');
+  const ctx = document.getElementById('revenueChart');
+  if (!ctx || !window.Chart || !raw.length) return;
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: raw.map(d => d.month_label),
+      datasets: [{
+        data: raw.map(d => d.revenue),
+        backgroundColor: 'rgba(34, 197, 94, 0.7)',
+        hoverBackgroundColor: '#22c55e',
+        borderRadius: 6,
+        barThickness: 32,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1e26',
+          borderColor: '#2a3142',
+          borderWidth: 1,
+          titleColor: '#94a3b8',
+          bodyColor: '#f1f5f9',
+          padding: 10,
+          callbacks: {
+            label: ctx => `R ${ctx.parsed.y.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          border: { display: false },
+          ticks: { color: '#64748b', font: { family: "'DM Sans', sans-serif", size: 11 } }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(30,36,51,0.8)', drawBorder: false },
+          border: { display: false },
+          ticks: {
+            color: '#64748b',
+            font: { family: "'DM Mono', monospace", size: 10 },
+            callback: v => `R${(v/1000).toFixed(0)}k`
+          }
+        }
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Inventory</div>
+    <h1 class="page-title">{{ title }}</h1>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:inventory_dashboard' %}" class="btn btn-ghost">← Back</a>
+  </div>
+</div>
+
+<div style="max-width:760px;">
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div style="margin-bottom:16px; padding:12px 14px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:20px;">Item Details</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        {% for field in form %}
+        <div class="form-group {% if field.name == 'notes' or field.name == 'description' %}style="grid-column:1/-1;"{% endif %}"
+          {% if field.name == 'notes' or field.name == 'description' %}style="grid-column:1/-1;"{% endif %}>
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<div class="form-hint">{{ field.help_text }}</div>{% endif %}
+          {% if field.errors %}<div class="form-error">{{ field.errors.0 }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px;">
+      <button type="submit" class="btn btn-primary btn-lg">Save</button>
+      <a href="{% url 'core:inventory_dashboard' %}" class="btn btn-ghost btn-lg">Cancel</a>
+    </div>
+  </form>
+
+  {% if is_category_form %}
+  <div class="card" style="margin-top:24px;">
+    <div class="section-label" style="margin-bottom:16px;">Existing Categories</div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      {% for category in categories %}
+      <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--color-bg-subtle); border-radius:var(--radius-md);">
+        <span style="width:10px; height:10px; border-radius:50%; background:{{ category.color }}; flex-shrink:0;"></span>
+        <span style="font-weight:500; color:var(--color-text-primary); font-size:13.5px;">{{ category.name }}</span>
+        {% if category.description %}<span style="font-size:12.5px; color:var(--color-text-tertiary);">{{ category.description }}</span>{% endif %}
+      </div>
+      {% empty %}
+      <p style="font-size:13px; color:var(--color-text-tertiary); padding:8px 0;">No categories yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

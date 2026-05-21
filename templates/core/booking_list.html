@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Bookings — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Management</div>
+    <h1 class="page-title">Bookings</h1>
+    <p class="page-subtitle">{{ filtered_count }} booking{{ filtered_count|pluralize }} · R {{ filtered_revenue }}</p>
+  </div>
+  <div class="page-header-actions">
+    {% if active_filters %}
+    <a href="{% url 'core:booking_list' %}" class="btn btn-ghost btn-sm">Clear filters</a>
+    {% endif %}
+    <a href="{% url 'core:booking_add' %}" class="btn btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Booking
+    </a>
+  </div>
+</div>
+
+<!-- Status stats pills -->
+<div class="filter-row" style="margin-bottom:20px;">
+  <a href="{% url 'core:booking_list' %}" class="filter-pill {% if not status_filter %}active{% endif %}">All</a>
+  <a href="?status=Confirmed" class="filter-pill {% if status_filter == 'Confirmed' %}active{% endif %}">Confirmed <span style="font-family:var(--font-mono); font-size:10px; opacity:0.7;">{{ status_counts.Confirmed }}</span></a>
+  <a href="?status=Checked+In" class="filter-pill {% if status_filter == 'Checked In' %}active{% endif %}">Checked In <span style="font-family:var(--font-mono); font-size:10px; opacity:0.7;">{{ status_counts.checked_in|default:0 }}</span></a>
+  <a href="?status=Checked+Out" class="filter-pill {% if status_filter == 'Checked Out' %}active{% endif %}">Checked Out</a>
+  <a href="?status=Pending" class="filter-pill {% if status_filter == 'Pending' %}active{% endif %}">Pending <span style="font-family:var(--font-mono); font-size:10px; opacity:0.7;">{{ status_counts.Pending }}</span></a>
+  <a href="?status=Cancelled" class="filter-pill {% if status_filter == 'Cancelled' %}active{% endif %}">Cancelled</a>
+</div>
+
+<!-- Filters bar -->
+<form method="get" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
+  {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+  <select name="source" style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:7px 12px; color:var(--color-text-secondary); font-size:13px; cursor:pointer;">
+    <option value="">All Sources</option>
+    {% for value, label in source_choices %}
+    <option value="{{ value }}" {% if source_filter == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <input type="month" name="month" value="{{ month_filter }}"
+    style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:7px 12px; color:var(--color-text-secondary); font-size:13px;">
+  <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+</form>
+
+{% if bookings %}
+<div class="card" style="padding:0; overflow:hidden;">
+  <div class="table-scroll">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Reference</th>
+        <th>Guest</th>
+        <th>Room</th>
+        <th>Check-in</th>
+        <th class="hide-mobile">Check-out</th>
+        <th>Total</th>
+        <th>Balance</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for booking in bookings %}
+      <tr>
+        <td>
+          <a href="{% url 'core:booking_detail' booking.pk %}" style="font-family:var(--font-mono); font-size:12px; color:var(--color-green-400); text-decoration:none; font-weight:500;">{{ booking.booking_reference }}</a>
+        </td>
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="avatar avatar-sm avatar-green" style="font-size:9.5px; flex-shrink:0;">{{ booking.guest.first_name|first }}{{ booking.guest.last_name|first }}</div>
+            <a href="{% url 'core:guest_detail' booking.guest.pk %}" style="font-size:13.5px; color:var(--color-text-primary); text-decoration:none; font-weight:500;">{{ booking.guest.full_name }}</a>
+          </div>
+        </td>
+        <td style="font-size:13px;">{{ booking.room.name }}</td>
+        <td style="font-family:var(--font-mono); font-size:12.5px;">{{ booking.check_in_date|date:"d M Y" }}</td>
+        <td class="hide-mobile" style="font-family:var(--font-mono); font-size:12.5px;">{{ booking.check_out_date|date:"d M Y" }}</td>
+        <td style="font-family:var(--font-mono); font-size:13px; color:var(--color-text-primary); font-weight:500;">{{ guest_house_settings.currency|default:"R" }} {{ booking.total_amount|floatformat:2 }}</td>
+        <td>
+          {% if booking.balance_due > 0 %}
+          <span style="font-family:var(--font-mono); font-size:13px; color:#f87171; font-weight:500;">{{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due|floatformat:2 }}</span>
+          {% else %}
+          <span style="font-size:12px; color:var(--color-green-400);">Settled</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="badge
+            {% if booking.status == 'Confirmed' %}badge-blue
+            {% elif booking.status == 'Checked In' %}badge-green
+            {% elif booking.status == 'Checked Out' %}badge-gray
+            {% elif booking.status == 'Cancelled' %}badge-red
+            {% elif booking.status == 'No Show' %}badge-purple
+            {% else %}badge-amber{% endif %}" style="font-size:9.5px;">{{ booking.status }}</span>
+        </td>
+        <td>
+          <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-sm">View</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% else %}
+<div class="card empty-state">
+  <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  <div class="empty-state-title">No bookings{% if active_filters %} matching filters{% endif %}</div>
+  {% if active_filters %}
+  <a href="{% url 'core:booking_list' %}" class="btn btn-ghost">Clear filters</a>
+  {% else %}
+  <a href="{% url 'core:booking_add' %}" class="btn btn-primary">Create first booking</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

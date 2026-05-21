@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Housekeeping - Circle Core Guest House{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Mobile</div>
+    <h1 class="page-title">Housekeeping</h1>
+  </div>
+</div>
+
+<div style="display:grid; gap:12px; max-width:560px;">
+  {% for room in rooms %}
+  <div class="card" style="padding:16px;">
+    <div style="display:flex; justify-content:space-between; gap:12px; align-items:start;">
+      <div>
+        <div style="font-size:18px; font-weight:800; color:var(--color-text-primary);">{{ room.name }}</div>
+        <div style="font-size:12px; color:var(--color-text-tertiary);">{{ room.room_type }} · {{ room.cleaning_status }}</div>
+      </div>
+      <span class="badge {% if room.cleaning_status == 'Needs Cleaning' %}badge-amber{% else %}badge-blue{% endif %}">{{ room.cleaning_status }}</span>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+      {% if room.cleaning_status == "Needs Cleaning" %}
+      <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}">
+        {% csrf_token %}<input type="hidden" name="cleaning_status" value="In Progress">
+        <button class="btn btn-secondary" type="submit">Start</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}" enctype="multipart/form-data" style="flex:1;">
+        {% csrf_token %}<input type="hidden" name="cleaning_status" value="Clean">
+        <input type="file" name="cleaning_photo" accept="image/*" capture="environment" required style="width:100%; margin-bottom:8px;">
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Mark Clean</button>
+      </form>
+    </div>
+  </div>
+  {% empty %}
+  <div class="empty-state"><div class="empty-state-title">No housekeeping tasks</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

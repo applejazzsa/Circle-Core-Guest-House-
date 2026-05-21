@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Cleaning Board — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Operations</div>
+    <h1 class="page-title">Cleaning Board</h1>
+  </div>
+</div>
+
+<div class="kanban-board">
+  <!-- Needs Cleaning -->
+  <div class="kanban-col" style="border-top-color:#f59e0b;">
+    <div class="kanban-col-header">
+      <div>
+        <div style="font-weight:700; color:#f59e0b; font-size:13px; text-transform:uppercase; letter-spacing:0.06em;">Needs Cleaning</div>
+        <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">{{ needs_cleaning_rooms|length }} room{{ needs_cleaning_rooms|length|pluralize }}</div>
+      </div>
+      <div style="background:rgba(245,158,11,0.12); border-radius:999px; padding:2px 10px; font-family:var(--font-mono); font-size:11px; color:#f59e0b; font-weight:600;">{{ needs_cleaning_rooms|length }}</div>
+    </div>
+    <div style="padding:12px; display:flex; flex-direction:column; gap:10px;">
+      {% for room in needs_cleaning_rooms %}
+        {% include "partials/cleaning_room_card.html" with room=room column="needs_cleaning" %}
+      {% empty %}
+      <div style="border:1px dashed rgba(245,158,11,0.25); border-radius:var(--radius-md); padding:28px 16px; text-align:center; font-size:12.5px; color:var(--color-text-tertiary);">No rooms need cleaning</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- In Progress -->
+  <div class="kanban-col" style="border-top-color:#3b82f6;">
+    <div class="kanban-col-header">
+      <div>
+        <div style="font-weight:700; color:#60a5fa; font-size:13px; text-transform:uppercase; letter-spacing:0.06em;">In Progress</div>
+        <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">{{ in_progress_rooms|length }} room{{ in_progress_rooms|length|pluralize }}</div>
+      </div>
+      <div style="background:rgba(59,130,246,0.12); border-radius:999px; padding:2px 10px; font-family:var(--font-mono); font-size:11px; color:#60a5fa; font-weight:600;">{{ in_progress_rooms|length }}</div>
+    </div>
+    <div style="padding:12px; display:flex; flex-direction:column; gap:10px;">
+      {% for room in in_progress_rooms %}
+        {% include "partials/cleaning_room_card.html" with room=room column="in_progress" %}
+      {% empty %}
+      <div style="border:1px dashed rgba(59,130,246,0.25); border-radius:var(--radius-md); padding:28px 16px; text-align:center; font-size:12.5px; color:var(--color-text-tertiary);">No cleaning in progress</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Clean and Ready -->
+  <div class="kanban-col" style="border-top-color:var(--color-green-500);">
+    <div class="kanban-col-header">
+      <div>
+        <div style="font-weight:700; color:var(--color-green-400); font-size:13px; text-transform:uppercase; letter-spacing:0.06em;">Clean &amp; Ready</div>
+        <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">Summary only · {{ clean_rooms|length }} room{{ clean_rooms|length|pluralize }}</div>
+      </div>
+      <div style="background:rgba(34,197,94,0.12); border-radius:999px; padding:2px 10px; font-family:var(--font-mono); font-size:11px; color:var(--color-green-400); font-weight:600;">{{ clean_rooms|length }}</div>
+    </div>
+    <div style="padding:12px;">
+      {% if clean_rooms %}
+      <details>
+        <summary style="cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:rgba(34,197,94,0.06); color:var(--color-green-400); font-size:13px; font-weight:700;">
+          <span>Show clean rooms</span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--color-text-tertiary);">{{ clean_rooms|length }}</span>
+        </summary>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; margin-top:10px;">
+          {% for room in clean_rooms_preview %}
+          <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="cleaning_status" value="Needs Cleaning">
+            <button type="submit" title="Mark {{ room.name }} as needing cleaning" style="width:100%; min-height:38px; text-align:left; padding:8px 10px; border:1px solid var(--color-border); border-radius:var(--radius-sm); background:var(--color-bg-subtle); color:var(--color-text-secondary); cursor:pointer;">
+              <span style="display:block; font-size:12px; font-weight:700; color:var(--color-text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ room.name }}</span>
+              <span style="display:block; margin-top:1px; font-size:10.5px; color:var(--color-text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ room.status }}</span>
+            </button>
+          </form>
+          {% endfor %}
+        </div>
+        {% if clean_rooms_extra_count %}
+        <div style="margin-top:10px; padding:9px 10px; border:1px dashed rgba(34,197,94,0.25); border-radius:var(--radius-sm); font-size:12px; color:var(--color-text-tertiary); text-align:center;">
+          {{ clean_rooms_extra_count }} more clean room{{ clean_rooms_extra_count|pluralize }} hidden. Use Rooms to search or filter them.
+        </div>
+        {% endif %}
+      </details>
+      {% else %}
+      <div style="border:1px dashed rgba(34,197,94,0.25); border-radius:var(--radius-md); padding:28px 16px; text-align:center; font-size:12.5px; color:var(--color-text-tertiary);">No rooms marked clean</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

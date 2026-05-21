@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Exception Report - Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Security</div>
+    <h1 class="page-title">Exception Report</h1>
+    <p class="page-subtitle">Sensitive actions, discounts, refunds, and cash variances.</p>
+  </div>
+  <form method="get" style="display:flex; gap:10px; align-items:center;">
+    <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+    <button class="btn btn-secondary" type="submit">View</button>
+  </form>
+</div>
+
+<div class="stats-row">
+  <div class="metric-card" style="--accent-color:#f59e0b;">
+    <div class="metric-label">Sensitive Actions</div>
+    <div class="metric-value">{{ sensitive_audits|length }}</div>
+  </div>
+  <div class="metric-card" style="--accent-color:#ef4444;">
+    <div class="metric-label">Refunded Sales</div>
+    <div class="metric-value">{{ refunded_sales|length }}</div>
+  </div>
+  <div class="metric-card" style="--accent-color:#3b82f6;">
+    <div class="metric-label">Cash Variances</div>
+    <div class="metric-value">{{ shift_variances|length }}</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="section-label" style="margin-bottom:14px;">Audit Trail</div>
+  <div class="table-scroll">
+  <table class="data-table">
+    <thead><tr><th>Time</th><th>Action</th><th class="hide-mobile">Object</th><th>User</th><th class="hide-mobile">Approved By</th><th class="hide-tablet">Reason</th></tr></thead>
+    <tbody>
+      {% for row in sensitive_audits %}
+      <tr>
+        <td>{{ row.created_at|date:"H:i" }}</td>
+        <td>{{ row.get_action_display }}</td>
+        <td class="hide-mobile">{{ row.object_repr }}</td>
+        <td>{{ row.actor|default:"-" }}</td>
+        <td class="hide-mobile">{{ row.approved_by|default:"-" }}</td>
+        <td class="hide-tablet">{{ row.reason|default:"-" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">No sensitive actions for this date.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-label" style="margin-bottom:14px;">Cash Variance</div>
+  <div class="table-scroll">
+  <table class="data-table">
+    <thead><tr><th>Shift</th><th class="hide-mobile">Opened By</th><th>Expected</th><th>Counted</th><th>Variance</th><th class="hide-mobile">Notes</th></tr></thead>
+    <tbody>
+      {% for shift in shift_variances %}
+      <tr>
+        <td>{{ shift.opened_at|date:"H:i" }} - {{ shift.closed_at|date:"H:i" }}</td>
+        <td class="hide-mobile">{{ shift.opened_by|default:"-" }}</td>
+        <td>R {{ shift.expected_cash }}</td>
+        <td>R {{ shift.closing_cash }}</td>
+        <td>R {{ shift.cash_variance }}</td>
+        <td class="hide-mobile">{{ shift.notes|default:"-" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">No cash variances for this date.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

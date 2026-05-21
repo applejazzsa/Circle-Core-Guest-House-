@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Rooms — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Management</div>
+    <h1 class="page-title">Rooms</h1>
+    <p class="page-subtitle">{{ rooms|length }} room{{ rooms|length|pluralize }} configured</p>
+  </div>
+  <div class="page-header-actions">
+    {% if not is_cleaner %}
+    <a href="{% url 'core:room_add' %}" class="btn btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Room
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Filter pills -->
+<div class="filter-row" style="margin-bottom:24px;">
+  <a href="{% url 'core:room_list' %}" class="filter-pill {% if not status_filter %}active{% endif %}">All <span style="font-family:var(--font-mono); font-size:10px; opacity:0.7;">{{ status_counts.Available|add:status_counts.Booked|add:status_counts.Occupied|add:status_counts.Cleaning|add:status_counts.Maintenance|add:status_counts.Blocked }}</span></a>
+  <a href="?status=Available" class="filter-pill {% if status_filter == 'Available' %}active{% endif %}">Available <span style="font-family:var(--font-mono); font-size:10px; opacity:0.7;">{{ status_counts.Available }}</span></a>
+  <a href="?status=Booked" class="filter-pill {% if status_filter == 'Booked' %}active{% endif %}">Booked <span style="font-family:var(--font-mono); font-size:10px; opacity:0.7;">{{ status_counts.Booked }}</span></a>
+  <a href="?status=Occupied" class="filter-pill {% if status_filter == 'Occupied' %}active{% endif %}">Occupied <span style="font-family:var(--font-mono); font-size:10px; opacity:0.7;">{{ status_counts.Occupied }}</span></a>
+  <a href="?status=Cleaning" class="filter-pill {% if status_filter == 'Cleaning' %}active{% endif %}">Cleaning <span style="font-family:var(--font-mono); font-size:10px; opacity:0.7;">{{ status_counts.Cleaning }}</span></a>
+  <a href="?status=Maintenance" class="filter-pill {% if status_filter == 'Maintenance' %}active{% endif %}">Maintenance <span style="font-family:var(--font-mono); font-size:10px; opacity:0.7;">{{ status_counts.Maintenance }}</span></a>
+  <a href="?status=Blocked" class="filter-pill {% if status_filter == 'Blocked' %}active{% endif %}">Blocked <span style="font-family:var(--font-mono); font-size:10px; opacity:0.7;">{{ status_counts.Blocked }}</span></a>
+</div>
+
+{% if rooms %}
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:16px;">
+  {% for room in rooms %}
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="height:3px; background:
+      {% if room.status == 'Available' %}var(--color-green-500)
+      {% elif room.status == 'Booked' %}#ef4444
+      {% elif room.status == 'Occupied' %}var(--color-blue)
+      {% elif room.status == 'Cleaning' %}var(--color-amber)
+      {% elif room.status == 'Maintenance' %}var(--color-amber)
+      {% else %}var(--color-text-tertiary){% endif %};"></div>
+
+    <div style="padding:20px;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
+        <div>
+          <h3 style="font-family:var(--font-display); font-size:16px; font-weight:700; color:var(--color-text-primary); line-height:1.2;">{{ room.name }}</h3>
+          <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:3px;">{{ room.room_type }} · {{ room.max_guests }} guest{{ room.max_guests|pluralize }}</div>
+        </div>
+        <span class="badge
+          {% if room.status == 'Available' %}badge-green
+          {% elif room.status == 'Booked' %}badge-red
+          {% elif room.status == 'Occupied' %}badge-blue
+          {% elif room.status == 'Cleaning' %}badge-amber
+          {% elif room.status == 'Maintenance' %}badge-amber
+          {% else %}badge-gray{% endif %}">{{ room.status }}</span>
+      </div>
+
+      <!-- Pricing grid -->
+      <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px; margin-bottom:14px;">
+        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:8px;">
+          {% if room.price_per_night %}
+          <div>
+            <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary);">Night</div>
+            <div style="font-family:var(--font-mono); font-size:12.5px; font-weight:500; color:var(--color-text-primary); margin-top:2px;">R {{ room.price_per_night }}</div>
+          </div>
+          {% endif %}
+          {% if room.price_per_week %}
+          <div>
+            <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary);">Week</div>
+            <div style="font-family:var(--font-mono); font-size:12.5px; font-weight:500; color:var(--color-text-primary); margin-top:2px;">R {{ room.price_per_week }}</div>
+          </div>
+          {% endif %}
+          {% if room.price_1_hour %}
+          <div>
+            <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary);">1 hr</div>
+            <div style="font-family:var(--font-mono); font-size:12.5px; font-weight:500; color:var(--color-text-primary); margin-top:2px;">R {{ room.price_1_hour }}</div>
+          </div>
+          {% endif %}
+          {% if room.price_3_hours %}
+          <div>
+            <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary);">3 hrs</div>
+            <div style="font-family:var(--font-mono); font-size:12.5px; font-weight:500; color:var(--color-text-primary); margin-top:2px;">R {{ room.price_3_hours }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Cleaning status -->
+      <div style="display:flex; align-items:center; gap:6px; margin-bottom:14px;">
+        <span class="status-dot {% if room.cleaning_status == 'Clean' %}status-dot-green{% elif room.cleaning_status == 'Needs Cleaning' %}status-dot-amber{% else %}status-dot-blue{% endif %}" style="width:6px; height:6px;"></span>
+        <span style="font-size:11.5px; color:var(--color-text-tertiary);">{{ room.cleaning_status }}</span>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex; gap:8px;">
+        <a href="{% url 'core:room_detail' room.pk %}" class="btn btn-secondary btn-sm" style="flex:1; justify-content:center;">View</a>
+        {% if not is_cleaner %}
+        <a href="{% url 'core:room_edit' room.pk %}" class="btn btn-ghost btn-sm" style="flex:1; justify-content:center;">Edit</a>
+        {% if room.status == "Maintenance" or room.status == "Blocked" or room.status == "Booked" or room.status == "Occupied" %}
+        <span class="btn btn-ghost btn-sm" style="flex:1; justify-content:center; opacity:0.45; cursor:not-allowed;">Unavailable</span>
+        {% else %}
+        <a href="{% url 'core:booking_add' %}?room={{ room.pk }}" class="btn btn-primary btn-sm" style="flex:1; justify-content:center;">Book</a>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="card empty-state">
+  <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+  <div class="empty-state-title">No rooms yet</div>
+  <p class="empty-state-body">Add your first room to start accepting bookings.</p>
+  {% if not is_cleaner %}
+  <a href="{% url 'core:room_add' %}" class="btn btn-primary">Add your first room</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

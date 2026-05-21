@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Settings — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Administration</div>
+    <h1 class="page-title">Settings</h1>
+  </div>
+</div>
+
+<!-- Tab nav -->
+<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:20px;">
+  <a href="#general" class="filter-pill" id="tab-general">General</a>
+  <a href="#pricing" class="filter-pill" id="tab-pricing">Pricing &amp; Durations</a>
+  <a href="#documents" class="filter-pill" id="tab-documents">PDF &amp; Documents</a>
+  <a href="#integrations" class="filter-pill" id="tab-integrations">Integrations</a>
+</div>
+
+<form method="post" enctype="multipart/form-data" style="max-width:780px;">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+  <div style="margin-bottom:16px; padding:12px 14px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <!-- General -->
+  <div class="settings-panel card" id="panel-general" style="margin-bottom:16px;">
+    <div class="section-label" style="margin-bottom:20px;">General</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="form-group">
+        <label class="form-label" for="{{ form.guest_house_name.id_for_label }}">Guest House Name</label>
+        {{ form.guest_house_name }}
+        {% if form.guest_house_name.errors %}<div class="form-error">{{ form.guest_house_name.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.logo.id_for_label }}">Logo</label>
+        {{ form.logo }}
+        {% if form.logo.errors %}<div class="form-error">{{ form.logo.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.phone.id_for_label }}">Phone</label>
+        {{ form.phone }}
+        {% if form.phone.errors %}<div class="form-error">{{ form.phone.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.email.id_for_label }}">Email</label>
+        {{ form.email }}
+        {% if form.email.errors %}<div class="form-error">{{ form.email.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group" style="grid-column:1/-1;">
+        <label class="form-label" for="{{ form.address.id_for_label }}">Address</label>
+        {{ form.address }}
+        {% if form.address.errors %}<div class="form-error">{{ form.address.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:12px 14px; border:1px solid var(--color-border-bright); border-radius:var(--radius-md); background:var(--color-bg-subtle);">
+          {{ form.vat_registered }}
+          <span style="font-size:13.5px; color:var(--color-text-primary);">VAT Registered</span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.vat_number.id_for_label }}">VAT Number</label>
+        {{ form.vat_number }}
+        {% if form.vat_number.errors %}<div class="form-error">{{ form.vat_number.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.vat_rate.id_for_label }}">VAT Rate</label>
+        {{ form.vat_rate }}
+        {% if form.vat_rate.errors %}<div class="form-error">{{ form.vat_rate.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.currency.id_for_label }}">Currency</label>
+        {{ form.currency }}
+        {% if form.currency.errors %}<div class="form-error">{{ form.currency.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.check_in_time.id_for_label }}">Check-in Time</label>
+        {{ form.check_in_time }}
+        {% if form.check_in_time.errors %}<div class="form-error">{{ form.check_in_time.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.check_out_time.id_for_label }}">Check-out Time</label>
+        {{ form.check_out_time }}
+        {% if form.check_out_time.errors %}<div class="form-error">{{ form.check_out_time.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Pricing & Durations -->
+  <div class="settings-panel card" id="panel-pricing" style="margin-bottom:16px; display:none;">
+    <div class="section-label" style="margin-bottom:20px;">Pricing &amp; Durations</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="form-group">
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:12px 14px; border:1px solid var(--color-border-bright); border-radius:var(--radius-md); background:var(--color-bg-subtle);">
+          {{ form.enable_hourly_bookings }}
+          <span style="font-size:13.5px; color:var(--color-text-primary);">Enable Hourly Bookings</span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:12px 14px; border:1px solid var(--color-border-bright); border-radius:var(--radius-md); background:var(--color-bg-subtle);">
+          {{ form.enable_weekly_bookings }}
+          <span style="font-size:13.5px; color:var(--color-text-primary);">Enable Weekly Bookings</span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.hourly_booking_label.id_for_label }}">Hourly Booking Label</label>
+        {{ form.hourly_booking_label }}
+        {% if form.hourly_booking_label.errors %}<div class="form-error">{{ form.hourly_booking_label.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.minimum_hourly_rate.id_for_label }}">Minimum Hourly Rate</label>
+        {{ form.minimum_hourly_rate }}
+        {% if form.minimum_hourly_rate.errors %}<div class="form-error">{{ form.minimum_hourly_rate.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.default_price_2_hours.id_for_label }}">2 Hours Rate</label>
+        {{ form.default_price_2_hours }}
+        {% if form.default_price_2_hours.errors %}<div class="form-error">{{ form.default_price_2_hours.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.default_price_3_hours.id_for_label }}">3 Hours Rate</label>
+        {{ form.default_price_3_hours }}
+        {% if form.default_price_3_hours.errors %}<div class="form-error">{{ form.default_price_3_hours.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.default_price_per_night.id_for_label }}">Night Rate</label>
+        {{ form.default_price_per_night }}
+        {% if form.default_price_per_night.errors %}<div class="form-error">{{ form.default_price_per_night.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.default_price_24_hours.id_for_label }}">24 Hours Rate</label>
+        {{ form.default_price_24_hours }}
+        {% if form.default_price_24_hours.errors %}<div class="form-error">{{ form.default_price_24_hours.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.late_checkout_fee.id_for_label }}">Late Checkout Fee</label>
+        {{ form.late_checkout_fee }}
+        {% if form.late_checkout_fee.errors %}<div class="form-error">{{ form.late_checkout_fee.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.early_checkin_fee.id_for_label }}">Early Check-in Fee</label>
+        {{ form.early_checkin_fee }}
+        {% if form.early_checkin_fee.errors %}<div class="form-error">{{ form.early_checkin_fee.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.weekend_surcharge_pct.id_for_label }}">Weekend Surcharge %</label>
+        {{ form.weekend_surcharge_pct }}
+        {% if form.weekend_surcharge_pct.errors %}<div class="form-error">{{ form.weekend_surcharge_pct.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group" style="grid-column:1/-1;">
+        <label class="form-label" for="{{ form.seasonal_note.id_for_label }}">Seasonal Note</label>
+        {{ form.seasonal_note }}
+        {% if form.seasonal_note.errors %}<div class="form-error">{{ form.seasonal_note.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Documents -->
+  <div class="settings-panel card" id="panel-documents" style="margin-bottom:16px; display:none;">
+    <div class="section-label" style="margin-bottom:20px;">PDF &amp; Documents</div>
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div class="form-group">
+        <label class="form-label" for="{{ form.banking_details.id_for_label }}">Banking Details</label>
+        {{ form.banking_details }}
+        {% if form.banking_details.errors %}<div class="form-error">{{ form.banking_details.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.cancellation_note.id_for_label }}">Cancellation Note</label>
+        {{ form.cancellation_note }}
+        {% if form.cancellation_note.errors %}<div class="form-error">{{ form.cancellation_note.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.invoice_notes.id_for_label }}">Invoice Notes</label>
+        {{ form.invoice_notes }}
+        {% if form.invoice_notes.errors %}<div class="form-error">{{ form.invoice_notes.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.receipt_notes.id_for_label }}">Receipt Notes</label>
+        {{ form.receipt_notes }}
+        {% if form.receipt_notes.errors %}<div class="form-error">{{ form.receipt_notes.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Integrations -->
+  <div class="settings-panel card" id="panel-integrations" style="margin-bottom:16px; display:none;">
+    <div class="section-label" style="margin-bottom:20px;">Integrations</div>
+    <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:18px; margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:10px;">POS API Key</div>
+      {% if generated_pos_api_key %}
+      <div style="padding:12px 14px; background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); border-radius:var(--radius-sm); margin-bottom:10px; font-size:13px; color:var(--color-green-400);">New key generated. Copy this now — it will be masked after you leave this page.</div>
+      <div style="font-family:var(--font-mono); font-size:13px; background:var(--color-bg-base); border:1px solid var(--color-border-bright); border-radius:var(--radius-sm); padding:10px 12px; color:var(--color-text-primary);">{{ generated_pos_api_key }}</div>
+      {% elif settings_obj.pos_api_key %}
+      <div style="font-family:var(--font-mono); font-size:13px; color:var(--color-text-secondary);">{{ settings_obj.masked_pos_api_key }}</div>
+      {% else %}
+      <div style="font-size:13px; color:var(--color-text-tertiary);">No API key generated yet.</div>
+      {% endif %}
+      <div style="display:none;">{{ form.pos_api_key }}</div>
+    </div>
+    {% if settings_obj.pos_api_key %}
+    <p style="font-size:13px; color:#f59e0b; margin-bottom:10px;">Regenerating will invalidate your current POS connection.</p>
+    <button form="regenerate-pos-key-form" type="submit" class="btn btn-ghost btn-sm" style="border-color:rgba(245,158,11,0.3); color:#f59e0b;">Regenerate Key</button>
+    {% else %}
+    <button form="regenerate-pos-key-form" type="submit" class="btn btn-primary btn-sm">Generate API Key</button>
+    {% endif %}
+    <div style="margin-top:20px; background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:16px; font-size:12.5px; color:var(--color-text-secondary); line-height:1.7;">
+      <div style="font-weight:600; color:var(--color-text-primary); margin-bottom:8px;">Connect your POS system</div>
+      <div style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-text-tertiary); margin-bottom:4px;">POST /api/pos/payment/</div>
+      <div style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-text-tertiary); margin-bottom:12px;">Header: X-POS-API-Key: &lt;your key&gt;</div>
+      <div style="font-weight:600; color:var(--color-text-primary); margin-bottom:4px;">Booking balance lookup</div>
+      <div style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-text-tertiary);">GET /api/pos/booking/&lt;reference&gt;/</div>
+    </div>
+  </div>
+
+  <div style="display:flex; justify-content:flex-end; padding-top:4px;">
+    <button type="submit" class="btn btn-primary btn-lg">Save Settings</button>
+  </div>
+</form>
+
+<form id="regenerate-pos-key-form" method="post" style="display:none;">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="regenerate_pos_api_key">
+  {% if settings_obj.pos_api_key %}<input type="hidden" name="has_existing_key" value="1">{% endif %}
+</form>
+
+<script>
+(function() {
+  const panels = ['general','pricing','documents','integrations'];
+  function showPanel(name) {
+    panels.forEach(function(p) {
+      const panel = document.getElementById('panel-' + p);
+      const tab = document.getElementById('tab-' + p);
+      if (panel) panel.style.display = p === name ? '' : 'none';
+      if (tab) { tab.classList.toggle('active', p === name); }
+    });
+  }
+  document.querySelectorAll('.filter-pill[href^="#"]').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      const id = link.getAttribute('href').slice(1);
+      showPanel(id);
+      history.replaceState(null, '', '#' + id);
+    });
+  });
+  const hash = location.hash ? location.hash.slice(1) : 'general';
+  showPanel(panels.includes(hash) ? hash : 'general');
+})();
+</script>
+{% endblock %}

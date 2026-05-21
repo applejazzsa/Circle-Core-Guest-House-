@@ -1,0 +1,40 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h1 class="title">New Booking Alert</h1>
+<p class="subtitle">A new booking has been created.</p>
+
+<div class="detail-box">
+  <div class="detail-row">
+    <span class="detail-label">Reference</span>
+    <span class="detail-value" style="font-family:monospace;">{{ booking.booking_reference }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Guest</span>
+    <span class="detail-value">{{ booking.guest.full_name }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Room</span>
+    <span class="detail-value">{{ booking.room.name }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Check-in</span>
+    <span class="detail-value">{{ booking.check_in_date|date:"D, d M Y" }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Check-out</span>
+    <span class="detail-value">{{ booking.check_out_date|date:"D, d M Y" }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Total</span>
+    <span class="detail-value">R {{ booking.total_amount }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Source</span>
+    <span class="detail-value">{{ booking.booking_source }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Status</span>
+    <span class="detail-value"><span class="badge badge-blue">{{ booking.status }}</span></span>
+  </div>
+</div>
+{% endblock %}

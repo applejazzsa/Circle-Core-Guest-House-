@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Payments — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Finance</div>
+    <h1 class="page-title">Payments</h1>
+  </div>
+</div>
+
+<!-- Metrics -->
+<div class="grid-3" style="margin-bottom:20px;">
+  <div class="card" style="border-top:3px solid var(--color-green-500); padding:20px;">
+    <div class="section-label" style="margin-bottom:10px;">Total Received</div>
+    <div class="num" style="font-size:28px;">{{ guest_house_settings.currency|default:"R" }} {{ total_received }}</div>
+  </div>
+  <div class="card" style="border-top:3px solid #3b82f6; padding:20px;">
+    <div class="section-label" style="margin-bottom:10px;">Transactions</div>
+    <div class="num" style="font-size:28px;">{{ payment_count }}</div>
+  </div>
+  <div class="card" style="border-top:3px solid #8b5cf6; padding:20px;">
+    <div class="section-label" style="margin-bottom:10px;">Most Used Method</div>
+    <div class="num" style="font-size:22px; margin-top:6px;">{{ most_used_method|default:"—" }}</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
+  <input type="month" name="month" value="{{ selected_month }}"
+    style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:7px 12px; color:var(--color-text-secondary); font-size:13px;">
+  <select name="method" style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:7px 12px; color:var(--color-text-secondary); font-size:13px; cursor:pointer;">
+    <option value="">All Methods</option>
+    {% for value, label in payment_method_choices %}
+    <option value="{{ value }}" {% if selected_method == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+</form>
+
+{% if payments %}
+<div class="card" style="padding:0; overflow:hidden;">
+  <div class="table-scroll">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Booking Ref</th>
+        <th>Guest</th>
+        <th class="hide-mobile">Room</th>
+        <th>Method</th>
+        <th>Amount</th>
+        <th class="hide-mobile">Reference</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for payment in payments %}
+      <tr>
+        <td style="font-family:var(--font-mono); font-size:12.5px;">{{ payment.payment_date|date:"d M Y" }}</td>
+        <td>
+          <a href="{% url 'core:booking_detail' payment.booking.pk %}" style="font-family:var(--font-mono); font-size:12px; color:var(--color-green-400); text-decoration:none; font-weight:500;">{{ payment.booking.booking_reference }}</a>
+        </td>
+        <td style="font-size:13px;">{{ payment.booking.guest.full_name }}</td>
+        <td class="hide-mobile" style="font-size:13px;">{{ payment.booking.room.name }}</td>
+        <td style="font-size:13px;">{{ payment.payment_method }}</td>
+        <td style="font-family:var(--font-mono); font-size:13px; font-weight:500; color:var(--color-text-primary);">{{ guest_house_settings.currency|default:"R" }} {{ payment.amount }}</td>
+        <td class="hide-mobile" style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-tertiary);">{{ payment.reference|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% else %}
+<div class="card empty-state">
+  <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+  <div class="empty-state-title">No payments found for this period</div>
+  <p class="empty-state-body">Payments are recorded from booking detail pages.</p>
+</div>
+{% endif %}
+{% endblock %}

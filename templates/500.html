@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Server Error — Circle Core Guest House</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+</head>
+<body style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:var(--color-bg-base);">
+  <div style="width:100%; max-width:440px; text-align:center;">
+    <div style="width:64px; height:64px; border-radius:50%; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16" stroke-width="3"/></svg>
+    </div>
+    <div style="font-family:var(--font-display); font-size:22px; font-weight:800; color:var(--color-text-primary); margin-bottom:10px;">Something went wrong</div>
+    <p style="font-size:14px; color:var(--color-text-secondary); line-height:1.7; margin-bottom:28px;">The app hit an unexpected error. Return to the dashboard and try again. If the problem persists, contact support.</p>
+    <a href="{% url 'core:home' %}" style="display:inline-flex; align-items:center; gap:6px; background:var(--color-green-500); color:#0d0f12; font-weight:600; font-size:13.5px; padding:10px 20px; border-radius:var(--radius-md); text-decoration:none; transition:opacity 0.15s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">← Back to Dashboard</a>
+    <div style="margin-top:40px; font-size:13px; color:var(--color-text-tertiary);">
+      <span style="font-family:var(--font-display); font-weight:700; color:var(--color-green-400);">Circle Core</span> · Guest House
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Point of Sale</div>
+    <h1 class="page-title">{{ title }}</h1>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:pos_items_list' %}" class="btn btn-ghost btn-sm">← Back to Items</a>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 360px; gap:20px; align-items:start;">
+
+  <!-- Main form -->
+  <div class="card" style="padding:28px;">
+    <form method="post">
+      {% csrf_token %}
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label" for="id_name">Item Name *</label>
+          {{ form.name }}
+          {% if form.name.errors %}<div style="color:#f87171; font-size:12px; margin-top:4px;">{{ form.name.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="id_price">Price (R) *</label>
+          {{ form.price }}
+          {% if form.price.errors %}<div style="color:#f87171; font-size:12px; margin-top:4px;">{{ form.price.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="id_category">Category</label>
+          {{ form.category }}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="id_sku">SKU / Code</label>
+          {{ form.sku }}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="id_barcode">Barcode</label>
+          {{ form.barcode }}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="id_emoji">Emoji</label>
+          {{ form.emoji }}
+          <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:4px;">Displayed on the POS grid card (e.g. 🍺 🍕 ☕)</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="id_color">Card Color</label>
+          {{ form.color }}
+          <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:4px;">Background color of the item card on the terminal</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="id_sort_order">Sort Order</label>
+          {{ form.sort_order }}
+        </div>
+
+        <!-- Toggles -->
+        <div style="grid-column:1/-1; display:flex; flex-direction:column; gap:12px; padding-top:4px; border-top:1px solid var(--color-border);">
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;">
+            {{ form.is_quick_item }}
+            <div>
+              <div style="font-size:13.5px; color:var(--color-text-primary); font-weight:500;">Quick Item</div>
+              <div style="font-size:12px; color:var(--color-text-tertiary);">Show prominently on the POS quick-access grid</div>
+            </div>
+          </label>
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;">
+            {{ form.is_active }}
+            <div>
+              <div style="font-size:13.5px; color:var(--color-text-primary); font-weight:500;">Active</div>
+              <div style="font-size:12px; color:var(--color-text-tertiary);">Item appears on the POS terminal</div>
+            </div>
+          </label>
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;" id="track-inventory-label">
+            {{ form.track_inventory }}
+            <div>
+              <div style="font-size:13.5px; color:var(--color-text-primary); font-weight:500;">Track Inventory</div>
+              <div style="font-size:12px; color:var(--color-text-tertiary);">Deduct stock on each sale and alert when low</div>
+            </div>
+          </label>
+        </div>
+
+        <!-- Stock fields (shown if track_inventory) -->
+        <div id="stock-fields" style="grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div class="form-group">
+            <label class="form-label" for="id_stock_quantity">Stock Quantity</label>
+            {{ form.stock_quantity }}
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="id_low_stock_alert">Low Stock Alert At</label>
+            {{ form.low_stock_alert }}
+          </div>
+        </div>
+
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:24px; padding-top:20px; border-top:1px solid var(--color-border);">
+        <button type="submit" class="btn btn-primary">{{ title }}</button>
+        <a href="{% url 'core:pos_items_list' %}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Preview card + quick add category -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+
+    <!-- Item preview -->
+    <div class="card" style="padding:20px;">
+      <div style="font-size:11px; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em; font-weight:600; margin-bottom:14px;">Preview</div>
+      <div id="preview-card" style="border-radius:var(--radius-md); padding:16px 12px; display:flex; flex-direction:column; align-items:center; text-align:center; min-height:90px; justify-content:center; border:1px solid rgba(255,255,255,0.06); background:#1a1e26;">
+        <div id="preview-emoji" style="font-size:28px; margin-bottom:6px; line-height:1;"></div>
+        <div id="preview-name" style="font-size:13px; font-weight:600; color:var(--color-text-primary); line-height:1.3;">Item Name</div>
+        <div id="preview-price" style="font-family:var(--font-mono); font-size:12px; color:var(--color-green-400); margin-top:4px; font-weight:500;">R0.00</div>
+      </div>
+    </div>
+
+    <!-- Add category -->
+    <div class="card" style="padding:20px;">
+      <div style="font-size:11px; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em; font-weight:600; margin-bottom:14px;">Add New Category</div>
+      <form method="post" action="{% url 'core:pos_category_add' %}">
+        {% csrf_token %}
+        <div class="form-group">
+          <label class="form-label" for="cat_name">Name</label>
+          <input type="text" id="cat_name" name="name" required
+            style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:8px 12px; width:100%; color:var(--color-text-primary); font-size:13.5px; outline:none; box-sizing:border-box;"
+            onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+        </div>
+        <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;">Create Category</button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Preview card live update
+const nameInput = document.getElementById('id_name');
+const priceInput = document.getElementById('id_price');
+const emojiInput = document.getElementById('id_emoji');
+const colorInput = document.getElementById('id_color');
+
+function updatePreview() {
+  document.getElementById('preview-name').textContent = nameInput?.value || 'Item Name';
+  const price = parseFloat(priceInput?.value) || 0;
+  document.getElementById('preview-price').textContent = 'R' + price.toFixed(2);
+  document.getElementById('preview-emoji').textContent = emojiInput?.value || '';
+  if (colorInput?.value) {
+    document.getElementById('preview-card').style.background = colorInput.value;
+  }
+}
+
+[nameInput, priceInput, emojiInput, colorInput].forEach(el => {
+  if (el) el.addEventListener('input', updatePreview);
+});
+
+// Toggle stock fields
+const trackCheckbox = document.getElementById('id_track_inventory');
+const stockFields = document.getElementById('stock-fields');
+function toggleStockFields() {
+  stockFields.style.display = trackCheckbox?.checked ? 'grid' : 'none';
+}
+if (trackCheckbox) {
+  trackCheckbox.addEventListener('change', toggleStockFields);
+  toggleStockFields();
+}
+
+updatePreview();
+</script>
+{% endblock %}

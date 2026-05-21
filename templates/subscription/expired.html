@@ -1,0 +1,48 @@
+{% extends "base_public.html" %}
+{% block title %}Subscription Expired — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div style="max-width:600px; margin:60px auto; padding:0 24px 80px;">
+  <div class="card" style="padding:40px; text-align:center;">
+    <div style="width:64px; height:64px; border-radius:50%; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.2); display:flex; align-items:center; justify-content:center; margin:0 auto 24px;">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="3"/></svg>
+    </div>
+    <h1 style="font-family:var(--font-display); font-size:26px; font-weight:800; color:var(--color-text-primary); margin-bottom:10px;">Your subscription has expired</h1>
+    <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:28px;">To reactivate your subscription, please contact us.</p>
+
+    <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:20px; text-align:left; margin-bottom:24px; display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+      <div>
+        <div class="section-label" style="margin-bottom:4px;">Plan</div>
+        <div style="font-weight:600; color:var(--color-text-primary);">{{ subscription.plan.display_name|default:"No plan" }}</div>
+      </div>
+      <div>
+        <div class="section-label" style="margin-bottom:4px;">Expired</div>
+        <div style="font-family:var(--font-mono); font-size:12.5px; color:var(--color-text-primary);">{{ subscription.expires_at|date:"d M Y"|default:"—" }}</div>
+      </div>
+      <div>
+        <div class="section-label" style="margin-bottom:4px;">Days Since Expiry</div>
+        <div style="font-family:var(--font-mono); font-size:13px; color:#f87171; font-weight:600;">{{ days_since_expiry }}</div>
+      </div>
+      <div>
+        <div class="section-label" style="margin-bottom:4px;">Reference</div>
+        <div style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-secondary);">SUB-{{ subscription.pk|default:"PENDING" }}</div>
+      </div>
+    </div>
+
+    {% if settings_obj.banking_details %}
+    <div style="text-align:left; padding:16px 18px; background:rgba(34,197,94,0.04); border:1px solid rgba(34,197,94,0.15); border-radius:var(--radius-md); margin-bottom:24px;">
+      <div class="section-label" style="margin-bottom:10px; color:var(--color-green-400);">Renewal Payment Details</div>
+      <p style="font-size:13px; color:var(--color-text-secondary); line-height:1.7; white-space:pre-line;">{{ settings_obj.banking_details }}</p>
+    </div>
+    {% endif %}
+
+    <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+      <a href="mailto:sales@circlecoretech.co.za?subject=Reactivate Circle Core Subscription" class="btn btn-primary">Contact Circle Core</a>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-ghost">Logout</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

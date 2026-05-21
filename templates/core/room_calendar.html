@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Room Calendar - Circle Core Guest House{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Bookings</div>
+    <h1 class="page-title">Room Calendar</h1>
+  </div>
+  <form method="get" style="display:flex; gap:10px; align-items:end;">
+    <input type="date" name="start" value="{{ start|date:'Y-m-d' }}">
+    <select name="days">
+      <option value="7" {% if days == 7 %}selected{% endif %}>7 days</option>
+      <option value="14" {% if days == 14 %}selected{% endif %}>14 days</option>
+      <option value="31" {% if days == 31 %}selected{% endif %}>31 days</option>
+    </select>
+    <button class="btn btn-secondary" type="submit">View</button>
+  </form>
+</div>
+
+<div class="card" style="padding:0; overflow:auto;">
+  <table class="data-table" style="min-width:980px;">
+    <thead>
+      <tr>
+        <th style="position:sticky; left:0; background:var(--color-bg-surface); z-index:2;">Room</th>
+        {% for day in date_range %}<th>{{ day|date:"d M" }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for room in rooms %}
+      <tr>
+        <td style="position:sticky; left:0; background:var(--color-bg-surface); z-index:1; font-weight:700;">{{ room.name }}</td>
+        {% for cell in room.calendar_cells %}
+        <td style="min-width:92px; padding:8px;">
+          {% if cell.booking %}
+          <a href="{% url 'core:booking_detail' cell.booking.pk %}" class="badge badge-blue" style="font-size:9px; text-decoration:none;">{{ cell.booking.guest.full_name|truncatechars:12 }}</a>
+          {% else %}
+          <span style="display:block; height:24px; border-radius:var(--radius-sm); background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.16);"></span>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

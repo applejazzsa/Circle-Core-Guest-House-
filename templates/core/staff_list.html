@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Staff Management — Circle Core Guest House{% endblock %}
+{% block content %}
+<div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px;">
+  <div>
+    <div class="section-label">System</div>
+    <h1 class="page-title">Staff Management</h1>
+    <p class="page-subtitle">Manage who can access the system and what they can do.</p>
+  </div>
+  <a href="{% url 'core:staff_add' %}" class="btn btn-primary">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Staff Member
+  </a>
+</div>
+
+<!-- Role legend -->
+<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:24px;">
+  <div style="padding:14px 16px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-elevated);">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+      <span class="badge badge-amber" style="font-size:10px;">Cleaner</span>
+    </div>
+    <div style="font-size:12px; color:var(--color-text-tertiary); line-height:1.5;">Rooms, Cleaning board, Housekeeping, Maintenance tasks.</div>
+  </div>
+  <div style="padding:14px 16px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-elevated);">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+      <span class="badge badge-blue" style="font-size:10px;">Operator</span>
+    </div>
+    <div style="font-size:12px; color:var(--color-text-tertiary); line-height:1.5;">Bookings, Guests, Payments, POS, Reports. No system settings.</div>
+  </div>
+  <div style="padding:14px 16px; border:1px solid var(--color-green-border); border-radius:var(--radius-md); background:var(--color-green-glow);">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+      <span class="badge badge-green" style="font-size:10px;">Owner</span>
+    </div>
+    <div style="font-size:12px; color:var(--color-text-tertiary); line-height:1.5;">Full access including Settings, Subscription, Staff management.</div>
+  </div>
+</div>
+
+<!-- Staff table -->
+<div class="card" style="padding:0; overflow:hidden;">
+  <div style="padding:16px 20px; border-bottom:1px solid var(--color-border); display:flex; align-items:center; justify-content:space-between;">
+    <div class="section-label" style="margin-bottom:0;">Staff Accounts</div>
+    <span style="font-size:12px; color:var(--color-text-tertiary);">{{ staff_users|length }} member{{ staff_users|length|pluralize }}</span>
+  </div>
+
+  {% if staff_users %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Name / Username</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in staff_users %}
+      <tr>
+        <td>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="avatar avatar-sm {% if u.is_active %}avatar-green{% else %}avatar-gray{% endif %}" style="font-size:11px; font-weight:700; flex-shrink:0;">
+              {{ u.username|first|upper }}
+            </div>
+            <div>
+              <div style="font-size:13.5px; font-weight:500; color:var(--color-text-primary);">
+                {% if u.get_full_name %}{{ u.get_full_name }}{% else %}{{ u.username }}{% endif %}
+              </div>
+              {% if u.get_full_name %}
+              <div style="font-size:11px; color:var(--color-text-tertiary); font-family:var(--font-mono);">{{ u.username }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </td>
+        <td style="font-size:13px; color:var(--color-text-secondary);">{{ u.email|default:"—" }}</td>
+        <td>
+          {% with role=u.groups.all|first %}
+          {% if role %}
+            {% if role.name == "Owner" %}
+            <span class="badge badge-green" style="font-size:10px;">{{ role.name }}</span>
+            {% elif role.name == "Operator" %}
+            <span class="badge badge-blue" style="font-size:10px;">{{ role.name }}</span>
+            {% elif role.name == "Cleaner" %}
+            <span class="badge badge-amber" style="font-size:10px;">{{ role.name }}</span>
+            {% else %}
+            <span class="badge badge-gray" style="font-size:10px;">{{ role.name }}</span>
+            {% endif %}
+          {% else %}
+            <span style="font-size:12px; color:var(--color-text-tertiary);">No role</span>
+          {% endif %}
+          {% endwith %}
+        </td>
+        <td>
+          {% if u.is_active %}
+          <span class="badge badge-green" style="font-size:10px;">Active</span>
+          {% else %}
+          <span class="badge badge-gray" style="font-size:10px;">Inactive</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex; gap:6px;">
+            <a href="{% url 'core:staff_edit' u.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+            <form method="post" action="{% url 'core:staff_delete' u.pk %}" onsubmit="return confirm('Remove {{ u.username }}? This cannot be undone.');">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:#f87171;">Remove</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state" style="padding:56px;">
+    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+    </svg>
+    <div class="empty-state-title">No staff members yet</div>
+    <p class="empty-state-body">Add operators and cleaners so they can access the system with the right permissions.</p>
+    <a href="{% url 'core:staff_add' %}" class="btn btn-primary">Add First Staff Member</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+        <nav class="mb-2 text-sm text-slate-500">
+            <a href="{% url 'core:home' %}" class="hover:text-slate-900">Dashboard</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'core:booking_list' %}" class="hover:text-slate-900">Bookings</a>
+            <span class="mx-2">/</span>
+            <span class="text-slate-900">{{ title }}</span>
+        </nav>
+        <p class="text-sm font-medium uppercase tracking-wider text-gold">Bookings</p>
+        <h2 class="text-2xl font-semibold text-slate-950">{{ title }}</h2>
+    </div>
+    {% if booking %}
+        <a href="{% url 'core:booking_detail' booking.pk %}" class="text-sm font-medium text-slate-600 hover:text-slate-900">&larr; Back to {{ booking.booking_reference }}</a>
+    {% else %}
+        <a href="{% url 'core:booking_list' %}" class="text-sm font-medium text-slate-600 hover:text-slate-900">&larr; Back to Bookings</a>
+    {% endif %}
+</div>
+
+{% if booking %}
+    <div class="mb-5 flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+        <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Reference</span>
+        <span class="font-mono font-semibold text-navy">{{ booking.booking_reference }}</span>
+    </div>
+{% endif %}
+
+{% if walk_in_mode %}
+    <div class="mb-5 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+        Walk-in Booking Mode — Check-in today
+    </div>
+{% endif %}
+
+<form method="post" class="max-w-3xl space-y-6">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+        <div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-semibold text-slate-950">Guest &amp; Room</h3>
+        <div class="mt-5 grid gap-5 md:grid-cols-2">
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.guest.id_for_label }}">Guest</label>
+                {{ form.guest }}
+                {{ form.guest.errors }}
+            </div>
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.room.id_for_label }}">Room</label>
+                {{ form.room }}
+                {{ form.room.errors }}
+            </div>
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.num_guests.id_for_label }}">Number of guests</label>
+                {{ form.num_guests }}
+                {{ form.num_guests.errors }}
+            </div>
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.booking_source.id_for_label }}">Booking source</label>
+                {{ form.booking_source }}
+                {{ form.booking_source.errors }}
+            </div>
+        </div>
+    </section>
+
+    <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-semibold text-slate-950">Dates &amp; Rates</h3>
+        <div class="mt-5 grid gap-5 md:grid-cols-2">
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.check_in_date.id_for_label }}">Check-in date</label>
+                {{ form.check_in_date }}
+                {{ form.check_in_date.errors }}
+            </div>
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.check_out_date.id_for_label }}">Check-out date</label>
+                {{ form.check_out_date }}
+                {{ form.check_out_date.errors }}
+            </div>
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.rate_per_night.id_for_label }}">
+                    Rate per night
+                    <span class="ml-1 text-xs font-normal text-slate-400">(auto-filled from room)</span>
+                </label>
+                {{ form.rate_per_night }}
+                {{ form.rate_per_night.errors }}
+            </div>
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.discount.id_for_label }}">Discount</label>
+                {{ form.discount }}
+                {{ form.discount.errors }}
+            </div>
+        </div>
+    </section>
+
+    <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-semibold text-slate-950">Deposit &amp; Status</h3>
+        <div class="mt-5 grid gap-5 md:grid-cols-2">
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.deposit_required.id_for_label }}">Deposit required</label>
+                {{ form.deposit_required }}
+                {{ form.deposit_required.errors }}
+            </div>
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.deposit_paid.id_for_label }}">Deposit paid</label>
+                {{ form.deposit_paid }}
+                {{ form.deposit_paid.errors }}
+            </div>
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.status.id_for_label }}">Status</label>
+                {{ form.status }}
+                {{ form.status.errors }}
+            </div>
+            <div class="md:col-span-2">
+                <label class="text-sm font-medium text-slate-700" for="{{ form.notes.id_for_label }}">Notes</label>
+                {{ form.notes }}
+                {{ form.notes.errors }}
+            </div>
+        </div>
+    </section>
+
+    <div class="flex items-center justify-between">
+        {% if booking %}
+            <a href="{% url 'core:booking_detail' booking.pk %}" class="text-sm text-slate-600 hover:text-slate-900">Cancel</a>
+        {% else %}
+            <a href="{% url 'core:booking_list' %}" class="text-sm text-slate-600 hover:text-slate-900">Cancel</a>
+        {% endif %}
+        <button type="submit"
+                class="rounded-md bg-gold px-5 py-2.5 text-sm font-semibold text-navy shadow-sm hover:bg-gold/90 focus:outline-none focus:ring-2 focus:ring-gold/40">
+            {% if booking %}Save changes{% else %}Create booking{% endif %}
+        </button>
+    </div>
+</form>
+
+<script>
+    const ROOM_PRICES = {{ room_prices_json|safe }};
+    const roomSelect = document.getElementById('{{ form.room.id_for_label }}');
+    const rateInput = document.getElementById('{{ form.rate_per_night.id_for_label }}');
+
+    roomSelect.addEventListener('change', function () {
+        const price = ROOM_PRICES[this.value];
+        if (price !== undefined) {
+            rateInput.value = price;
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}POS Menu Items — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Point of Sale</div>
+    <h1 class="page-title">Menu Items</h1>
+    <p class="page-subtitle">{{ total_items }} active item{{ total_items|pluralize }} · {{ quick_count }} quick item{{ quick_count|pluralize }}</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:pos_terminal' %}" class="btn btn-ghost btn-sm">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Open Terminal
+    </a>
+    <a href="{% url 'core:pos_item_add' %}" class="btn btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Item
+    </a>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div class="card" style="margin-bottom:16px; padding:14px 18px;">
+  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+    <a href="{% url 'core:pos_items_list' %}"
+      style="padding:6px 14px; border-radius:var(--radius-full); font-size:12.5px; font-weight:500; border:1px solid {% if not category_filter %}var(--color-green-500){% else %}var(--color-border-bright){% endif %}; background:{% if not category_filter %}var(--color-green-glow){% else %}transparent{% endif %}; color:{% if not category_filter %}var(--color-green-400){% else %}var(--color-text-secondary){% endif %}; text-decoration:none; transition:all 0.1s;">
+      All
+    </a>
+    {% for cat in categories %}
+    <a href="?category={{ cat.pk }}"
+      style="padding:6px 14px; border-radius:var(--radius-full); font-size:12.5px; font-weight:500; border:1px solid {% if category_filter == cat.pk|stringformat:'s' %}var(--color-green-500){% else %}var(--color-border-bright){% endif %}; background:{% if category_filter == cat.pk|stringformat:'s' %}var(--color-green-glow){% else %}transparent{% endif %}; color:{% if category_filter == cat.pk|stringformat:'s' %}var(--color-green-400){% else %}var(--color-text-secondary){% endif %}; text-decoration:none; transition:all 0.1s;">
+      {% if cat.icon %}{{ cat.icon }} {% endif %}{{ cat.name }}
+    </a>
+    {% endfor %}
+    <!-- Add category inline form -->
+    <form method="post" action="{% url 'core:pos_category_add' %}" style="display:flex; align-items:center; gap:6px; margin-left:auto;">
+      {% csrf_token %}
+      <input type="text" name="name" placeholder="New category…" required
+        style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:6px 12px; color:var(--color-text-primary); font-size:12.5px; outline:none; width:160px;"
+        onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+      <button type="submit" class="btn btn-ghost btn-sm">Add Category</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Category</th>
+        <th>Price</th>
+        <th>Stock</th>
+        <th>Quick Item</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>
+          <div style="display:flex; align-items:center; gap:10px;">
+            {% if item.emoji %}
+            <div style="width:32px; height:32px; border-radius:var(--radius-sm); background:{{ item.color }}; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;">{{ item.emoji }}</div>
+            {% else %}
+            <div style="width:32px; height:32px; border-radius:var(--radius-sm); background:{{ item.color }}; flex-shrink:0;"></div>
+            {% endif %}
+            <div>
+              <div style="font-weight:500; color:var(--color-text-primary); font-size:13.5px;">{{ item.name }}</div>
+              {% if item.sku %}<div style="font-family:var(--font-mono); font-size:11px; color:var(--color-text-tertiary); margin-top:1px;">{{ item.sku }}</div>{% endif %}
+            </div>
+          </div>
+        </td>
+        <td style="font-size:13px; color:var(--color-text-secondary);">
+          {% if item.category %}{{ item.category.name }}{% else %}<span style="color:var(--color-text-tertiary);">—</span>{% endif %}
+        </td>
+        <td style="font-family:var(--font-mono); font-size:13px; font-weight:500; color:var(--color-text-primary);">R{{ item.price }}</td>
+        <td>
+          {% if item.track_inventory %}
+            {% if item.is_out_of_stock %}
+            <span class="badge badge-red" style="font-size:9.5px;">Out of stock</span>
+            {% elif item.is_low_stock %}
+            <span class="badge badge-amber" style="font-size:9.5px;">Low — {{ item.stock_quantity }}</span>
+            {% else %}
+            <span style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-secondary);">{{ item.stock_quantity }}</span>
+            {% endif %}
+          {% else %}
+          <span style="color:var(--color-text-tertiary); font-size:12px;">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if item.is_quick_item %}
+          <span class="badge badge-green" style="font-size:9.5px;">Quick</span>
+          {% else %}
+          <span style="color:var(--color-text-tertiary); font-size:12px;">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if item.is_active %}
+          <span class="badge badge-green" style="font-size:9.5px;">Active</span>
+          {% else %}
+          <span class="badge" style="font-size:9.5px;">Inactive</span>
+          {% endif %}
+        </td>
+        <td style="text-align:right;">
+          <div style="display:flex; align-items:center; justify-content:flex-end; gap:6px;">
+            <a href="{% url 'core:pos_item_edit' item.pk %}" class="btn btn-ghost btn-sm" style="font-size:11.5px; padding:4px 10px;">Edit</a>
+            <form method="post" action="{% url 'core:pos_item_delete' item.pk %}" style="display:inline;" onsubmit="return confirm('Remove {{ item.name }} from POS?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11.5px; padding:4px 10px; color:#f87171;">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7" style="text-align:center; padding:48px; color:var(--color-text-tertiary); font-size:13.5px;">
+          No POS items yet. <a href="{% url 'core:pos_item_add' %}" style="color:var(--color-green-400);">Add your first item →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,472 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Bookings</div>
+    <h1 class="page-title">{{ title }}</h1>
+  </div>
+  <div class="page-header-actions">
+    {% if booking %}
+    <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost">← Back</a>
+    {% else %}
+    <a href="{% url 'core:booking_list' %}" class="btn btn-ghost">← Back</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if walk_in_mode %}
+<div style="max-width:760px; margin-bottom:16px; padding:12px 16px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:var(--radius-md); display:flex; align-items:center; gap:10px; font-size:13.5px; color:#f59e0b; font-weight:500;">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+  Walk-in Mode — check-in date set to today
+</div>
+{% endif %}
+
+<div style="max-width:760px;">
+  <form method="post">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div style="margin-bottom:16px; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Booking Type -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:16px;">Booking Type</div>
+      <div class="grid-3" style="gap:10px;" id="booking-type-cards">
+        <label class="booking-type-label" style="cursor:pointer; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); background:var(--color-bg-subtle); padding:14px 16px; transition:border-color 0.15s, background 0.15s;">
+          <input type="radio" name="booking_type_mode" value="hourly" style="display:none;">
+          <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary);">Hourly</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:3px;">Short stay</div>
+        </label>
+        <label class="booking-type-label" style="cursor:pointer; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); background:var(--color-bg-subtle); padding:14px 16px; transition:border-color 0.15s, background 0.15s;">
+          <input type="radio" name="booking_type_mode" value="daily" style="display:none;" checked>
+          <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary);">Daily</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:3px;">Per night</div>
+        </label>
+        <label class="booking-type-label" style="cursor:pointer; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); background:var(--color-bg-subtle); padding:14px 16px; transition:border-color 0.15s, background 0.15s;">
+          <input type="radio" name="booking_type_mode" value="weekly" style="display:none;">
+          <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary);">Weekly</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:3px;">Extended stay</div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Guest & Room -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:20px;">Guest &amp; Room</div>
+      <div class="grid-2" style="gap:16px;">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label" for="{{ form.guest.id_for_label }}">Guest</label>
+          {{ form.guest }}
+          {% if form.guest.errors %}<div class="form-error">{{ form.guest.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.room.id_for_label }}">Room</label>
+          {% if locked_room %}
+          <div style="min-height:45px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border:1px solid var(--color-border-bright); border-radius:var(--radius-md); background:rgba(34,197,94,0.06);">
+            <div>
+              <div style="font-size:15px; font-weight:700; color:var(--color-text-primary);">{{ locked_room.name }}</div>
+              <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">{{ locked_room.room_type }} room selected</div>
+            </div>
+            <span style="font-size:11px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:var(--color-green-500);">Locked</span>
+          </div>
+          <div style="display:none;">{{ form.room }}</div>
+          <div class="form-hint">Opened from this room. Go back to Rooms or Availability to choose a different room.</div>
+          {% else %}
+          {{ form.room }}
+          {% endif %}
+          {% if form.room.errors %}<div class="form-error">{{ form.room.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.num_guests.id_for_label }}">Number of Guests</label>
+          {{ form.num_guests }}
+          {% if form.num_guests.errors %}<div class="form-error">{{ form.num_guests.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Duration & Rates -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:20px;">Duration &amp; Rates</div>
+      <div class="grid-2" style="gap:16px;">
+        <div class="form-group">
+          <label class="form-label" for="{{ form.check_in_date.id_for_label }}">Check-in Date</label>
+          {{ form.check_in_date }}
+          {% if form.check_in_date.errors %}<div class="form-error">{{ form.check_in_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group" id="check-out-field">
+          <label class="form-label" for="{{ form.check_out_date.id_for_label }}">Check-out Date</label>
+          {{ form.check_out_date }}
+          {% if form.check_out_date.errors %}<div class="form-error">{{ form.check_out_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group" id="weekly-weeks-field" style="display:none;">
+          <label class="form-label" for="weeks_count">Number of Weeks</label>
+          <select id="weeks_count">
+            {% for _ in "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" %}
+            <option value="{{ forloop.counter }}">{{ forloop.counter }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" id="start-time-field" style="display:none;">
+          <label class="form-label" for="{{ form.booking_start_time.id_for_label }}">Start Time</label>
+          {{ form.booking_start_time }}
+          {% if form.booking_start_time.errors %}<div class="form-error">{{ form.booking_start_time.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group" id="duration-field" style="display:none;">
+          {{ form.booking_duration_type }}
+        </div>
+        <div class="form-group" id="end-time-field" style="display:none;">
+          <label class="form-label" for="{{ form.booking_end_time.id_for_label }}">End Time</label>
+          {{ form.booking_end_time }}
+          {% if form.booking_end_time.errors %}<div class="form-error">{{ form.booking_end_time.errors.0 }}</div>{% endif %}
+        </div>
+        <div id="book-now-row" style="display:none; grid-column:1/-1;">
+          <button type="button" id="book-now-btn" onclick="bookNow()" style="width:100%; padding:12px; background:var(--color-green-500); color:#fff; border:none; border-radius:var(--radius-md); font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 0 16px rgba(34,197,94,0.4); letter-spacing:0.03em;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Book Now — Confirm &amp; Create Booking
+          </button>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="rate_choice_select">Rate</label>
+          <select id="rate_choice_select"></select>
+          <div style="display:none;">{{ form.rate_per_night }}</div>
+          <div class="form-hint" id="rate-help">Rates come from the selected room setup.</div>
+          {% if form.rate_per_night.errors %}<div class="form-error">{{ form.rate_per_night.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.discount.id_for_label }}">Discount</label>
+          {{ form.discount }}
+          {% if form.discount.errors %}<div class="form-error">{{ form.discount.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment & Status -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="section-label" style="margin-bottom:20px;">Payment &amp; Status</div>
+      <div class="grid-2" style="gap:16px;">
+        <div class="form-group">
+          <label class="form-label" for="{{ form.deposit_required.id_for_label }}">Deposit Required</label>
+          {{ form.deposit_required }}
+          {% if form.deposit_required.errors %}<div class="form-error">{{ form.deposit_required.errors.0 }}</div>{% endif %}
+          <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:4px;">Record actual payments from the booking detail page.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.booking_source.id_for_label }}">Booking Source</label>
+          {{ form.booking_source }}
+          {% if form.booking_source.errors %}<div class="form-error">{{ form.booking_source.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.status.id_for_label }}">Status</label>
+          {{ form.status }}
+          {% if form.status.errors %}<div class="form-error">{{ form.status.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label" for="{{ form.notes.id_for_label }}">Notes</label>
+          {{ form.notes }}
+          {% if form.notes.errors %}<div class="form-error">{{ form.notes.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px;">
+      <button type="submit" class="btn btn-primary btn-lg">{% if booking %}Save Changes{% else %}Create Booking{% endif %}</button>
+      {% if booking %}
+      <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-lg">Cancel</a>
+      {% else %}
+      <a href="{% url 'core:booking_list' %}" class="btn btn-ghost btn-lg">Cancel</a>
+      {% endif %}
+    </div>
+    {% if not is_owner %}
+    <div style="max-width:520px; margin-top:14px; padding:12px; border:1px solid rgba(245,158,11,0.25); border-radius:var(--radius-md); background:rgba(245,158,11,0.06);">
+      <div class="form-label">Owner Approval For Sensitive Changes</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <input name="manager_username" placeholder="Owner username" autocomplete="username">
+        <input name="manager_password" placeholder="Owner password" type="password" autocomplete="current-password">
+      </div>
+    </div>
+    {% endif %}
+  </form>
+</div>
+
+<script>
+(function() {
+  const ROOM_PRICES = {{ room_prices_json|safe }};
+  const roomSelect    = document.getElementById('{{ form.room.id_for_label }}');
+  const rateInput     = document.getElementById('{{ form.rate_per_night.id_for_label }}');
+  const rateChoice    = document.getElementById('rate_choice_select');
+  const durationSelect= document.getElementById('{{ form.booking_duration_type.id_for_label }}');
+  const checkInInput  = document.getElementById('{{ form.check_in_date.id_for_label }}');
+  const checkOutInput = document.getElementById('{{ form.check_out_date.id_for_label }}');
+  const startTimeInput= document.getElementById('{{ form.booking_start_time.id_for_label }}');
+  const endTimeInput  = document.getElementById('{{ form.booking_end_time.id_for_label }}');
+  const weeksInput    = document.getElementById('weeks_count');
+  const statusSelect  = document.getElementById('{{ form.status.id_for_label }}');
+
+  function activeMode() {
+    const checked = document.querySelector('[name="booking_type_mode"]:checked');
+    return checked ? checked.value : 'daily';
+  }
+
+  function updateCardStyles() {
+    document.querySelectorAll('.booking-type-label').forEach(function(label) {
+      const input = label.querySelector('input');
+      if (input.checked) {
+        label.style.borderColor = 'var(--color-green-500)';
+        label.style.background  = 'rgba(34,197,94,0.06)';
+      } else {
+        label.style.borderColor = 'var(--color-border-bright)';
+        label.style.background  = 'var(--color-bg-subtle)';
+      }
+    });
+  }
+
+  function show(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
+  function hide(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+
+  function formatDate(date) {
+    return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  }
+
+  function todayString() {
+    return formatDate(new Date());
+  }
+
+  function dateAfter(value, days) {
+    const date = value ? new Date(value + 'T00:00:00') : new Date();
+    date.setDate(date.getDate() + days);
+    return formatDate(date);
+  }
+
+  function roundedCurrentTime() {
+    const now = new Date();
+    const minutes = Math.floor(now.getMinutes() / 5) * 5;
+    return String(now.getHours()).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+  }
+
+  const RATE_LABELS = {
+    '1_hour': '1 Hour',
+    '2_hours': '2 Hours',
+    '3_hours': '3 Hours',
+    'daily': 'Night',
+    '24_hours': '24 Hours',
+    'weekly': 'Week'
+  };
+
+  const RATE_DURATIONS = ['1_hour', '2_hours', '3_hours', 'daily', '24_hours'];
+
+  function populateDatesForMode(mode, force) {
+    const bookingDate = todayString();
+
+    if (mode === 'hourly') {
+      if (checkInInput && (force || !checkInInput.value)) checkInInput.value = bookingDate;
+      if (checkOutInput) checkOutInput.value = checkInInput && checkInInput.value ? checkInInput.value : bookingDate;
+      if (startTimeInput && (force || !startTimeInput.value)) startTimeInput.value = roundedCurrentTime();
+      updateHourlyEnd();
+      return;
+    }
+
+    if (mode === 'weekly') {
+      if (checkInInput && (force || !checkInInput.value)) checkInInput.value = bookingDate;
+      updateWeeklyCheckout();
+      return;
+    }
+
+    if (checkInInput && (force || !checkInInput.value)) checkInInput.value = bookingDate;
+    if (checkOutInput && (force || !checkOutInput.value || checkOutInput.value <= checkInInput.value)) {
+      checkOutInput.value = dateAfter(checkInInput.value, 1);
+    }
+  }
+
+  function setMode(mode, forceDates) {
+    if (mode === 'hourly') {
+      if (!['1_hour','2_hours','3_hours'].includes(durationSelect.value)) durationSelect.value = '1_hour';
+      show('start-time-field'); show('end-time-field'); show('book-now-row');
+      hide('check-out-field');  hide('weekly-weeks-field');
+      populateDatesForMode(mode, forceDates);
+    } else if (mode === 'weekly') {
+      durationSelect.value = 'weekly';
+      hide('start-time-field'); hide('end-time-field'); show('book-now-row');
+      show('check-out-field');  show('weekly-weeks-field');
+      populateDatesForMode(mode, forceDates);
+    } else {
+      durationSelect.value = 'daily';
+      hide('start-time-field'); hide('end-time-field'); show('book-now-row');
+      show('check-out-field');  hide('weekly-weeks-field');
+      populateDatesForMode(mode, forceDates);
+    }
+    populateRateChoices();
+    updateHourlyEnd();
+    updateCardStyles();
+  }
+
+  function availableDurationsForMode() {
+    return RATE_DURATIONS;
+  }
+
+  function populateRateChoices() {
+    const roomId = roomSelect ? roomSelect.value : '';
+    const prices = ROOM_PRICES[roomId] || {};
+    const previousDuration = durationSelect ? durationSelect.value : '';
+    const durations = availableDurationsForMode();
+
+    if (!rateChoice) return;
+    rateChoice.innerHTML = '';
+
+    durations.forEach(function(duration) {
+      const price = prices[duration];
+      if (!price || Number(price) <= 0) return;
+      const option = document.createElement('option');
+      option.value = duration;
+      option.dataset.price = price;
+      option.textContent = RATE_LABELS[duration] + ' - R ' + price;
+      rateChoice.appendChild(option);
+    });
+
+    if (!rateChoice.options.length) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No configured rate for this room';
+      rateChoice.appendChild(option);
+      if (rateInput) rateInput.value = '';
+      return;
+    }
+
+    const matchingOption = Array.from(rateChoice.options).find(function(option) {
+      return option.value === previousDuration;
+    });
+    rateChoice.value = matchingOption ? previousDuration : rateChoice.options[0].value;
+    applySelectedRate();
+  }
+
+  function applySelectedRate() {
+    if (!rateChoice || !rateChoice.value) return;
+    const selected = rateChoice.options[rateChoice.selectedIndex];
+    if (durationSelect) durationSelect.value = rateChoice.value;
+    if (rateInput) rateInput.value = selected.dataset.price || '';
+    syncModeFromRate(rateChoice.value);
+    updateHourlyEnd();
+  }
+
+  function syncModeFromRate(duration) {
+    const mode = ['1_hour', '2_hours', '3_hours'].includes(duration) ? 'hourly' : 'daily';
+    const input = document.querySelector('[name="booking_type_mode"][value="' + mode + '"]');
+    if (input) input.checked = true;
+
+    if (mode === 'hourly') {
+      show('start-time-field'); show('end-time-field'); show('book-now-row');
+      hide('check-out-field'); hide('weekly-weeks-field');
+      populateDatesForMode(mode, false);
+    } else {
+      hide('start-time-field'); hide('end-time-field'); show('book-now-row');
+      show('check-out-field'); hide('weekly-weeks-field');
+      populateDatesForMode(mode, false);
+      if (duration === '24_hours' && checkInInput.value) {
+        const date = new Date(checkInInput.value + 'T00:00:00');
+        date.setDate(date.getDate() + 1);
+        checkOutInput.value = formatDate(date);
+      }
+    }
+    updateCardStyles();
+  }
+
+  function updateWeeklyCheckout() {
+    if (!checkInInput.value || activeMode() !== 'weekly') return;
+    const date = new Date(checkInInput.value + 'T00:00:00');
+    date.setDate(date.getDate() + Number(weeksInput.value || 1) * 7);
+    checkOutInput.value = formatDate(date);
+  }
+
+  function updateHourlyEnd() {
+    if (activeMode() !== 'hourly' || !startTimeInput || !startTimeInput.value) return;
+    const hours = {'1_hour':1,'2_hours':2,'3_hours':3,'5_hours':5}[durationSelect.value] || 1;
+    const parts = startTimeInput.value.split(':').map(Number);
+    const d = new Date();
+    d.setHours(parts[0] + hours, parts[1] || 0, 0, 0);
+    if (endTimeInput) endTimeInput.value = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    if (checkInInput.value && checkOutInput) checkOutInput.value = checkInInput.value;
+  }
+
+  function handleCheckInChange() {
+    const mode = activeMode();
+    if (mode === 'hourly') {
+      if (checkOutInput && checkInInput.value) checkOutInput.value = checkInInput.value;
+      updateHourlyEnd();
+    } else if (mode === 'weekly') {
+      updateWeeklyCheckout();
+    } else if (checkInInput.value && checkOutInput && (!checkOutInput.value || checkOutInput.value <= checkInInput.value)) {
+      checkOutInput.value = dateAfter(checkInInput.value, 1);
+    }
+  }
+
+  // Book Now: stamp current date + time, compute end time, set Confirmed, submit
+  window.bookNow = function() {
+    var now = new Date();
+    var y   = now.getFullYear();
+    var mo  = String(now.getMonth() + 1).padStart(2, '0');
+    var d   = String(now.getDate()).padStart(2, '0');
+    var h   = now.getHours();
+    var min = Math.floor(now.getMinutes() / 5) * 5;   // round down to nearest 5 min
+
+    if (checkInInput)   checkInInput.value  = y + '-' + mo + '-' + d;
+    if (['1_hour', '2_hours', '3_hours'].includes(durationSelect.value)) {
+      if (checkOutInput)  checkOutInput.value = y + '-' + mo + '-' + d;
+      if (startTimeInput) startTimeInput.value = String(h).padStart(2,'0') + ':' + String(min).padStart(2,'0');
+    } else if (durationSelect.value === '24_hours') {
+      var tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      if (checkOutInput) checkOutInput.value = tomorrow.getFullYear() + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(tomorrow.getDate()).padStart(2, '0');
+    } else {
+      var nextDay = new Date(now);
+      nextDay.setDate(nextDay.getDate() + 1);
+      if (checkOutInput) checkOutInput.value = nextDay.getFullYear() + '-' + String(nextDay.getMonth() + 1).padStart(2, '0') + '-' + String(nextDay.getDate()).padStart(2, '0');
+    }
+
+    populateRateChoices();
+    updateHourlyEnd();  // computes end time from start + selected duration
+
+    // Force status to Confirmed then submit
+    if (statusSelect) statusSelect.value = 'Confirmed';
+    setTimeout(function() {
+      document.getElementById('book-now-btn').closest('form').submit();
+    }, 50);
+  };
+
+  // Attach booking-type card click handlers (label wraps hidden radio — also wire click for reliability)
+  document.querySelectorAll('.booking-type-label').forEach(function(label) {
+    label.addEventListener('click', function() {
+      var input = label.querySelector('input[type="radio"]');
+      if (input) {
+        input.checked = true;
+        setMode(input.value, true);
+      }
+    });
+  });
+  document.querySelectorAll('[name="booking_type_mode"]').forEach(function(input) {
+    input.addEventListener('change', function() { setMode(input.value, true); });
+  });
+
+  if (roomSelect)    roomSelect.addEventListener('change', populateRateChoices);
+  if (rateChoice)    rateChoice.addEventListener('change', applySelectedRate);
+  if (durationSelect)durationSelect.addEventListener('change', function() { populateRateChoices(); updateHourlyEnd(); });
+  if (checkInInput)  checkInInput.addEventListener('change', handleCheckInChange);
+  if (weeksInput)    weeksInput.addEventListener('change', updateWeeklyCheckout);
+  if (startTimeInput)startTimeInput.addEventListener('change', updateHourlyEnd);
+
+  // Set initial booking-type radio from the form's duration value
+  const initialDuration = durationSelect ? durationSelect.value : 'daily';
+  if (['1_hour','2_hours','3_hours'].includes(initialDuration)) {
+    const hr = document.querySelector('[name="booking_type_mode"][value="hourly"]');
+    if (hr) hr.checked = true;
+  } else if (initialDuration === 'weekly') {
+    const wk = document.querySelector('[name="booking_type_mode"][value="weekly"]');
+    if (wk) wk.checked = true;
+  }
+  setMode(activeMode(), false);
+})();
+</script>
+{% endblock %}

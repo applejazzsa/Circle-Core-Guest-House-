@@ -1,0 +1,59 @@
+<div class="card" style="padding:14px;">
+  <div style="display:flex; align-items:start; justify-content:space-between; gap:10px; margin-bottom:12px;">
+    <div>
+      <div style="font-weight:600; color:var(--color-text-primary); font-size:14px;">{{ room.name }}</div>
+      <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:2px;">{{ room.room_type }}</div>
+    </div>
+    <span class="badge
+      {% if room.status == 'Available' %}badge-green
+      {% elif room.status == 'Occupied' %}badge-blue
+      {% elif room.status == 'Cleaning' %}badge-amber
+      {% elif room.status == 'Maintenance' %}badge-amber
+      {% else %}badge-gray{% endif %}" style="font-size:9px; flex-shrink:0;">{{ room.status }}</span>
+  </div>
+
+  <div style="background:var(--color-bg-subtle); border-radius:var(--radius-sm); padding:10px 12px; margin-bottom:12px;">
+    <div style="font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--color-text-tertiary); margin-bottom:4px;">Next booking</div>
+    {% if room.next_booking %}
+    {% if is_cleaner %}
+    <div style="font-family:var(--font-mono); font-size:12px; color:var(--color-green-400); font-weight:500;">{{ room.next_booking.check_in_date|date:"d M Y" }}</div>
+    {% else %}
+    <a href="{% url 'core:booking_detail' room.next_booking.pk %}" style="font-family:var(--font-mono); font-size:12px; color:var(--color-green-400); font-weight:500; text-decoration:none;">{{ room.next_booking.check_in_date|date:"d M Y" }}</a>
+    {% endif %}
+    <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:2px;">{{ room.next_booking.guest.full_name }}</div>
+    {% else %}
+    <div style="font-size:12px; color:var(--color-text-tertiary);">No upcoming booking</div>
+    {% endif %}
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:6px;">
+    {% if room.cleaning_status == "Needs Cleaning" %}
+    <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}" enctype="multipart/form-data" style="width:100%;">
+      {% csrf_token %}
+      <input type="hidden" name="cleaning_status" value="Clean">
+      <input type="file" name="cleaning_photo" accept="image/*" capture="environment" required style="width:100%; margin-bottom:6px; font-size:11px;">
+      <button type="submit" class="btn btn-primary btn-sm">Done - Available</button>
+    </form>
+    <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="cleaning_status" value="In Progress">
+      <button type="submit" class="btn btn-sm" style="background:#3b82f6; color:#fff; border-color:#3b82f6;">Start</button>
+    </form>
+    {% endif %}
+    {% if room.cleaning_status == "In Progress" %}
+    <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}" enctype="multipart/form-data" style="width:100%;">
+      {% csrf_token %}
+      <input type="hidden" name="cleaning_status" value="Clean">
+      <input type="file" name="cleaning_photo" accept="image/*" capture="environment" required style="width:100%; margin-bottom:6px; font-size:11px;">
+      <button type="submit" class="btn btn-primary btn-sm">Mark Clean</button>
+    </form>
+    {% endif %}
+    {% if room.cleaning_status != "Needs Cleaning" %}
+    <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="cleaning_status" value="Needs Cleaning">
+      <button type="submit" class="btn btn-ghost btn-sm" style="border-color:rgba(245,158,11,0.3); color:#f59e0b;">Needs Cleaning</button>
+    </form>
+    {% endif %}
+  </div>
+</div>

@@ -1,0 +1,28 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h1 class="title">Thank You for Staying!</h1>
+<p class="subtitle">Hi {{ booking.guest.first_name }}, we hope you enjoyed your stay. We'd love to have you back!</p>
+
+<div class="detail-box">
+  <div class="detail-row">
+    <span class="detail-label">Reference</span>
+    <span class="detail-value" style="font-family:monospace;">{{ booking.booking_reference }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Room</span>
+    <span class="detail-value">{{ booking.room.name }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Stay</span>
+    <span class="detail-value">{{ booking.check_in_date|date:"d M" }} – {{ booking.check_out_date|date:"d M Y" }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Total Paid</span>
+    <span class="detail-value">R {{ booking.total_paid }}</span>
+  </div>
+</div>
+
+<p style="font-size:13.5px; color:#475569; line-height:1.6;">
+  Thank you for choosing {{ settings.guest_house_name|default:"us" }}. We look forward to welcoming you again soon!
+</p>
+{% endblock %}

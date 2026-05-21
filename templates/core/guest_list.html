@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Guests — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Management</div>
+    <h1 class="page-title">Guests</h1>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:guest_add' %}" class="btn btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Guest
+    </a>
+  </div>
+</div>
+
+<!-- Search -->
+<form method="get" style="margin-bottom:20px;">
+  <div style="position:relative; max-width:400px;">
+    <svg style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-text-tertiary); pointer-events:none;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="search" name="q" value="{{ query }}" placeholder="Search by name or phone…"
+      style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-full); padding:8px 14px 8px 36px; color:var(--color-text-primary); font-size:13.5px; outline:none; transition:border-color 0.15s;"
+      onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+    {% if query %}
+    <a href="{% url 'core:guest_list' %}" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--color-text-tertiary); text-decoration:none; font-size:16px; line-height:1;">×</a>
+    {% endif %}
+  </div>
+</form>
+
+{% if guests %}
+<div class="card" style="padding:0; overflow:hidden;">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Guest</th>
+        <th>Phone</th>
+        <th class="hide-mobile">Email</th>
+        <th>Stays</th>
+        <th class="hide-mobile">Since</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for guest in guests %}
+      <tr {% if guest.is_generic %}style="background:rgba(99,102,241,0.04);"{% endif %}>
+        <td>
+          <div style="display:flex; align-items:center; gap:10px;">
+            {% if guest.is_generic %}
+            <div class="avatar avatar-sm" style="font-size:10px; flex-shrink:0; background:rgba(99,102,241,0.18); color:#818cf8;">WI</div>
+            {% else %}
+            <div class="avatar avatar-sm avatar-green" style="font-size:10px; flex-shrink:0;">{{ guest.first_name|first }}{{ guest.last_name|first }}</div>
+            {% endif %}
+            <div>
+              <div style="font-weight:500; color:{% if guest.is_generic %}#818cf8{% else %}var(--color-text-primary){% endif %}; font-size:14px;">{{ guest.full_name }}</div>
+              {% if guest.is_generic %}
+              <span class="badge" style="font-size:9px; padding:1px 7px; margin-top:2px; background:rgba(99,102,241,0.12); color:#818cf8; border-color:rgba(99,102,241,0.25);">System</span>
+              {% elif guest.is_repeat_guest %}
+              <span class="badge badge-amber" style="font-size:9px; padding:1px 7px; margin-top:2px;">Returning</span>
+              {% endif %}
+            </div>
+          </div>
+        </td>
+        <td>
+          <span style="font-family:var(--font-mono); font-size:13px;">{{ guest.phone }}</span>
+        </td>
+        <td class="hide-mobile" style="font-size:13px;">{{ guest.email|default:"—" }}</td>
+        <td>
+          <span style="font-family:var(--font-mono); font-size:13px; color:var(--color-text-primary);">{{ guest.total_stays }}</span>
+        </td>
+        <td class="hide-mobile" style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-tertiary);">{% if not guest.is_generic %}{{ guest.created_at|date:"d M Y" }}{% else %}—{% endif %}</td>
+        <td>
+          <div style="display:flex; gap:6px; justify-content:flex-end;">
+            {% if not guest.is_generic %}<a href="{% url 'core:guest_detail' guest.pk %}" class="btn btn-ghost btn-sm">View</a>{% endif %}
+            <a href="{% url 'core:booking_add' %}?guest={{ guest.pk }}" class="btn btn-secondary btn-sm">Book</a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif query %}
+<div class="card empty-state">
+  <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <div class="empty-state-title">No guests found</div>
+  <p class="empty-state-body">No guests match "{{ query }}". Try a different name or phone number.</p>
+  <a href="{% url 'core:guest_list' %}" class="btn btn-ghost">Clear search</a>
+</div>
+{% else %}
+<div class="card empty-state">
+  <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+  <div class="empty-state-title">No guests yet</div>
+  <p class="empty-state-body">Guests are automatically created when you add bookings, or add them manually here.</p>
+  <a href="{% url 'core:guest_add' %}" class="btn btn-primary">Add first guest</a>
+</div>
+{% endif %}
+{% endblock %}

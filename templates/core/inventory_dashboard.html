@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Inventory — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Operations</div>
+    <h1 class="page-title">Inventory</h1>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:inventory_transactions' %}" class="btn btn-ghost btn-sm">Transactions</a>
+    {% if not is_cleaner %}
+    <a href="{% url 'core:inventory_categories' %}" class="btn btn-ghost btn-sm">Categories</a>
+    <a href="{% url 'core:inventory_add' %}" class="btn btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Item
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Metrics -->
+<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:20px;">
+  <div class="card" style="border-top:3px solid var(--color-green-500); padding:20px;">
+    <div class="section-label" style="margin-bottom:8px;">Items in Stock</div>
+    <div class="num" style="font-size:28px;">{{ total_items }}</div>
+  </div>
+  <div class="card" style="border-top:3px solid #f59e0b; padding:20px;">
+    <div class="section-label" style="margin-bottom:8px;">Low Stock Alerts</div>
+    <div class="num" style="font-size:28px; color:{% if low_stock_count > 0 %}#f59e0b{% else %}var(--color-text-primary){% endif %};">{{ low_stock_count }}</div>
+  </div>
+  <div class="card" style="border-top:3px solid #22c55e; padding:20px;">
+    <div class="section-label" style="margin-bottom:8px;">Stock Value</div>
+    <div class="num" style="font-size:22px; margin-top:4px;">{{ guest_house_settings.currency|default:"R" }} {{ total_stock_value|floatformat:2 }}</div>
+  </div>
+  <div class="card" style="border-top:3px solid #3b82f6; padding:20px;">
+    <div class="section-label" style="margin-bottom:8px;">Categories</div>
+    <div class="num" style="font-size:28px;">{{ categories_count }}</div>
+  </div>
+</div>
+
+<!-- Low stock alerts -->
+{% if low_stock_items %}
+<div style="margin-bottom:20px; padding:18px 20px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2); border-radius:var(--radius-lg);">
+  <div style="font-weight:700; color:#f59e0b; font-size:13px; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="3"/></svg>
+    Low Stock Alerts
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Category</th>
+        <th>Current</th>
+        <th>Minimum</th>
+        <th>Reorder Qty</th>
+        <th>Supplier Phone</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in low_stock_items %}
+      <tr>
+        <td style="font-weight:500; color:var(--color-text-primary);">{{ item.name }}</td>
+        <td style="font-size:13px;">{{ item.category|default:"—" }}</td>
+        <td style="font-family:var(--font-mono); font-size:13px; color:#f87171;">{{ item.current_stock }}</td>
+        <td style="font-family:var(--font-mono); font-size:13px;">{{ item.minimum_stock }}</td>
+        <td style="font-family:var(--font-mono); font-size:13px;">{{ item.reorder_quantity }}</td>
+        <td style="font-family:var(--font-mono); font-size:12.5px; color:var(--color-text-secondary);">{{ item.supplier_phone|default:"—" }}</td>
+        <td>
+          {% if not is_cleaner %}
+          <a href="{% url 'core:inventory_stock_in' item.pk %}" class="btn btn-ghost btn-sm" style="border-color:rgba(245,158,11,0.3); color:#f59e0b;">Stock In</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Filters -->
+<div class="card" style="margin-bottom:16px; padding:16px 20px;">
+  <form method="get" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:10px; align-items:end;">
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="q">Search</label>
+      <input type="search" id="q" name="q" value="{{ query }}" placeholder="Item name…">
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="category">Category</label>
+      <select id="category" name="category">
+        <option value="">All Categories</option>
+        {% for category in categories %}
+        <option value="{{ category.pk }}" {% if category_filter == category.pk|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="location">Location</label>
+      <select id="location" name="location">
+        <option value="">All Locations</option>
+        {% for location in locations %}
+        <option value="{{ location }}" {% if location_filter == location %}selected{% endif %}>{{ location }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="status">Status</label>
+      <select id="status" name="status">
+        <option value="">All</option>
+        <option value="sufficient" {% if status_filter == "sufficient" %}selected{% endif %}>Sufficient</option>
+        <option value="low" {% if status_filter == "low" %}selected{% endif %}>Low</option>
+        <option value="out" {% if status_filter == "out" %}selected{% endif %}>Out of Stock</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-sm" style="align-self:end;">Filter</button>
+  </form>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th class="hide-mobile">Category</th>
+        <th class="hide-mobile">Location</th>
+        <th>Stock</th>
+        <th class="hide-mobile">Unit</th>
+        <th class="hide-mobile">Min</th>
+        <th>Status</th>
+        <th class="hide-mobile">Value</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>
+          <a href="{% url 'core:inventory_detail' item.pk %}" style="font-weight:500; color:var(--color-text-primary); text-decoration:none;">{{ item.name }}</a>
+        </td>
+        <td class="hide-mobile" style="font-size:13px; color:var(--color-text-secondary);">{{ item.category|default:"—" }}</td>
+        <td class="hide-mobile" style="font-size:13px; color:var(--color-text-secondary);">{{ item.location|default:"—" }}</td>
+        <td style="font-family:var(--font-mono); font-size:13px; font-weight:500;">{{ item.current_stock }}</td>
+        <td class="hide-mobile" style="font-size:12.5px; color:var(--color-text-tertiary);">{{ item.unit }}</td>
+        <td class="hide-mobile" style="font-family:var(--font-mono); font-size:12.5px; color:var(--color-text-tertiary);">{{ item.minimum_stock }}</td>
+        <td>
+          {% if item.current_stock <= 0 %}
+          <span class="badge badge-red" style="font-size:9.5px;">Out of Stock</span>
+          {% elif item.is_low_stock %}
+          <span class="badge badge-amber" style="font-size:9.5px;">Low</span>
+          {% else %}
+          <span class="badge badge-green" style="font-size:9.5px;">Sufficient</span>
+          {% endif %}
+        </td>
+        <td class="hide-mobile" style="font-family:var(--font-mono); font-size:13px; font-weight:500; color:var(--color-text-primary);">{{ guest_house_settings.currency|default:"R" }} {{ item.stock_value|floatformat:2 }}</td>
+        <td>
+          {% if not is_cleaner %}
+          <div style="display:flex; gap:4px; justify-content:flex-end;">
+            <a href="{% url 'core:inventory_stock_in' item.pk %}" class="btn btn-ghost btn-sm" style="color:var(--color-green-400); border-color:rgba(34,197,94,0.2);">In</a>
+            <a href="{% url 'core:inventory_stock_out' item.pk %}" class="btn btn-ghost btn-sm" style="color:#f59e0b; border-color:rgba(245,158,11,0.2);">Out</a>
+            <a href="{% url 'core:inventory_edit' item.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="9" style="text-align:center; padding:40px; color:var(--color-text-tertiary); font-size:13.5px;">No inventory items found.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

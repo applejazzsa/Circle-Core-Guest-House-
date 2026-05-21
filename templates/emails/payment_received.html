@@ -1,0 +1,38 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h1 class="title">Payment Received</h1>
+<p class="subtitle">Hi {{ booking.guest.first_name }}, we've received your payment. Here's the summary.</p>
+
+<div class="highlight">
+  <div class="label">Payment Amount</div>
+  <div class="amount">R {{ payment.amount }}</div>
+  <div style="font-size:12px; color:#15803d; margin-top:4px;">{{ payment.payment_method }} · {{ payment.payment_date|date:"d M Y" }}</div>
+</div>
+
+<div class="detail-box">
+  <div class="detail-row">
+    <span class="detail-label">Booking</span>
+    <span class="detail-value" style="font-family:monospace;">{{ booking.booking_reference }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Room</span>
+    <span class="detail-value">{{ booking.room.name }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Remaining Balance</span>
+    <span class="detail-value" style="color:{% if booking.balance_due > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+      {% if booking.balance_due > 0 %}R {{ booking.balance_due }} due{% else %}Settled{% endif %}
+    </span>
+  </div>
+  {% if payment.reference %}
+  <div class="detail-row">
+    <span class="detail-label">Reference</span>
+    <span class="detail-value" style="font-family:monospace;">{{ payment.reference }}</span>
+  </div>
+  {% endif %}
+</div>
+
+<p style="font-size:13.5px; color:#475569; line-height:1.6;">
+  Please keep this email as your payment record. Contact us if you have any questions.
+</p>
+{% endblock %}

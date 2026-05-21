@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Refund {{ booking.booking_reference }} - Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Payments</div>
+    <h1 class="page-title">Record Booking Refund</h1>
+    <p class="page-subtitle">{{ booking.booking_reference }} · {{ booking.guest.full_name }} · {{ booking.room.name }}</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost">Back to Booking</a>
+  </div>
+</div>
+
+<div style="max-width:720px;">
+  <div class="stats-row">
+    <div class="metric-card"><div class="metric-label">Total Paid</div><div class="metric-value">R {{ payment_totals.total_paid|floatformat:2 }}</div></div>
+    <div class="metric-card"><div class="metric-label">Already Refunded</div><div class="metric-value">R {{ payment_totals.total_refunded|floatformat:2 }}</div></div>
+    <div class="metric-card"><div class="metric-label">Available</div><div class="metric-value">R {{ refundable_amount|floatformat:2 }}</div></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label" style="margin-bottom:18px;">Refund Details</div>
+    <form method="post">
+      {% csrf_token %}
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        {% for field in form %}
+        <div class="form-group" {% if field.name == "reason" %}style="grid-column:1/-1;"{% endif %}>
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}<div class="form-error">{{ field.errors.0 }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if not is_owner %}
+      <div style="margin-top:12px; padding:12px; border:1px solid rgba(245,158,11,0.25); border-radius:var(--radius-md); background:rgba(245,158,11,0.06);">
+        <div class="form-label">Owner Approval</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <input name="manager_username" placeholder="Owner username" autocomplete="username">
+          <input name="manager_password" placeholder="Owner password" type="password" autocomplete="current-password">
+        </div>
+      </div>
+      {% endif %}
+
+      <div style="display:flex; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid var(--color-border);">
+        <button type="submit" class="btn btn-danger btn-lg">Record Refund</button>
+        <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-lg">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

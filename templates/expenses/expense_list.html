@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Expenses — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Finance</div>
+    <h1 class="page-title">Expenses</h1>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:expense_add' %}" class="btn btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Expense
+    </a>
+  </div>
+</div>
+
+<!-- Filters + Total -->
+<div class="card" style="margin-bottom:20px;">
+  <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:end; justify-content:space-between;">
+    <form method="get" style="display:flex; flex-wrap:wrap; gap:10px; align-items:end;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="month">Month</label>
+        <input type="month" id="month" name="month" value="{{ selected_month }}"
+          style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:7px 12px; color:var(--color-text-secondary); font-size:13px;">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="category">Category</label>
+        <select id="category" name="category"
+          style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:7px 12px; color:var(--color-text-secondary); font-size:13px; cursor:pointer;">
+          <option value="">All Categories</option>
+          {% for value, label in category_choices %}
+          <option value="{{ value }}" {% if selected_category == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+      {% if selected_category %}
+      <a href="{% url 'core:expense_list' %}?month={{ selected_month }}" class="btn btn-ghost btn-sm">Clear</a>
+      {% endif %}
+    </form>
+    <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px 16px; text-align:right;">
+      <div class="section-label" style="margin-bottom:4px;">Filtered Total</div>
+      <div style="font-family:var(--font-display); font-size:20px; font-weight:700; color:var(--color-text-primary);">{{ guest_house_settings.currency|default:"R" }} {{ total_expenses }}</div>
+    </div>
+  </div>
+</div>
+
+{% if expenses %}
+<div class="card" style="padding:0; overflow:hidden;">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Category</th>
+        <th>Description</th>
+        <th class="hide-mobile">Paid to</th>
+        <th>Amount</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for expense in expenses %}
+      <tr>
+        <td style="font-family:var(--font-mono); font-size:12.5px;">{{ expense.date|date:"d M Y" }}</td>
+        <td>
+          <span class="badge
+            {% if expense.category == 'Cleaning' %}badge-green
+            {% elif expense.category == 'Maintenance' %}badge-red
+            {% elif expense.category == 'Utilities' %}badge-blue
+            {% elif expense.category == 'Supplies' %}badge-amber
+            {% elif expense.category == 'Staff' %}badge-purple
+            {% elif expense.category == 'Marketing' %}badge-teal
+            {% else %}badge-gray{% endif %}" style="font-size:9.5px;">{{ expense.category }}</span>
+        </td>
+        <td>
+          <a href="{% url 'core:expense_edit' expense.pk %}" style="font-size:13px; color:var(--color-text-primary); font-weight:500; text-decoration:none;">{{ expense.description }}</a>
+        </td>
+        <td class="hide-mobile" style="font-size:13px; color:var(--color-text-secondary);">{{ expense.paid_to|default:"—" }}</td>
+        <td style="font-family:var(--font-mono); font-size:13px; font-weight:500; color:var(--color-text-primary);">{{ guest_house_settings.currency|default:"R" }} {{ expense.amount }}</td>
+        <td>
+          <div style="display:flex; gap:6px; justify-content:flex-end;">
+            <a href="{% url 'core:expense_edit' expense.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+            <form method="post" action="{% url 'core:expense_delete' expense.pk %}" style="display:inline;" onsubmit="return confirm('Delete this expense?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:#f87171; border-color:rgba(239,68,68,0.2);">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p style="font-size:12px; color:var(--color-text-tertiary); margin-top:10px; padding-left:2px;">{{ expenses|length }} expense{{ expenses|length|pluralize }}</p>
+{% else %}
+<div class="card empty-state">
+  <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3h10l2 4v14H5V7l2-4zm-2 4h14M9 12h6M9 16h4"/></svg>
+  <div class="empty-state-title">No expenses recorded for this period</div>
+  <a href="{% url 'core:expense_add' %}" class="btn btn-primary">Add Expense</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h1 class="title">Welcome, {{ booking.guest.first_name }}!</h1>
+<p class="subtitle">You've been checked in. Enjoy your stay with us.</p>
+
+<div class="detail-box">
+  <div class="detail-row">
+    <span class="detail-label">Reference</span>
+    <span class="detail-value" style="font-family:monospace;">{{ booking.booking_reference }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Room</span>
+    <span class="detail-value">{{ booking.room.name }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Check-out</span>
+    <span class="detail-value">{{ booking.check_out_date|date:"D, d M Y" }}</span>
+  </div>
+  {% if booking.balance_due > 0 %}
+  <div class="detail-row">
+    <span class="detail-label">Balance Due</span>
+    <span class="detail-value" style="color:#dc2626;">R {{ booking.balance_due }}</span>
+  </div>
+  {% endif %}
+</div>
+
+<p style="font-size:13.5px; color:#475569; line-height:1.6;">
+  Please do not hesitate to ask our staff if you need anything during your stay. We hope you have a wonderful experience!
+</p>
+{% endblock %}

@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}{{ room.name }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Rooms</div>
+    <h1 class="page-title">{{ room.name }}</h1>
+    <p class="page-subtitle">{{ room.room_type }} · {{ room.max_guests }} guests max</p>
+  </div>
+  <div class="page-header-actions">
+    {% if not is_cleaner %}
+    {% if room.status == "Maintenance" or room.status == "Blocked" or room.status == "Booked" or room.status == "Occupied" %}
+    <span class="btn btn-ghost" style="opacity:0.45; cursor:not-allowed;">Unavailable</span>
+    {% else %}
+    <a href="{% url 'core:booking_add' %}?room={{ room.pk }}" class="btn btn-primary">Book Room</a>
+    {% endif %}
+    <a href="{% url 'core:room_edit' room.pk %}" class="btn btn-secondary">Edit</a>
+    {% endif %}
+    <a href="{% url 'core:room_list' %}" class="btn btn-ghost">← Rooms</a>
+  </div>
+</div>
+
+<div class="detail-grid">
+
+  <!-- Left: Details -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+
+    <!-- Status card -->
+    <div class="card" style="padding:20px;">
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:16px;">
+        <div>
+          <div class="detail-label">Status</div>
+          <span class="badge
+            {% if room.status == 'Available' %}badge-green
+            {% elif room.status == 'Booked' %}badge-red
+            {% elif room.status == 'Occupied' %}badge-blue
+            {% elif room.status == 'Cleaning' %}badge-amber
+            {% elif room.status == 'Maintenance' %}badge-amber
+            {% else %}badge-gray{% endif %}" style="margin-top:6px;">{{ room.status }}</span>
+        </div>
+        <div>
+          <div class="detail-label">Cleaning</div>
+          <div style="display:flex; align-items:center; gap:6px; margin-top:6px;">
+            <span class="status-dot {% if room.cleaning_status == 'Clean' %}status-dot-green{% elif room.cleaning_status == 'Needs Cleaning' %}status-dot-amber{% else %}status-dot-blue{% endif %}"></span>
+            <span style="font-size:13px; color:var(--color-text-secondary);">{{ room.cleaning_status }}</span>
+          </div>
+        </div>
+        <div>
+          <div class="detail-label">Type</div>
+          <div style="font-size:14px; color:var(--color-text-primary); margin-top:4px;">{{ room.room_type }}</div>
+        </div>
+        <div>
+          <div class="detail-label">Max Guests</div>
+          <div style="font-size:14px; color:var(--color-text-primary); margin-top:4px;">{{ room.max_guests }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing -->
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:16px;">Pricing</div>
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
+        {% if room.price_per_night %}
+        <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px; text-align:center;">
+          <div style="font-size:9.5px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); margin-bottom:4px;">Night</div>
+          <div style="font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--color-green-400);">{{ room.price_per_night }}</div>
+        </div>
+        {% endif %}
+        {% if room.price_per_week %}
+        <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px; text-align:center;">
+          <div style="font-size:9.5px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); margin-bottom:4px;">Week</div>
+          <div style="font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--color-green-400);">{{ room.price_per_week }}</div>
+        </div>
+        {% endif %}
+        {% if room.price_1_hour %}
+        <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px; text-align:center;">
+          <div style="font-size:9.5px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); margin-bottom:4px;">1 Hour</div>
+          <div style="font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--color-green-400);">{{ room.price_1_hour }}</div>
+        </div>
+        {% endif %}
+        {% if room.price_2_hours %}
+        <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px; text-align:center;">
+          <div style="font-size:9.5px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); margin-bottom:4px;">2 Hours</div>
+          <div style="font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--color-green-400);">{{ room.price_2_hours }}</div>
+        </div>
+        {% endif %}
+        {% if room.price_3_hours %}
+        <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px; text-align:center;">
+          <div style="font-size:9.5px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); margin-bottom:4px;">3 Hours</div>
+          <div style="font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--color-green-400);">{{ room.price_3_hours }}</div>
+        </div>
+        {% endif %}
+        {% if room.price_5_hours %}
+        <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px; text-align:center;">
+          <div style="font-size:9.5px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); margin-bottom:4px;">5 Hours</div>
+          <div style="font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--color-green-400);">{{ room.price_5_hours }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Booking history -->
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:20px; border-bottom:1px solid var(--color-border); flex-wrap:wrap;">
+        <div>
+          <div class="section-label" style="margin-bottom:6px;">Booking History</div>
+          <div style="font-size:13px; color:var(--color-text-secondary);">
+            {{ history_label }} Â· {{ booking_history_count }} booking{{ booking_history_count|pluralize }} Â· {{ guest_house_settings.currency|default:"R" }} {{ booking_history_revenue }}
+          </div>
+        </div>
+        <div class="filter-row">
+          <a href="?history=day" class="filter-pill {% if history_period == 'day' %}active{% endif %}">Day</a>
+          <a href="?history=week" class="filter-pill {% if history_period == 'week' %}active{% endif %}">Week</a>
+          <a href="?history=month" class="filter-pill {% if history_period == 'month' %}active{% endif %}">Month</a>
+        </div>
+      </div>
+
+      {% if booking_history %}
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Guest</th>
+              <th>Check-in</th>
+              <th>Check-out</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for booking in booking_history %}
+            <tr>
+              <td>
+                <a href="{% url 'core:booking_detail' booking.pk %}" style="font-family:var(--font-mono); font-size:12px; color:var(--color-green-400); text-decoration:none; font-weight:500;">{{ booking.booking_reference }}</a>
+              </td>
+              <td>
+                <a href="{% url 'core:guest_detail' booking.guest.pk %}" style="font-size:13.5px; color:var(--color-text-primary); text-decoration:none; font-weight:500;">{{ booking.guest.full_name }}</a>
+              </td>
+              <td style="font-family:var(--font-mono); font-size:12.5px;">{{ booking.check_in_date|date:"d M Y" }}</td>
+              <td style="font-family:var(--font-mono); font-size:12.5px;">{{ booking.check_out_date|date:"d M Y" }}</td>
+              <td style="font-family:var(--font-mono); font-size:13px; color:var(--color-text-primary); font-weight:500;">{{ guest_house_settings.currency|default:"R" }} {{ booking.total_amount|floatformat:2 }}</td>
+              <td>
+                <span class="badge
+                  {% if booking.status == 'Confirmed' %}badge-blue
+                  {% elif booking.status == 'Checked In' %}badge-green
+                  {% elif booking.status == 'Checked Out' %}badge-gray
+                  {% elif booking.status == 'Cancelled' %}badge-red
+                  {% elif booking.status == 'No Show' %}badge-purple
+                  {% else %}badge-amber{% endif %}" style="font-size:9.5px;">{{ booking.status }}</span>
+              </td>
+              <td>
+                <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-sm">View</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state" style="padding:36px 20px;">
+        <div class="empty-state-title">No bookings for this {{ history_period }}</div>
+        <a href="{% url 'core:booking_add' %}?room={{ room.pk }}" class="btn btn-primary">New Booking</a>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if room.description %}
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:10px;">Description</div>
+      <p style="font-size:14px; color:var(--color-text-secondary); line-height:1.7;">{{ room.description }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Maintenance requests -->
+    {% if maintenance_requests and not is_cleaner %}
+    <div class="card" style="padding:20px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div class="section-label">Maintenance History</div>
+        <a href="{% url 'core:maintenance_add' %}?room={{ room.pk }}" class="btn btn-ghost btn-sm">Log Request</a>
+      </div>
+      {% for req in maintenance_requests %}
+      <a href="{% url 'core:maintenance_detail' req.pk %}" style="display:block; padding:12px 0; border-bottom:1px solid var(--color-border); text-decoration:none;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div>
+            <div style="font-size:13.5px; font-weight:500; color:var(--color-text-primary);">{{ req.title }}</div>
+            <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:3px;">{{ req.get_category_display }} · {{ req.reported_at|date:"d M Y" }}</div>
+          </div>
+          <span class="badge {% if req.status == 'resolved' or req.status == 'closed' %}badge-green{% elif req.priority == 'urgent' %}badge-red{% else %}badge-amber{% endif %}" style="font-size:9.5px;">{{ req.get_status_display }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right: Quick actions -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+    {% if active_booking %}
+    <div class="card" style="padding:20px; border:1px solid rgba(239,68,68,0.3); background:rgba(239,68,68,0.04);">
+      <div class="section-label" style="margin-bottom:4px; color:#f87171;">Guest Checked In</div>
+      <div style="font-size:13px; color:var(--color-text-secondary); margin-bottom:14px;">
+        {{ active_booking.guest.full_name }} · {{ active_booking.booking_reference }}
+      </div>
+      <form method="post" action="{% url 'core:booking_checkout' active_booking.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger" style="width:100%; padding:14px 20px; font-size:15px; font-weight:700; letter-spacing:0.03em; justify-content:center;">Check Out Guest</button>
+      </form>
+    </div>
+    {% endif %}
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:14px;">Quick Actions</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        {% if not is_cleaner %}
+        {% if room.status == "Maintenance" or room.status == "Blocked" or room.status == "Booked" or room.status == "Occupied" %}
+        <span class="btn btn-ghost" style="justify-content:center; opacity:0.45; cursor:not-allowed;">Room Unavailable</span>
+        {% else %}
+        <a href="{% url 'core:booking_add' %}?room={{ room.pk }}" class="btn btn-primary" style="justify-content:center;">New Booking</a>
+        {% endif %}
+        <a href="{% url 'core:room_edit' room.pk %}" class="btn btn-secondary" style="justify-content:center;">Edit Room</a>
+        {% endif %}
+        <a href="{% url 'core:cleaning' %}" class="btn btn-ghost" style="justify-content:center;">Cleaning Board</a>
+        {% if not is_cleaner %}
+        {% if plan and plan.feature_maintenance_requests %}
+        <a href="{% url 'core:maintenance_add' %}?room={{ room.pk }}" class="btn btn-ghost" style="justify-content:center;">Log Maintenance</a>
+        {% endif %}
+        <a href="{% url 'core:room_delete' room.pk %}" class="btn btn-danger" style="justify-content:center;">Delete Room</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

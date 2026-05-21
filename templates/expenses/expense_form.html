@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Expenses</div>
+    <h1 class="page-title">{{ title }}</h1>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:expense_list' %}" class="btn btn-ghost">← Back</a>
+  </div>
+</div>
+
+<div style="max-width:680px;">
+  <form method="post">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div style="margin-bottom:16px; padding:12px 14px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:20px;">Expense Details</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label class="form-label" for="{{ form.date.id_for_label }}">Date</label>
+          {{ form.date }}
+          {% if form.date.errors %}<div class="form-error">{{ form.date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.category.id_for_label }}">Category</label>
+          {{ form.category }}
+          {% if form.category.errors %}<div class="form-error">{{ form.category.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label" for="{{ form.description.id_for_label }}">Description</label>
+          {{ form.description }}
+          {% if form.description.errors %}<div class="form-error">{{ form.description.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.amount.id_for_label }}">Amount</label>
+          {{ form.amount }}
+          {% if form.amount.errors %}<div class="form-error">{{ form.amount.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.paid_to.id_for_label }}">Paid to</label>
+          {{ form.paid_to }}
+          {% if form.paid_to.errors %}<div class="form-error">{{ form.paid_to.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.payment_method.id_for_label }}">Payment Method</label>
+          {{ form.payment_method }}
+          {% if form.payment_method.errors %}<div class="form-error">{{ form.payment_method.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.reference.id_for_label }}">Reference</label>
+          {{ form.reference }}
+          {% if form.reference.errors %}<div class="form-error">{{ form.reference.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label" for="{{ form.notes.id_for_label }}">Notes</label>
+          {{ form.notes }}
+          {% if form.notes.errors %}<div class="form-error">{{ form.notes.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px;">
+      <button type="submit" class="btn btn-primary btn-lg">{% if expense %}Save Changes{% else %}Add Expense{% endif %}</button>
+      <a href="{% url 'core:expense_list' %}" class="btn btn-ghost btn-lg">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

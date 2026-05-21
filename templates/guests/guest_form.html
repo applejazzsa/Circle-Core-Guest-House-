@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Guests</div>
+    <h1 class="page-title">{{ title }}</h1>
+  </div>
+  <div class="page-header-actions">
+    {% if guest %}
+    <a href="{% url 'core:guest_detail' guest.pk %}" class="btn btn-ghost">← Back</a>
+    {% else %}
+    <a href="{% url 'core:guest_list' %}" class="btn btn-ghost">← Back</a>
+    {% endif %}
+  </div>
+</div>
+
+<div style="max-width:680px;">
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:20px;">Personal Information</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label class="form-label" for="{{ form.first_name.id_for_label }}">First Name</label>
+          {{ form.first_name }}
+          {% if form.first_name.errors %}<div class="form-error">{{ form.first_name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.last_name.id_for_label }}">Last Name</label>
+          {{ form.last_name }}
+          {% if form.last_name.errors %}<div class="form-error">{{ form.last_name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.phone.id_for_label }}">Phone</label>
+          {{ form.phone }}
+          {% if form.phone.errors %}<div class="form-error">{{ form.phone.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.email.id_for_label }}">Email</label>
+          {{ form.email }}
+          {% if form.email.errors %}<div class="form-error">{{ form.email.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label" for="{{ form.id_passport_number.id_for_label }}">ID / Passport Number</label>
+          {{ form.id_passport_number }}
+          {% if form.id_passport_number.errors %}<div class="form-error">{{ form.id_passport_number.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label" for="{{ form.address.id_for_label }}">Address</label>
+          {{ form.address }}
+          {% if form.address.errors %}<div class="form-error">{{ form.address.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:20px;">Emergency Contact</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label class="form-label" for="{{ form.emergency_contact_name.id_for_label }}">Contact Name</label>
+          {{ form.emergency_contact_name }}
+          {% if form.emergency_contact_name.errors %}<div class="form-error">{{ form.emergency_contact_name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="{{ form.emergency_contact_phone.id_for_label }}">Contact Phone</label>
+          {{ form.emergency_contact_phone }}
+          {% if form.emergency_contact_phone.errors %}<div class="form-error">{{ form.emergency_contact_phone.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="section-label" style="margin-bottom:16px;">Internal Notes</div>
+      <div class="form-group">
+        <label class="form-label" for="{{ form.notes.id_for_label }}">Notes</label>
+        {{ form.notes }}
+        <div class="form-hint">Staff-only notes about this guest.</div>
+        {% if form.notes.errors %}<div class="form-error">{{ form.notes.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px;">
+      <button type="submit" class="btn btn-primary btn-lg">Save Guest</button>
+      {% if guest %}
+      <a href="{% url 'core:guest_detail' guest.pk %}" class="btn btn-ghost btn-lg">Cancel</a>
+      {% else %}
+      <a href="{% url 'core:guest_list' %}" class="btn btn-ghost btn-lg">Cancel</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

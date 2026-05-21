@@ -1,0 +1,37 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h1 class="title">Outstanding Balance Reminder</h1>
+<p class="subtitle">Hi {{ booking.guest.first_name }}, this is a friendly reminder about your outstanding balance.</p>
+
+<div class="highlight" style="background:#fff7ed; border-color:#fed7aa;">
+  <div class="label" style="color:#c2410c;">Balance Due</div>
+  <div class="amount" style="color:#c2410c;">R {{ booking.balance_due }}</div>
+</div>
+
+<div class="detail-box">
+  <div class="detail-row">
+    <span class="detail-label">Booking</span>
+    <span class="detail-value" style="font-family:monospace;">{{ booking.booking_reference }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Room</span>
+    <span class="detail-value">{{ booking.room.name }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Total</span>
+    <span class="detail-value">R {{ booking.total_amount }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Paid</span>
+    <span class="detail-value">R {{ booking.total_paid }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Check-in</span>
+    <span class="detail-value">{{ booking.check_in_date|date:"d M Y" }}</span>
+  </div>
+</div>
+
+<p style="font-size:13.5px; color:#475569; line-height:1.6;">
+  Please arrange payment at your earliest convenience. Contact us if you have any questions about your account.
+</p>
+{% endblock %}

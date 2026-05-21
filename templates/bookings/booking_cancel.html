@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Cancel {{ booking.booking_reference }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Bookings</div>
+    <h1 class="page-title">Cancel Booking</h1>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost">← Back</a>
+  </div>
+</div>
+
+<div style="max-width:480px;">
+  <div class="card">
+    <div style="text-align:center; margin-bottom:24px;">
+      <div style="width:52px; height:52px; border-radius:50%; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); display:flex; align-items:center; justify-content:center; margin:0 auto 16px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      </div>
+      <div style="font-family:var(--font-display); font-size:17px; font-weight:700; color:var(--color-text-primary);">Cancel Booking?</div>
+      <div style="font-family:var(--font-mono); font-size:12px; color:var(--color-green-400); margin-top:4px;">{{ booking.booking_reference }}</div>
+    </div>
+
+    <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:16px; margin-bottom:20px;">
+      <div class="detail-row">
+        <span class="detail-label">Guest</span>
+        <span class="detail-value" style="font-weight:500;">{{ booking.guest.full_name }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Room</span>
+        <span class="detail-value">{{ booking.room.name }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Dates</span>
+        <span class="detail-value" style="font-family:var(--font-mono); font-size:12.5px;">{{ booking.check_in_date|date:"d M Y" }} – {{ booking.check_out_date|date:"d M Y" }}</span>
+      </div>
+      <div class="detail-row" style="border-bottom:none; padding-bottom:0;">
+        <span class="detail-label">Total</span>
+        <span class="detail-value" style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">{{ guest_house_settings.currency|default:"R" }} {{ booking.total_amount }}</span>
+      </div>
+      {% if booking.deposit_paid > 0 %}
+      <div class="detail-row" style="border-bottom:none; padding-bottom:0; border-top:1px solid var(--color-border); margin-top:8px; padding-top:8px;">
+        <span class="detail-label" style="color:#f59e0b;">Deposit paid</span>
+        <span class="detail-value" style="font-family:var(--font-mono); font-weight:600; color:#f59e0b;">{{ guest_house_settings.currency|default:"R" }} {{ booking.deposit_paid }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if booking.deposit_paid > 0 %}
+    <div style="padding:12px 14px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:var(--radius-md); font-size:13px; color:#f59e0b; margin-bottom:16px;">
+      This booking has a deposit of {{ guest_house_settings.currency|default:"R" }} {{ booking.deposit_paid }} recorded. Handle any refund separately.
+    </div>
+    {% endif %}
+
+    <p style="font-size:13px; color:var(--color-text-secondary); margin-bottom:24px; line-height:1.6;">
+      This will set the booking status to <strong style="color:var(--color-text-primary);">Cancelled</strong> and release the room.
+      This action cannot be undone.
+    </p>
+
+    <div style="display:flex; gap:10px;">
+      <form method="post" style="flex:1;">
+        {% csrf_token %}
+        {% if not is_owner %}
+        <div style="margin-bottom:12px; padding:12px; border:1px solid rgba(245,158,11,0.25); border-radius:var(--radius-md); background:rgba(245,158,11,0.06);">
+          <div class="form-label">Owner Approval</div>
+          <div style="display:grid; gap:8px;">
+            <input name="manager_username" placeholder="Owner username" autocomplete="username">
+            <input name="manager_password" placeholder="Owner password" type="password" autocomplete="current-password">
+          </div>
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-danger btn-lg" style="width:100%;">Yes, cancel booking</button>
+      </form>
+      <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-lg" style="flex:1; text-align:center;">Go back</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

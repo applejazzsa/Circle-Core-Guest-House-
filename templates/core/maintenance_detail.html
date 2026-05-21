@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ maintenance_request.title }} — Maintenance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Maintenance</div>
+    <h1 class="page-title">{{ maintenance_request.title }}</h1>
+    <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+      <span class="badge
+        {% if maintenance_request.priority == 'urgent' %}badge-red
+        {% elif maintenance_request.priority == 'high' %}badge-amber
+        {% elif maintenance_request.priority == 'medium' %}badge-blue
+        {% else %}badge-gray{% endif %}" style="font-size:9.5px;">{{ maintenance_request.get_priority_display }}</span>
+      <span class="badge badge-blue" style="font-size:9.5px;">{{ maintenance_request.get_status_display }}</span>
+      <span class="badge badge-gray" style="font-size:9.5px;">{{ maintenance_request.get_category_display }}</span>
+    </div>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:maintenance_edit' maintenance_request.pk %}" class="btn btn-ghost">Edit</a>
+    <a href="{% url 'core:maintenance_board' %}" class="btn btn-ghost">← Board</a>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <!-- Left: details -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:12px;">Description</div>
+      <p style="font-size:13.5px; color:var(--color-text-secondary); line-height:1.7; white-space:pre-line;">{{ maintenance_request.description }}</p>
+    </div>
+
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:16px;">Details</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div>
+          <div class="section-label" style="margin-bottom:4px; font-size:9.5px;">Room</div>
+          <div style="font-size:13.5px; font-weight:500; color:var(--color-text-primary);">
+            {% if maintenance_request.room %}<a href="{% url 'core:room_detail' maintenance_request.room.pk %}" style="color:var(--color-green-400); text-decoration:none;">{{ maintenance_request.room.name }}</a>{% else %}—{% endif %}
+          </div>
+        </div>
+        <div>
+          <div class="section-label" style="margin-bottom:4px; font-size:9.5px;">Reported</div>
+          <div style="font-family:var(--font-mono); font-size:12.5px; color:var(--color-text-secondary);">{{ maintenance_request.reported_at|date:"d M Y H:i" }}</div>
+        </div>
+        <div>
+          <div class="section-label" style="margin-bottom:4px; font-size:9.5px;">Assigned To</div>
+          <div style="font-size:13.5px; color:var(--color-text-secondary);">{{ maintenance_request.assigned_to|default:"—" }}</div>
+        </div>
+        <div>
+          <div class="section-label" style="margin-bottom:4px; font-size:9.5px;">Phone</div>
+          <div style="font-family:var(--font-mono); font-size:12.5px; color:var(--color-text-secondary);">{{ maintenance_request.assigned_phone|default:"—" }}</div>
+        </div>
+        <div>
+          <div class="section-label" style="margin-bottom:4px; font-size:9.5px;">Scheduled</div>
+          <div style="font-size:13.5px; {% if maintenance_request.is_overdue %}color:#f87171; font-weight:600;{% else %}color:var(--color-text-secondary);{% endif %}">{{ maintenance_request.scheduled_for|date:"d M Y"|default:"—" }}</div>
+        </div>
+        <div>
+          <div class="section-label" style="margin-bottom:4px; font-size:9.5px;">Room Blocked</div>
+          <div style="font-size:13.5px; color:var(--color-text-secondary);">{{ maintenance_request.block_room_until_resolved|yesno:"Yes,No" }}</div>
+        </div>
+        <div>
+          <div class="section-label" style="margin-bottom:4px; font-size:9.5px;">Estimated Cost</div>
+          <div style="font-family:var(--font-mono); font-size:13px; color:var(--color-text-secondary);">{{ guest_house_settings.currency|default:"R" }} {{ maintenance_request.estimated_cost|default:"0.00" }}</div>
+        </div>
+        <div>
+          <div class="section-label" style="margin-bottom:4px; font-size:9.5px;">Actual Cost</div>
+          <div style="font-family:var(--font-mono); font-size:13px; font-weight:600; color:var(--color-text-primary);">{{ guest_house_settings.currency|default:"R" }} {{ maintenance_request.actual_cost|default:"0.00" }}</div>
+        </div>
+      </div>
+    </div>
+
+    {% if maintenance_request.status == "resolved" or maintenance_request.status == "closed" %}
+    <div class="card" style="padding:20px; border-color:rgba(34,197,94,0.3); background:rgba(34,197,94,0.04);">
+      <div class="section-label" style="margin-bottom:8px; color:var(--color-green-400);">Resolution</div>
+      <div style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-tertiary); margin-bottom:12px;">Resolved {{ maintenance_request.resolved_at|date:"d M Y H:i"|default:"—" }}</div>
+      <p style="font-size:13.5px; color:var(--color-text-secondary); line-height:1.7; white-space:pre-line;">{{ maintenance_request.resolution_notes|default:"No resolution notes recorded." }}</p>
+      {% if maintenance_request.actual_cost %}
+      <a href="{% url 'core:expense_add' %}?category=Maintenance&description={{ maintenance_request.title|urlencode }}&amount={{ maintenance_request.actual_cost }}" class="btn btn-ghost btn-sm" style="margin-top:14px; display:inline-block;">Log as Expense</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right: actions -->
+  <div style="display:flex; flex-direction:column; gap:14px; position:sticky; top:80px; align-self:start;">
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:16px;">Actions</div>
+      {% if maintenance_request.status == "open" %}
+      <form method="post" style="margin-bottom:10px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="mark_in_progress">
+        <button type="submit" class="btn btn-secondary" style="width:100%;">Mark In Progress</button>
+      </form>
+      {% endif %}
+      {% if maintenance_request.status == "open" or maintenance_request.status == "in_progress" %}
+      <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:14px; border:1px solid var(--color-border-bright);">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="mark_resolved">
+          <div class="form-group">
+            <label class="form-label">Resolution Notes</label>
+            {{ resolution_form.resolution_notes }}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Actual Cost</label>
+            {{ resolution_form.actual_cost }}
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; margin-top:4px;">Mark Resolved</button>
+        </form>
+      </div>
+      {% endif %}
+      {% if maintenance_request.status == "resolved" %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="close">
+        <button type="submit" class="btn btn-ghost" style="width:100%;">Close Request</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

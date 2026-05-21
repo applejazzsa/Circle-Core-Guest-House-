@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Inventory Transactions — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Inventory</div>
+    <h1 class="page-title">Transaction Log</h1>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:inventory_dashboard' %}" class="btn btn-ghost">← Inventory</a>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card" style="margin-bottom:16px; padding:16px 20px;">
+  <form method="get" style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:10px; align-items:end;">
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="item">Item</label>
+      <select id="item" name="item">
+        <option value="">All Items</option>
+        {% for item in items %}
+        <option value="{{ item.pk }}" {% if item_filter == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="type">Type</label>
+      <select id="type" name="type">
+        <option value="">All Types</option>
+        {% for value, label in transaction_types %}
+        <option value="{{ value }}" {% if type_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="start">Start Date</label>
+      <input type="date" id="start" name="start" value="{{ start }}">
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="end">End Date</label>
+      <input type="date" id="end" name="end" value="{{ end }}">
+    </div>
+    <button type="submit" class="btn btn-secondary btn-sm" style="align-self:end;">Filter</button>
+  </form>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Item</th>
+        <th>Type</th>
+        <th>Qty</th>
+        <th>Before</th>
+        <th>After</th>
+        <th class="hide-mobile">Reference</th>
+        <th class="hide-mobile">Room</th>
+        <th class="hide-mobile">By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for transaction in transactions %}
+      <tr>
+        <td style="font-family:var(--font-mono); font-size:12px;">{{ transaction.recorded_at|date:"d M Y H:i" }}</td>
+        <td>
+          <a href="{% url 'core:inventory_detail' transaction.item.pk %}" style="font-weight:500; color:var(--color-text-primary); text-decoration:none;">{{ transaction.item.name }}</a>
+        </td>
+        <td>
+          <span class="badge {% if 'In' in transaction.get_transaction_type_display or 'in' in transaction.get_transaction_type_display %}badge-green{% else %}badge-amber{% endif %}" style="font-size:9.5px;">{{ transaction.get_transaction_type_display }}</span>
+        </td>
+        <td style="font-family:var(--font-mono); font-size:13px; font-weight:600;">{{ transaction.quantity }}</td>
+        <td style="font-family:var(--font-mono); font-size:12.5px; color:var(--color-text-tertiary);">{{ transaction.stock_before }}</td>
+        <td style="font-family:var(--font-mono); font-size:12.5px; color:var(--color-text-primary);">{{ transaction.stock_after }}</td>
+        <td class="hide-mobile" style="font-size:12.5px; color:var(--color-text-secondary);">{{ transaction.reference|default:"—" }}</td>
+        <td class="hide-mobile" style="font-size:12.5px; color:var(--color-text-secondary);">{{ transaction.room|default:"—" }}</td>
+        <td class="hide-mobile" style="font-size:12.5px; color:var(--color-text-tertiary);">{{ transaction.recorded_by|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="9" style="text-align:center; padding:40px; color:var(--color-text-tertiary); font-size:13.5px;">No transactions found.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

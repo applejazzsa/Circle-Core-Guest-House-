@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+        <p class="text-sm font-medium uppercase tracking-wider text-gold">Overview</p>
+        <h2 class="text-2xl font-semibold text-slate-950">Dashboard</h2>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+        <a href="{% url 'core:booking_add' %}?source=Walk-in&status=Confirmed&check_in={{ today|date:'Y-m-d' }}"
+           class="inline-flex items-center rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-navy shadow-sm hover:bg-gold/90">
+            Walk-in Booking
+        </a>
+        <p class="text-sm text-slate-500">{{ today|date:"D, d M Y" }}</p>
+    </div>
+</div>
+
+<section class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total rooms</p>
+        <p class="mt-3 text-3xl font-semibold text-slate-950">{{ total_rooms }}</p>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Currently occupied</p>
+        <p class="mt-3 text-3xl font-semibold text-blue-700">{{ occupied_rooms }}</p>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Available rooms</p>
+        <p class="mt-3 text-3xl font-semibold text-green-700">{{ available_rooms }}</p>
+    </div>
+    <a href="{% url 'core:cleaning' %}" class="block rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-amber-300 hover:bg-amber-50/40">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Needs cleaning</p>
+        <p class="mt-3 text-3xl font-semibold text-amber-700">{{ rooms_needing_cleaning }}</p>
+    </a>
+</section>
+
+<section class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">This month's revenue</p>
+        <p class="mt-3 text-2xl font-semibold text-slate-950">{{ guest_house_settings.currency|default:"R" }} {{ monthly_revenue }}</p>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Outstanding balances</p>
+        <p class="mt-3 text-2xl font-semibold {% if outstanding_balances > 0 %}text-red-700{% else %}text-green-700{% endif %}">
+            {{ guest_house_settings.currency|default:"R" }} {{ outstanding_balances }}
+        </p>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Bookings this month</p>
+        <p class="mt-3 text-2xl font-semibold text-slate-950">{{ bookings_this_month }}</p>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Occupancy rate</p>
+        <p class="mt-3 text-2xl font-semibold text-slate-950">{{ occupancy_rate }}%</p>
+    </div>
+</section>
+
+<details class="mb-8 rounded-lg border border-slate-200 bg-white shadow-sm">
+    <summary class="cursor-pointer px-5 py-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
+        Daily Checklist
+    </summary>
+    <div class="grid gap-3 border-t border-slate-100 px-5 py-4 sm:grid-cols-2 lg:grid-cols-5">
+        <p class="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">Review today's check-ins</p>
+        <p class="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">Review today's check-outs</p>
+        <p class="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">Mark cleaned rooms as ready</p>
+        <p class="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">Review outstanding balances</p>
+        <p class="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">Check upcoming arrivals</p>
+    </div>
+</details>
+
+<div class="mb-8 grid gap-6 xl:grid-cols-3">
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Today's Check-ins</h3>
+        </div>
+        <div class="divide-y divide-slate-100">
+            {% for booking in todays_checkins %}
+                <div class="p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <a href="{% url 'core:booking_detail' booking.pk %}" class="font-mono text-sm font-semibold text-navy hover:text-gold">{{ booking.booking_reference }}</a>
+                            <p class="mt-1 text-sm font-semibold text-slate-900">{{ booking.guest.full_name }}</p>
+                            <p class="text-xs text-slate-500">{{ booking.room.name }}</p>
+                        </div>
+                        <form method="post" action="{% url 'core:booking_checkin' booking.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700">
+                                Check In
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% empty %}
+                <p class="px-5 py-8 text-center text-sm text-slate-400">No confirmed arrivals today.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Today's Check-outs</h3>
+        </div>
+        <div class="divide-y divide-slate-100">
+            {% for booking in todays_checkouts %}
+                <div class="p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <a href="{% url 'core:booking_detail' booking.pk %}" class="font-mono text-sm font-semibold text-navy hover:text-gold">{{ booking.booking_reference }}</a>
+                            <p class="mt-1 text-sm font-semibold text-slate-900">{{ booking.guest.full_name }}</p>
+                            <p class="text-xs text-slate-500">{{ booking.room.name }}</p>
+                            <p class="mt-2 text-sm {% if booking.balance_due > 0 %}font-semibold text-red-700{% else %}font-medium text-green-700{% endif %}">
+                                Balance: {{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due }}
+                            </p>
+                        </div>
+                        <form method="post" action="{% url 'core:booking_checkout' booking.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+                                Check Out
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% empty %}
+                <p class="px-5 py-8 text-center text-sm text-slate-400">No checked-in departures today.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Currently In-house</h3>
+        </div>
+        <div class="divide-y divide-slate-100">
+            {% for booking in in_house_bookings %}
+                <div class="p-5">
+                    <a href="{% url 'core:booking_detail' booking.pk %}" class="font-mono text-sm font-semibold text-navy hover:text-gold">{{ booking.booking_reference }}</a>
+                    <p class="mt-1 text-sm font-semibold text-slate-900">{{ booking.guest.full_name }}</p>
+                    <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                        <span>{{ booking.room.name }}</span>
+                        <span>Since {{ booking.check_in_date|date:"d M" }}</span>
+                        <span>{{ booking.nights_so_far }} night{{ booking.nights_so_far|pluralize }} so far</span>
+                        <span class="{% if booking.balance_due > 0 %}font-semibold text-red-700{% else %}font-medium text-green-700{% endif %}">
+                            {{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due }}
+                        </span>
+                    </div>
+                </div>
+            {% empty %}
+                <p class="px-5 py-8 text-center text-sm text-slate-400">No guests currently checked in.</p>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<div class="mb-8 grid gap-6 lg:grid-cols-2">
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Unpaid Balances</h3>
+            <span class="rounded-full {% if unpaid_balance_count > 0 %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %} px-2.5 py-0.5 text-xs font-semibold">
+                {{ unpaid_balance_count }}
+            </span>
+        </div>
+        <div class="divide-y divide-slate-100">
+            {% for booking in unpaid_bookings %}
+                <div class="flex items-center justify-between gap-4 p-5">
+                    <div>
+                        <a href="{% url 'core:booking_detail' booking.pk %}" class="font-mono text-sm font-semibold text-navy hover:text-gold">{{ booking.booking_reference }}</a>
+                        <p class="mt-1 text-sm text-slate-700">{{ booking.guest.full_name }} &middot; {{ booking.room.name }}</p>
+                    </div>
+                    <p class="text-right text-sm font-semibold text-red-700">
+                        {{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due }}
+                    </p>
+                </div>
+            {% empty %}
+                <p class="px-5 py-8 text-center text-sm text-slate-400">No unpaid active bookings.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Upcoming Arrivals</h3>
+        </div>
+        <div class="divide-y divide-slate-100">
+            {% for booking in upcoming_arrivals %}
+                <div class="flex items-center justify-between gap-4 p-5">
+                    <div>
+                        <a href="{% url 'core:booking_detail' booking.pk %}" class="font-mono text-sm font-semibold text-navy hover:text-gold">{{ booking.booking_reference }}</a>
+                        <p class="mt-1 text-sm text-slate-700">{{ booking.guest.full_name }} &middot; {{ booking.room.name }}</p>
+                    </div>
+                    <p class="text-right text-sm font-semibold text-slate-900">{{ booking.check_in_date|date:"d M" }}</p>
+                </div>
+            {% empty %}
+                <p class="px-5 py-8 text-center text-sm text-slate-400">No confirmed arrivals in the next 3 days.</p>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<section>
+    <div class="mb-4 flex items-center justify-between">
+        <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Room Board</h3>
+        <a href="{% url 'core:room_list' %}" class="text-sm font-medium text-slate-600 hover:text-slate-900">Manage rooms</a>
+    </div>
+    {% if room_board %}
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            {% for room in room_board %}
+                <article class="rounded-lg border p-4 shadow-sm
+                    {% if room.status == 'Available' %}border-green-200 bg-green-50
+                    {% elif room.status == 'Occupied' %}border-blue-200 bg-blue-50
+                    {% elif room.status == 'Cleaning' %}border-amber-200 bg-amber-50
+                    {% elif room.status == 'Maintenance' %}border-red-200 bg-red-50
+                    {% else %}border-slate-200 bg-slate-50{% endif %}">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h4 class="text-base font-semibold text-slate-950">{{ room.name }}</h4>
+                            <p class="mt-1 text-sm text-slate-600">{{ room.room_type }}</p>
+                        </div>
+                        <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold
+                            {% if room.status == 'Available' %}bg-green-100 text-green-800
+                            {% elif room.status == 'Occupied' %}bg-blue-100 text-blue-800
+                            {% elif room.status == 'Cleaning' %}bg-amber-100 text-amber-800
+                            {% elif room.status == 'Maintenance' %}bg-red-100 text-red-800
+                            {% else %}bg-slate-200 text-slate-700{% endif %}">
+                            {{ room.status }}
+                        </span>
+                    </div>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        {% if room.cleaning_status == "Clean" %}
+                            <span class="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-medium text-green-700">Clean</span>
+                        {% elif room.cleaning_status == "Needs Cleaning" %}
+                            <span class="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-medium text-amber-800">Needs Cleaning</span>
+                        {% else %}
+                            <span class="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-medium text-sky-800">In Progress</span>
+                        {% endif %}
+                    </div>
+                    {% if room.current_booking %}
+                        <a href="{% url 'core:booking_detail' room.current_booking.pk %}"
+                           class="mt-4 block rounded-md bg-white/80 px-3 py-2 text-sm font-medium text-navy shadow-sm hover:bg-white">
+                            {{ room.current_booking.guest.full_name }}
+                        </a>
+                    {% endif %}
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="rounded-lg border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
+            <p class="text-sm font-medium text-slate-500">No rooms added yet.</p>
+            <a href="{% url 'core:room_add' %}" class="mt-4 inline-flex items-center rounded-md bg-navy px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-navy/90">
+                Add first room
+            </a>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

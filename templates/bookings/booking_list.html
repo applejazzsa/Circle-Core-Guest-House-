@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Bookings — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+        <nav class="mb-2 text-sm text-slate-500">
+            <a href="{% url 'core:home' %}" class="hover:text-slate-900">Dashboard</a>
+            <span class="mx-2">/</span>
+            <span class="text-slate-900">Bookings</span>
+        </nav>
+        <p class="text-sm font-medium uppercase tracking-wider text-gold">Management</p>
+        <h2 class="text-2xl font-semibold text-slate-950">Bookings</h2>
+    </div>
+    <div class="flex flex-wrap gap-3">
+        <a href="{% url 'core:booking_add' %}?source=Walk-in&status=Confirmed&check_in={% now 'Y-m-d' %}"
+           class="inline-flex items-center rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-navy shadow-sm hover:bg-gold/90">
+            Walk-in Booking
+        </a>
+        <a href="{% url 'core:booking_add' %}"
+           class="inline-flex items-center rounded-md bg-navy px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-navy/90">
+            + Add Booking
+        </a>
+    </div>
+</div>
+
+<section class="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+        <form method="get" class="flex flex-wrap items-end gap-3">
+    <div>
+        <label class="block text-xs font-medium text-slate-500">Status</label>
+        <select name="status"
+                class="mt-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30">
+            <option value="">All statuses</option>
+            {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs font-medium text-slate-500">Source</label>
+        <select name="source"
+                class="mt-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30">
+            <option value="">All sources</option>
+            {% for value, label in source_choices %}
+                <option value="{{ value }}" {% if source_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs font-medium text-slate-500">Month</label>
+        <input type="month" name="month" value="{{ month_filter }}"
+               class="mt-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30">
+    </div>
+    <button type="submit"
+            class="rounded-md bg-navy px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-navy/90">
+        Filter
+    </button>
+    {% if active_filters %}
+        <a href="{% url 'core:booking_list' %}"
+           class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50">
+            Clear
+        </a>
+    {% endif %}
+        </form>
+        <div class="grid grid-cols-2 gap-3">
+            <div class="rounded-md bg-slate-50 px-4 py-3">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Bookings</p>
+                <p class="mt-1 text-xl font-semibold text-slate-950">{{ filtered_count }}</p>
+            </div>
+            <div class="rounded-md bg-slate-50 px-4 py-3">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Revenue</p>
+                <p class="mt-1 text-xl font-semibold text-slate-950">{{ guest_house_settings.currency|default:"R" }} {{ filtered_revenue }}</p>
+            </div>
+        </div>
+    </div>
+    {% if active_filters %}
+        <div class="mt-4 flex flex-wrap gap-2">
+            {% for filter in active_filters %}
+                <a href="{{ filter.remove_url }}" class="inline-flex items-center rounded-full bg-gold/15 px-3 py-1 text-xs font-semibold text-navy hover:bg-gold/25">
+                    {{ filter.label }}: {{ filter.value }} <span class="ml-2">x</span>
+                </a>
+            {% endfor %}
+        </div>
+    {% endif %}
+</section>
+
+{% if bookings %}
+    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Reference</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Guest</th>
+                        <th class="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 sm:table-cell">Room</th>
+                        <th class="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 md:table-cell">Dates</th>
+                        <th class="hidden px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">Nights</th>
+                        <th class="hidden px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">Total</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
+                        <th class="hidden px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 sm:table-cell">Balance Due</th>
+                        <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for booking in bookings %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="whitespace-nowrap px-4 py-3.5">
+                            <a href="{% url 'core:booking_detail' booking.pk %}"
+                               class="font-mono text-sm font-semibold text-navy hover:text-gold">
+                                {{ booking.booking_reference }}
+                            </a>
+                        </td>
+                        <td class="whitespace-nowrap px-4 py-3.5 text-sm">
+                            <a href="{% url 'core:guest_detail' booking.guest.pk %}"
+                               class="font-medium text-slate-800 hover:text-gold">
+                                {{ booking.guest.full_name }}
+                            </a>
+                        </td>
+                        <td class="hidden whitespace-nowrap px-4 py-3.5 text-sm text-slate-600 sm:table-cell">
+                            {{ booking.room.name }}
+                        </td>
+                        <td class="hidden whitespace-nowrap px-4 py-3.5 text-sm text-slate-600 md:table-cell">
+                            {{ booking.check_in_date|date:"d M Y" }} &ndash; {{ booking.check_out_date|date:"d M Y" }}
+                        </td>
+                        <td class="hidden whitespace-nowrap px-4 py-3.5 text-center text-sm text-slate-600 lg:table-cell">
+                            {{ booking.num_nights }}
+                        </td>
+                        <td class="hidden whitespace-nowrap px-4 py-3.5 text-right text-sm font-medium text-slate-800 lg:table-cell">
+                            {{ guest_house_settings.currency|default:"R" }} {{ booking.total_amount }}
+                        </td>
+                        <td class="whitespace-nowrap px-4 py-3.5">
+                            {% if booking.status == "Pending" %}
+                                <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">Pending</span>
+                            {% elif booking.status == "Confirmed" %}
+                                <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">Confirmed</span>
+                            {% elif booking.status == "Checked In" %}
+                                <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Checked In</span>
+                            {% elif booking.status == "Checked Out" %}
+                                <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">Checked Out</span>
+                            {% elif booking.status == "Cancelled" %}
+                                <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Cancelled</span>
+                            {% elif booking.status == "No Show" %}
+                                <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-600">No Show</span>
+                            {% endif %}
+                        </td>
+                        <td class="hidden whitespace-nowrap px-4 py-3.5 text-right text-sm sm:table-cell
+                            {% if booking.balance_due > 0 %}font-semibold text-red-700{% else %}text-slate-500{% endif %}">
+                            {% if booking.balance_due > 0 %}
+                                {{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due }}
+                            {% else %}
+                                &mdash;
+                            {% endif %}
+                        </td>
+                        <td class="whitespace-nowrap px-4 py-3.5 text-right text-sm">
+                            <a href="{% url 'core:booking_detail' booking.pk %}"
+                               class="font-medium text-slate-600 hover:text-slate-900">View</a>
+                            <span class="mx-1.5 text-slate-300">&bull;</span>
+                            <a href="{% url 'core:booking_edit' booking.pk %}"
+                               class="font-medium text-slate-600 hover:text-slate-900">Edit</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <p class="mt-3 text-xs text-slate-500">{{ bookings|length }} booking{{ bookings|length|pluralize }}</p>
+
+{% else %}
+    <div class="rounded-lg border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
+        {% if active_filters %}
+            <p class="text-sm font-medium text-slate-500">No bookings match the selected filters.</p>
+            <a href="{% url 'core:booking_list' %}"
+               class="mt-3 inline-block text-sm font-medium text-gold hover:underline">Clear filters</a>
+        {% else %}
+            <svg class="mx-auto h-12 w-12 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 7V3m8 4V3M4 11h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/></svg>
+            <p class="mt-4 text-sm font-medium text-slate-500">No bookings yet. Create your first booking.</p>
+            <a href="{% url 'core:booking_add' %}"
+               class="mt-4 inline-flex items-center rounded-md bg-navy px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-navy/90">
+                + Add Booking
+            </a>
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

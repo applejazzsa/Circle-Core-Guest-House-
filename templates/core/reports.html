@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Reports — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<style>@media print { aside,header,form,a,script,nav { display:none !important; } main { padding:0 !important; } section { break-inside:avoid; } }</style>
+
+<div class="page-header">
+  <div>
+    <div class="section-label">Finance</div>
+    <h1 class="page-title">Reports</h1>
+    <p class="page-subtitle">{{ selected_period }}</p>
+  </div>
+  <div class="page-header-actions">
+    <form method="get" style="display:flex; gap:8px; align-items:center;">
+      <select name="month" style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:7px 10px; color:var(--color-text-secondary); font-size:12.5px; cursor:pointer;">
+        {% for value, label in months %}
+        <option value="{{ value }}" {% if selected_month == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="year" style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:7px 10px; color:var(--color-text-secondary); font-size:12.5px; cursor:pointer;">
+        {% for year in years %}
+        <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary btn-sm">Generate</button>
+    </form>
+    {% if is_owner %}
+    <a href="{% url 'core:export_data' 'bookings' %}" class="btn btn-ghost btn-sm">Bookings CSV</a>
+    <a href="{% url 'core:export_data' 'payments' %}" class="btn btn-ghost btn-sm">Payments CSV</a>
+    <a href="{% url 'core:export_data' 'refunds' %}" class="btn btn-ghost btn-sm">Refunds CSV</a>
+    <a href="{% url 'core:export_data' 'expenses' %}" class="btn btn-ghost btn-sm">Expenses CSV</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Key Metrics -->
+<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px;">
+  <div class="card" style="border-top:3px solid var(--color-green-500); padding:20px;">
+    <div class="section-label" style="margin-bottom:8px;">Total Revenue</div>
+    <div class="num" style="font-size:26px;">{{ guest_house_settings.currency|default:"R" }} {{ total_revenue }}</div>
+  </div>
+  <div class="card" style="border-top:3px solid #ef4444; padding:20px;">
+    <div class="section-label" style="margin-bottom:8px;">Total Expenses</div>
+    <div class="num" style="font-size:26px;">{{ guest_house_settings.currency|default:"R" }} {{ total_expenses }}</div>
+  </div>
+  <div class="card" style="border-top:3px solid {% if net_profit >= 0 %}var(--color-green-500){% else %}#ef4444{% endif %}; padding:20px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+      <div class="section-label">Net Profit</div>
+      {% if net_profit >= 0 %}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-green-400)" stroke-width="2.5"><path d="M7 17 17 7M8 7h9v9"/></svg>
+      {% else %}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5"><path d="M7 7l10 10M17 8v9H8"/></svg>
+      {% endif %}
+    </div>
+    <div class="num" style="font-size:26px; color:{% if net_profit >= 0 %}var(--color-green-400){% else %}#f87171{% endif %};">{{ guest_house_settings.currency|default:"R" }} {{ net_profit }}</div>
+  </div>
+  <div class="card" style="border-top:3px solid #8b5cf6; padding:20px;">
+    <div class="section-label" style="margin-bottom:8px;">Occupancy Rate</div>
+    <div class="num" style="font-size:26px;">{{ occupancy_rate }}%</div>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;">
+  <div class="card" style="padding:20px;">
+    <div class="section-label" style="margin-bottom:4px;">Performance</div>
+    <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary); margin-bottom:16px;">Revenue vs Expenses</div>
+    <div style="height:220px;"><canvas id="revenueExpensesChart"></canvas></div>
+  </div>
+  <div class="card" style="padding:20px;">
+    <div class="section-label" style="margin-bottom:4px;">Channels</div>
+    <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary); margin-bottom:16px;">Booking Sources</div>
+    <div style="height:180px; max-width:240px; margin:0 auto;"><canvas id="bookingSourcesChart"></canvas></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:14px;">
+      {% for row in booking_sources %}
+      <div style="display:flex; justify-content:space-between; background:var(--color-bg-subtle); border-radius:var(--radius-sm); padding:7px 10px; font-size:12px;">
+        <span style="color:var(--color-text-secondary);">{{ row.source }}</span>
+        <span style="font-weight:600; color:var(--color-text-primary);">{{ row.count }}</span>
+      </div>
+      {% empty %}
+      <p style="grid-column:1/-1; text-align:center; font-size:12px; color:var(--color-text-tertiary);">No data for this period.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Revenue by Room chart -->
+<div class="card" style="padding:20px; margin-bottom:24px;">
+  <div class="section-label" style="margin-bottom:4px;">Rooms</div>
+  <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary); margin-bottom:16px;">Revenue by Room</div>
+  {% if rooms_revenue %}
+  <div style="height:{{ room_revenue_chart_height }}px;"><canvas id="roomRevenueChart"></canvas></div>
+  {% else %}
+  <div style="border:1px dashed var(--color-border-bright); border-radius:var(--radius-md); padding:32px; text-align:center; font-size:13px; color:var(--color-text-tertiary);">No room revenue for this period.</div>
+  {% endif %}
+</div>
+
+<!-- Occupancy Heatmap -->
+<div class="card" style="padding:20px; margin-bottom:24px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+    <div>
+      <div class="section-label" style="margin-bottom:2px;">Occupancy</div>
+      <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary);">Monthly Occupancy Heatmap</div>
+    </div>
+    <span style="font-size:11.5px; color:var(--color-text-tertiary);">{{ total_possible_room_nights }} possible room-nights</span>
+  </div>
+  <div style="display:flex; flex-wrap:wrap; gap:6px;">
+    {% for day in occupancy_heatmap %}
+    <div title="{{ day.label }} — {{ day.occupancy_pct }}% occupied"
+      style="width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:var(--radius-sm); font-size:10px; font-weight:600; cursor:default;
+      background:{% if day.occupancy_pct == 0 %}var(--color-bg-subtle){% elif day.occupancy_pct < 50 %}rgba(34,197,94,0.15){% elif day.occupancy_pct < 100 %}rgba(34,197,94,0.45){% else %}var(--color-green-500){% endif %};
+      color:{% if day.occupancy_pct < 50 %}var(--color-text-secondary){% else %}#fff{% endif %};">{{ day.day }}</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Detail tables -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:16px 20px; border-bottom:1px solid var(--color-border);"><div style="font-family:var(--font-display); font-size:14px; font-weight:600; color:var(--color-text-primary);">Revenue Per Room</div></div>
+    <table class="data-table">
+      <thead><tr><th>Room</th><th>Bookings</th><th>Nights</th><th>Revenue</th></tr></thead>
+      <tbody>
+        {% for row in revenue_per_room_rows %}
+        <tr>
+          <td style="font-weight:500;">{{ row.room.name }}</td>
+          <td style="font-family:var(--font-mono); font-size:12.5px;">{{ row.booking_count }}</td>
+          <td style="font-family:var(--font-mono); font-size:12.5px;">{{ row.total_nights }}</td>
+          <td style="font-family:var(--font-mono); font-size:13px; font-weight:500;">{{ guest_house_settings.currency|default:"R" }} {{ row.total_revenue }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="text-align:center; padding:24px; color:var(--color-text-tertiary); font-size:13px;">No data for this month.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:16px 20px; border-bottom:1px solid var(--color-border);"><div style="font-family:var(--font-display); font-size:14px; font-weight:600; color:var(--color-text-primary);">Booking Sources</div></div>
+    <table class="data-table">
+      <thead><tr><th>Source</th><th>Bookings</th><th>Revenue</th></tr></thead>
+      <tbody>
+        {% for row in booking_source_data %}
+        <tr>
+          <td>{{ row.source }}</td>
+          <td style="font-family:var(--font-mono); font-size:12.5px;">{{ row.count }}</td>
+          <td style="font-family:var(--font-mono); font-size:13px; font-weight:500;">{{ guest_house_settings.currency|default:"R" }} {{ row.total_revenue }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" style="text-align:center; padding:24px; color:var(--color-text-tertiary); font-size:13px;">No data for this month.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:16px 20px; border-bottom:1px solid var(--color-border);"><div style="font-family:var(--font-display); font-size:14px; font-weight:600; color:var(--color-text-primary);">Booking Status Breakdown</div></div>
+    <table class="data-table">
+      <thead><tr><th>Status</th><th>Count</th></tr></thead>
+      <tbody>
+        {% for row in booking_status_data %}
+        <tr>
+          <td>
+            <span class="badge
+              {% if row.status == 'Confirmed' %}badge-blue
+              {% elif row.status == 'Checked In' %}badge-green
+              {% elif row.status == 'Checked Out' %}badge-gray
+              {% elif row.status == 'Cancelled' %}badge-red
+              {% else %}badge-amber{% endif %}" style="font-size:9.5px;">{{ row.status }}</span>
+          </td>
+          <td style="font-family:var(--font-mono); font-size:13px; font-weight:500;">{{ row.count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:16px 20px; border-bottom:1px solid var(--color-border);"><div style="font-family:var(--font-display); font-size:14px; font-weight:600; color:var(--color-text-primary);">Top Guests</div></div>
+    <table class="data-table">
+      <thead><tr><th>Guest</th><th>Stays</th></tr></thead>
+      <tbody>
+        {% for row in top_guests %}
+        <tr>
+          <td style="font-weight:500;">{{ row.guest.full_name }}</td>
+          <td style="font-family:var(--font-mono); font-size:13px;">{{ row.stays }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="2" style="text-align:center; padding:24px; color:var(--color-text-tertiary); font-size:13px;">No completed stays.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{{ revenue_by_week|json_script:"revenue-by-week-data" }}
+{{ expenses_by_week|json_script:"expenses-by-week-data" }}
+{{ booking_sources|json_script:"booking-sources-data" }}
+{{ rooms_revenue|json_script:"rooms-revenue-data" }}
+
+<script>
+(function() {
+  const currency = "{{ guest_house_settings.currency|default:'R' }}";
+  const revenueByWeek = JSON.parse(document.getElementById("revenue-by-week-data").textContent);
+  const expensesByWeek = JSON.parse(document.getElementById("expenses-by-week-data").textContent);
+  const bookingSources = JSON.parse(document.getElementById("booking-sources-data").textContent);
+  const roomsRevenue = JSON.parse(document.getElementById("rooms-revenue-data").textContent);
+
+  const moneyTick = function(v) { return currency + ' ' + Number(v).toLocaleString(); };
+  const gridColor = '#1e2433';
+  const tickColor = '#64748b';
+
+  const revExp = document.getElementById("revenueExpensesChart");
+  if (revExp) {
+    new Chart(revExp, {
+      type: "bar",
+      data: {
+        labels: revenueByWeek.map(function(d) { return d.label; }),
+        datasets: [
+          { label: "Revenue", data: revenueByWeek.map(function(d) { return d.revenue; }), backgroundColor: "#22c55e", borderRadius: 5 },
+          { label: "Expenses", data: expensesByWeek.map(function(d) { return d.expenses; }), backgroundColor: "#ef4444", borderRadius: 5 }
+        ]
+      },
+      options: {
+        maintainAspectRatio: false, responsive: true,
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 10, color: tickColor } }, tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + moneyTick(ctx.raw); } } } },
+        scales: { x: { grid: { color: gridColor }, ticks: { color: tickColor } }, y: { beginAtZero: true, grid: { color: gridColor }, ticks: { callback: moneyTick, color: tickColor } } }
+      }
+    });
+  }
+
+  const bsChart = document.getElementById("bookingSourcesChart");
+  if (bsChart && bookingSources.length) {
+    new Chart(bsChart, {
+      type: "doughnut",
+      data: {
+        labels: bookingSources.map(function(d) { return d.source; }),
+        datasets: [{ data: bookingSources.map(function(d) { return d.count; }), backgroundColor: ["#22c55e","#3b82f6","#f59e0b","#8b5cf6","#ef4444","#06b6d4"], borderColor: "#13161b", borderWidth: 3 }]
+      },
+      options: { maintainAspectRatio: false, responsive: true, cutout: "62%", plugins: { legend: { display: false } } }
+    });
+  }
+
+  const rrChart = document.getElementById("roomRevenueChart");
+  if (rrChart && roomsRevenue.length) {
+    new Chart(rrChart, {
+      type: "bar",
+      data: {
+        labels: roomsRevenue.map(function(d) { return d.room_name; }),
+        datasets: [{ label: "Revenue", data: roomsRevenue.map(function(d) { return d.revenue; }), backgroundColor: "rgba(34,197,94,0.7)", borderRadius: 5, barThickness: 18 }]
+      },
+      options: {
+        indexAxis: "y", maintainAspectRatio: false, responsive: true,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { const d = roomsRevenue[ctx.dataIndex]; return moneyTick(ctx.raw) + ' — ' + d.bookings_count + ' bookings'; } } } },
+        scales: { x: { beginAtZero: true, grid: { color: gridColor }, ticks: { callback: moneyTick, color: tickColor } }, y: { grid: { display: false }, ticks: { color: tickColor } } }
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

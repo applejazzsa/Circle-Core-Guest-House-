@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Daily Close - Circle Core Guest House{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Owner Control</div>
+    <h1 class="page-title">Daily Close</h1>
+    <p class="page-subtitle">Cash-up, payments, expenses, refunds, discounts, shifts, and exceptions for the day.</p>
+  </div>
+  <form method="get" style="display:flex; gap:10px; align-items:end;">
+    <input type="date" name="date" value="{{ close_date|date:'Y-m-d' }}">
+    <button class="btn btn-secondary" type="submit">View</button>
+  </form>
+</div>
+
+<div class="card" style="padding:14px 18px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; gap:16px; border-color:{% if close_lock %}rgba(34,197,94,0.28){% else %}var(--color-border){% endif %};">
+  <div>
+    <div class="section-label" style="margin-bottom:4px;">Close Status</div>
+    {% if close_lock %}
+    <div style="color:var(--color-text-primary); font-weight:700;">Locked by {{ close_lock.locked_by|default:"-" }} on {{ close_lock.locked_at|date:"d M Y H:i" }}</div>
+    {% if close_lock.notes %}<div style="font-size:12.5px; color:var(--color-text-tertiary); margin-top:4px;">{{ close_lock.notes }}</div>{% endif %}
+    {% else %}
+    <div style="color:var(--color-text-secondary);">This day is open for changes.</div>
+    {% endif %}
+  </div>
+  {% if close_lock %}
+  <form method="post" action="{% url 'core:daily_close_unlock' close_lock.pk %}" style="display:flex; gap:8px; align-items:center;">
+    {% csrf_token %}
+    <input name="manager_username" placeholder="Owner username" autocomplete="username" style="width:150px;">
+    <input name="manager_password" placeholder="Owner password" type="password" autocomplete="current-password" style="width:150px;">
+    <button class="btn btn-danger btn-sm" type="submit">Reopen Day</button>
+  </form>
+  {% else %}
+  <form method="post" action="{% url 'core:daily_close_lock' %}" style="display:flex; gap:8px; align-items:center;">
+    {% csrf_token %}
+    <input type="hidden" name="date" value="{{ close_date|date:'Y-m-d' }}">
+    <input name="notes" placeholder="Close note" style="width:220px;">
+    <button class="btn btn-primary btn-sm" type="submit">Lock Day</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="stats-row">
+  <div class="metric-card"><div class="metric-label">Total Payments</div><div class="metric-value">R {{ payments_total|floatformat:2 }}</div></div>
+  <div class="metric-card"><div class="metric-label">Expenses</div><div class="metric-value">R {{ expenses_total|floatformat:2 }}</div></div>
+  <div class="metric-card" style="--accent-color:#f59e0b;"><div class="metric-label">Discounts</div><div class="metric-value">R {{ discounts|floatformat:2 }}</div></div>
+  <div class="metric-card" style="--accent-color:#ef4444;"><div class="metric-label">Refunds</div><div class="metric-value">R {{ refunds|floatformat:2 }}</div></div>
+</div>
+
+<div class="card" style="margin-bottom:20px; border-top:3px solid {% if cash_variance_total and cash_variance_total != 0 %}#ef4444{% else %}var(--color-green-500){% endif %};">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px;">
+    <div>
+      <div class="section-label" style="margin-bottom:4px;">Cash Reconciliation</div>
+      <div style="font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--color-text-primary);">Expected till balance vs counted cash</div>
+    </div>
+    {% if open_shifts %}
+    <span class="badge badge-amber">{{ open_shifts }} open shift{{ open_shifts|pluralize }}</span>
+    {% elif cash_variance_total and cash_variance_total != 0 %}
+    <span class="badge badge-red">Variance</span>
+    {% else %}
+    <span class="badge badge-green">Balanced</span>
+    {% endif %}
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
+    <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:14px;">
+      <div class="metric-label">Opening Float</div>
+      <div class="metric-value" style="font-size:20px;">R {{ opening_float_total|floatformat:2 }}</div>
+    </div>
+    <div style="background:rgba(34,197,94,0.06); border-radius:var(--radius-md); padding:14px;">
+      <div class="metric-label">Cash In</div>
+      <div class="metric-value" style="font-size:20px;">R {{ cash_payments|add:pos_cash|floatformat:2 }}</div>
+    </div>
+    <div style="background:rgba(239,68,68,0.06); border-radius:var(--radius-md); padding:14px;">
+      <div class="metric-label">Cash Out</div>
+      <div class="metric-value" style="font-size:20px;">R {{ cash_expenses|add:cash_booking_refunds|add:pos_cash_refunds|floatformat:2 }}</div>
+    </div>
+    <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:14px;">
+      <div class="metric-label">Variance</div>
+      <div class="metric-value" style="font-size:20px; color:{% if cash_variance_total and cash_variance_total != 0 %}#f87171{% else %}var(--color-green-400){% endif %};">R {{ cash_variance_total|default:"0.00"|floatformat:2 }}</div>
+    </div>
+  </div>
+
+  <div class="detail-grid" style="margin-top:18px;">
+    <div>
+      <div class="detail-row"><span class="detail-label">Expected Cash</span><span class="detail-value">R {{ expected_cash_total|floatformat:2 }}</span></div>
+      <div class="detail-row"><span class="detail-label">Counted Cash</span><span class="detail-value">R {{ counted_cash_total|floatformat:2 }}</span></div>
+      <div class="detail-row"><span class="detail-label">Booking Cash</span><span class="detail-value">R {{ cash_payments|floatformat:2 }}</span></div>
+      <div class="detail-row"><span class="detail-label">POS Cash</span><span class="detail-value">R {{ pos_cash|floatformat:2 }}</span></div>
+    </div>
+    <div>
+      <div class="detail-row"><span class="detail-label">Cash Expenses</span><span class="detail-value">R {{ cash_expenses|floatformat:2 }}</span></div>
+      <div class="detail-row"><span class="detail-label">Booking Cash Refunds</span><span class="detail-value">R {{ cash_booking_refunds|floatformat:2 }}</span></div>
+      <div class="detail-row"><span class="detail-label">POS Cash Refunds</span><span class="detail-value">R {{ pos_cash_refunds|floatformat:2 }}</span></div>
+      <div class="detail-row"><span class="detail-label">Open Shifts</span><span class="detail-value">{{ open_shifts }}</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="card">
+    <div class="section-label" style="margin-bottom:14px;">Payment Channels</div>
+    <div class="detail-row"><span class="detail-label">Cash</span><span class="detail-value">R {{ cash_payments|add:pos_cash|floatformat:2 }}</span></div>
+    <div class="detail-row"><span class="detail-label">Card</span><span class="detail-value">R {{ card_payments|floatformat:2 }}</span></div>
+    <div class="detail-row"><span class="detail-label">EFT</span><span class="detail-value">R {{ eft_payments|floatformat:2 }}</span></div>
+    <div class="detail-row"><span class="detail-label">SnapScan / Zapper</span><span class="detail-value">R {{ pos_wallet|floatformat:2 }}</span></div>
+    <div class="detail-row"><span class="detail-label">Room Charges</span><span class="detail-value">R {{ pos_room_charge|floatformat:2 }}</span></div>
+    <div class="detail-row"><span class="detail-label">Check-ins / Check-outs</span><span class="detail-value">{{ checkins }} / {{ checkouts }}</span></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label" style="margin-bottom:14px;">Shift Cash</div>
+    {% for row in shift_rows %}
+    <div style="padding:12px 0; border-bottom:1px solid var(--color-border);">
+      <div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;">
+        <span style="font-weight:600; color:var(--color-text-primary);">{{ row.shift.opened_by|default:"-" }}</span>
+        <span class="badge {% if row.shift.is_open %}badge-amber{% elif row.variance and row.variance != 0 %}badge-red{% else %}badge-green{% endif %}" style="font-size:9.5px;">{% if row.shift.is_open %}Open{% else %}Closed{% endif %}</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; font-size:12.5px;">
+        <div><span style="color:var(--color-text-tertiary);">Expected</span><br><span style="font-family:var(--font-mono);">R {{ row.expected_cash|floatformat:2 }}</span></div>
+        <div><span style="color:var(--color-text-tertiary);">Counted</span><br><span style="font-family:var(--font-mono);">R {{ row.closing_cash|default:"0.00"|floatformat:2 }}</span></div>
+        <div><span style="color:var(--color-text-tertiary);">Variance</span><br><span style="font-family:var(--font-mono); color:{% if row.variance and row.variance != 0 %}#f87171{% else %}var(--color-green-400){% endif %};">R {{ row.variance|default:"0.00"|floatformat:2 }}</span></div>
+      </div>
+      {% if row.shift.notes %}<div style="font-size:12px; color:var(--color-text-tertiary); margin-top:8px;">{{ row.shift.notes }}</div>{% endif %}
+    </div>
+    {% empty %}
+    <p class="page-subtitle">No shifts for this date.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="section-label" style="margin-bottom:14px;">Sensitive Actions</div>
+  <div class="table-scroll">
+    <table class="data-table">
+      <thead><tr><th>Time</th><th>Action</th><th>Object</th><th>User</th><th>Approved By</th><th>Reason</th></tr></thead>
+      <tbody>
+        {% for row in sensitive_actions %}
+        <tr><td>{{ row.created_at|date:"H:i" }}</td><td>{{ row.get_action_display }}</td><td>{{ row.object_repr }}</td><td>{{ row.actor|default:"-" }}</td><td>{{ row.approved_by|default:"-" }}</td><td>{{ row.reason|default:"-" }}</td></tr>
+        {% empty %}
+        <tr><td colspan="6">No sensitive actions for this date.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Audit Trail - Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Security</div>
+    <h1 class="page-title">Audit Trail</h1>
+    <p class="page-subtitle">Owner view of operator actions, approvals, refunds, deletes, and sensitive changes.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:exception_report' %}" class="btn btn-ghost btn-sm">Exception Report</a>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="metric-card">
+    <div class="metric-label">Filtered Logs</div>
+    <div class="metric-value">{{ total_logs }}</div>
+  </div>
+  <div class="metric-card" style="--accent-color:#f59e0b;">
+    <div class="metric-label">Sensitive History</div>
+    <div class="metric-value">{{ recent_sensitive }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Today</div>
+    <div class="metric-value" style="font-size:20px;">{{ today|date:"d M Y" }}</div>
+  </div>
+</div>
+
+<div class="card" style="padding:16px 20px; margin-bottom:18px;">
+  <form method="get" style="display:grid; grid-template-columns:1fr 180px 180px auto; gap:10px; align-items:end;">
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="q">Search</label>
+      <input id="q" type="search" name="q" value="{{ query }}" placeholder="User, object, reason...">
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="action">Action</label>
+      <select id="action" name="action">
+        <option value="">All Actions</option>
+        {% for value, label in action_choices %}
+        <option value="{{ value }}" {% if action == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="date">Date</label>
+      <input id="date" type="date" name="date" value="{{ selected_date }}">
+    </div>
+    <button class="btn btn-secondary btn-sm" type="submit">Filter</button>
+  </form>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  <div class="table-scroll">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Action</th>
+          <th>Object</th>
+          <th>User</th>
+          <th>Approved By</th>
+          <th class="hide-tablet">Reason</th>
+          <th class="hide-mobile">IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in page_obj %}
+        <tr>
+          <td style="font-family:var(--font-mono); font-size:12px;">{{ row.created_at|date:"d M H:i" }}</td>
+          <td><span class="badge {% if row.action == 'delete' or row.action == 'refund' %}badge-red{% elif row.action == 'login_override' %}badge-amber{% else %}badge-blue{% endif %}" style="font-size:9.5px;">{{ row.get_action_display }}</span></td>
+          <td>
+            <div style="font-weight:600; color:var(--color-text-primary);">{{ row.object_type }}</div>
+            <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:2px;">{{ row.object_repr|default:"-" }}</div>
+          </td>
+          <td>{{ row.actor|default:"-" }}</td>
+          <td>{{ row.approved_by|default:"-" }}</td>
+          <td class="hide-tablet" style="max-width:320px; color:var(--color-text-secondary);">{{ row.reason|default:"-"|truncatechars:90 }}</td>
+          <td class="hide-mobile" style="font-family:var(--font-mono); font-size:12px;">{{ row.ip_address|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center; padding:34px; color:var(--color-text-tertiary);">No audit logs found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div style="display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:16px;">
+  {% if page_obj.has_previous %}
+  <a class="btn btn-ghost btn-sm" href="?q={{ query }}&action={{ action }}&date={{ selected_date }}&page={{ page_obj.previous_page_number }}">Previous</a>
+  {% endif %}
+  <span style="font-size:12.5px; color:var(--color-text-tertiary);">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a class="btn btn-ghost btn-sm" href="?q={{ query }}&action={{ action }}&date={{ selected_date }}&page={{ page_obj.next_page_number }}">Next</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

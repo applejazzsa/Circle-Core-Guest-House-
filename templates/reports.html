@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Reports — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<style>
+    @media print {
+        aside, header, form, a { display: none !important; }
+        main { padding: 0 !important; }
+        section { break-inside: avoid; }
+        body { background: white !important; }
+    }
+</style>
+
+<div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+        <nav class="mb-2 text-sm text-slate-500">
+            <a href="{% url 'core:home' %}" class="hover:text-slate-900">Dashboard</a>
+            <span class="mx-2">/</span>
+            <span class="text-slate-900">Reports</span>
+        </nav>
+        <p class="text-sm font-medium uppercase tracking-wider text-gold">Management</p>
+        <h2 class="text-2xl font-semibold text-slate-950">Reports</h2>
+        <p class="mt-1 text-sm text-slate-500">{{ month_name }} {{ selected_year }}</p>
+    </div>
+</div>
+
+<form method="get" class="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-wrap items-end gap-3">
+        <div>
+            <label class="block text-xs font-medium text-slate-500" for="month">Month</label>
+            <select id="month" name="month"
+                    class="mt-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30">
+                {% for value, label in months %}
+                    <option value="{{ value }}" {% if selected_month == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-slate-500" for="year">Year</label>
+            <select id="year" name="year"
+                    class="mt-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30">
+                {% for year in years %}
+                    <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit"
+                class="rounded-md bg-navy px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-navy/90">
+            View Report
+        </button>
+    </div>
+</form>
+
+<section class="mb-8">
+    <h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">Revenue Summary</h3>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Revenue</p>
+            <p class="mt-3 text-2xl font-semibold text-slate-950">{{ guest_house_settings.currency|default:"R" }} {{ total_revenue }}</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Expenses</p>
+            <p class="mt-3 text-2xl font-semibold text-red-700">{{ guest_house_settings.currency|default:"R" }} {{ total_expenses }}</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Net profit</p>
+            <p class="mt-3 text-2xl font-semibold {% if net_profit >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                {{ guest_house_settings.currency|default:"R" }} {{ net_profit }}
+            </p>
+        </div>
+        <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Outstanding</p>
+            <p class="mt-3 text-2xl font-semibold {% if outstanding_balances > 0 %}text-red-700{% else %}text-green-700{% endif %}">
+                {{ guest_house_settings.currency|default:"R" }} {{ outstanding_balances }}
+            </p>
+        </div>
+    </div>
+</section>
+
+<section class="mb-8">
+    <h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">Occupancy Report</h3>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Possible room-nights</p>
+            <p class="mt-3 text-2xl font-semibold text-slate-950">{{ total_possible_room_nights }}</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Room-nights sold</p>
+            <p class="mt-3 text-2xl font-semibold text-slate-950">{{ room_nights_sold }}</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Occupancy rate</p>
+            <p class="mt-3 text-2xl font-semibold text-blue-700">{{ occupancy_rate }}%</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Average rate/night</p>
+            <p class="mt-3 text-2xl font-semibold text-slate-950">{{ guest_house_settings.currency|default:"R" }} {{ average_rate_per_night }}</p>
+        </div>
+    </div>
+</section>
+
+<div class="grid gap-8 xl:grid-cols-2">
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Revenue Per Room</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm">
+                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <tr>
+                        <th class="px-5 py-3">Room</th>
+                        <th class="px-5 py-3 text-right">Bookings</th>
+                        <th class="px-5 py-3 text-right">Nights</th>
+                        <th class="px-5 py-3 text-right">Revenue</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for row in revenue_per_room_rows %}
+                        <tr>
+                            <td class="px-5 py-3 font-medium text-slate-900">{{ row.room.name }}</td>
+                            <td class="px-5 py-3 text-right text-slate-600">{{ row.booking_count }}</td>
+                            <td class="px-5 py-3 text-right text-slate-600">{{ row.total_nights }}</td>
+                            <td class="px-5 py-3 text-right font-semibold text-slate-900">{{ guest_house_settings.currency|default:"R" }} {{ row.total_revenue }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="px-5 py-8 text-center text-slate-400">No checked-in or checked-out bookings for this month.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Booking Sources</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm">
+                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <tr>
+                        <th class="px-5 py-3">Source</th>
+                        <th class="px-5 py-3 text-right">Bookings</th>
+                        <th class="px-5 py-3 text-right">Revenue</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for row in booking_source_data %}
+                        <tr>
+                            <td class="px-5 py-3 font-medium text-slate-900">{{ row.source }}</td>
+                            <td class="px-5 py-3 text-right text-slate-600">{{ row.count }}</td>
+                            <td class="px-5 py-3 text-right font-semibold text-slate-900">{{ guest_house_settings.currency|default:"R" }} {{ row.total_revenue }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="3" class="px-5 py-8 text-center text-slate-400">No bookings for this month.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Booking Status Breakdown</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm">
+                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <tr>
+                        <th class="px-5 py-3">Status</th>
+                        <th class="px-5 py-3 text-right">Count</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for row in booking_status_data %}
+                        <tr>
+                            <td class="px-5 py-3 font-medium text-slate-900">{{ row.status }}</td>
+                            <td class="px-5 py-3 text-right text-slate-600">{{ row.count }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4">
+            <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Top Guests</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-100 text-sm">
+                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <tr>
+                        <th class="px-5 py-3">Guest</th>
+                        <th class="px-5 py-3 text-right">Stays</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for row in top_guests %}
+                        <tr>
+                            <td class="px-5 py-3 font-medium text-slate-900">{{ row.guest.full_name }}</td>
+                            <td class="px-5 py-3 text-right text-slate-600">{{ row.stays }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="2" class="px-5 py-8 text-center text-slate-400">No completed stays for this month.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

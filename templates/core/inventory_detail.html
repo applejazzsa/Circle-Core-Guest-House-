@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }} — Inventory{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Inventory</div>
+    <h1 class="page-title">{{ item.name }}</h1>
+    {% if item.current_stock <= 0 %}
+    <span class="badge badge-red" style="margin-top:6px;">Out of Stock</span>
+    {% elif item.is_low_stock %}
+    <span class="badge badge-amber" style="margin-top:6px;">Low Stock</span>
+    {% else %}
+    <span class="badge badge-green" style="margin-top:6px;">Sufficient</span>
+    {% endif %}
+  </div>
+  <div class="page-header-actions">
+    {% if not is_cleaner %}
+    <a href="{% url 'core:inventory_stock_in' item.pk %}" class="btn btn-primary">Stock In</a>
+    <a href="{% url 'core:inventory_stock_out' item.pk %}" class="btn btn-secondary" style="border-color:rgba(245,158,11,0.3); color:#f59e0b;">Stock Out</a>
+    <a href="{% url 'core:inventory_edit' item.pk %}" class="btn btn-ghost">Edit</a>
+    {% endif %}
+    <a href="{% url 'core:inventory_dashboard' %}" class="btn btn-ghost">← Back</a>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:320px 1fr; gap:20px;">
+
+  <!-- Left: Item info -->
+  <div style="display:flex; flex-direction:column; gap:14px;">
+    <div class="card" style="padding:20px; border-top:3px solid var(--color-green-500);">
+      <div class="section-label" style="margin-bottom:12px;">Stock Summary</div>
+      <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:16px; margin-bottom:16px; text-align:center;">
+        <div style="font-family:var(--font-display); font-size:42px; font-weight:800; color:{% if item.current_stock <= 0 %}#f87171{% elif item.is_low_stock %}#f59e0b{% else %}var(--color-green-400){% endif %}; line-height:1;">{{ item.current_stock }}</div>
+        <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:4px;">{{ item.unit }}</div>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Minimum Stock</span>
+        <span class="detail-value" style="font-family:var(--font-mono);">{{ item.minimum_stock }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Reorder Qty</span>
+        <span class="detail-value" style="font-family:var(--font-mono);">{{ item.reorder_quantity }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Cost/Unit</span>
+        <span class="detail-value" style="font-family:var(--font-mono);">{{ guest_house_settings.currency|default:"R" }} {{ item.cost_per_unit|floatformat:2 }}</span>
+      </div>
+      <div class="detail-row" style="border-bottom:none; padding-bottom:0;">
+        <span class="detail-label">Total Value</span>
+        <span class="detail-value" style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">{{ guest_house_settings.currency|default:"R" }} {{ item.stock_value|floatformat:2 }}</span>
+      </div>
+    </div>
+
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:12px;">Details</div>
+      {% if item.category %}
+      <div class="detail-row">
+        <span class="detail-label">Category</span>
+        <span class="detail-value">{{ item.category }}</span>
+      </div>
+      {% endif %}
+      {% if item.location %}
+      <div class="detail-row">
+        <span class="detail-label">Location</span>
+        <span class="detail-value">{{ item.location }}</span>
+      </div>
+      {% endif %}
+      {% if item.supplier_name %}
+      <div class="detail-row">
+        <span class="detail-label">Supplier</span>
+        <span class="detail-value">{{ item.supplier_name }}</span>
+      </div>
+      {% endif %}
+      {% if item.supplier_phone %}
+      <div class="detail-row" style="border-bottom:none; padding-bottom:0;">
+        <span class="detail-label">Phone</span>
+        <span class="detail-value" style="font-family:var(--font-mono);">{{ item.supplier_phone }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if item.notes %}
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:8px;">Notes</div>
+      <p style="font-size:13.5px; color:var(--color-text-secondary); line-height:1.6; white-space:pre-line;">{{ item.notes }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right: Transaction history -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:18px 20px; border-bottom:1px solid var(--color-border);">
+      <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary);">Transaction History</div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Qty</th>
+          <th>Before</th>
+          <th>After</th>
+          <th class="hide-mobile">Reference</th>
+          <th class="hide-mobile">Room</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for transaction in transactions %}
+        <tr>
+          <td style="font-family:var(--font-mono); font-size:12px;">{{ transaction.recorded_at|date:"d M Y H:i" }}</td>
+          <td>
+            <span class="badge {% if 'In' in transaction.get_transaction_type_display or 'in' in transaction.get_transaction_type_display %}badge-green{% else %}badge-amber{% endif %}" style="font-size:9.5px;">{{ transaction.get_transaction_type_display }}</span>
+          </td>
+          <td style="font-family:var(--font-mono); font-size:13px; font-weight:600;">{{ transaction.quantity }}</td>
+          <td style="font-family:var(--font-mono); font-size:12.5px; color:var(--color-text-tertiary);">{{ transaction.stock_before }}</td>
+          <td style="font-family:var(--font-mono); font-size:12.5px; color:var(--color-text-primary);">{{ transaction.stock_after }}</td>
+          <td class="hide-mobile" style="font-size:12.5px; color:var(--color-text-secondary);">{{ transaction.reference|default:"—" }}</td>
+          <td class="hide-mobile" style="font-size:12.5px; color:var(--color-text-secondary);">{{ transaction.room|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" style="text-align:center; padding:40px; color:var(--color-text-tertiary); font-size:13.5px;">No transactions recorded yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

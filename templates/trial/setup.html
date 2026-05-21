@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Activate Trial — Circle Core Guest House</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+</head>
+<body style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:var(--color-bg-base);">
+  <div style="width:100%; max-width:440px;">
+    <div style="text-align:center; margin-bottom:28px;">
+      <div style="width:52px; height:52px; border-radius:12px; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.2); display:flex; align-items:center; justify-content:center; margin:0 auto 14px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-green-400)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      </div>
+      <div style="font-family:var(--font-display); font-size:22px; font-weight:800; color:var(--color-text-primary);">Circle Core</div>
+      <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px; letter-spacing:0.08em; text-transform:uppercase; font-weight:600;">Guest House</div>
+      <h1 style="font-family:var(--font-display); font-size:20px; font-weight:700; color:var(--color-text-primary); margin-top:18px; line-height:1.3;">Activate Your 30-Day Free Trial</h1>
+    </div>
+
+    <div class="card" style="padding:28px;">
+      <form method="post" style="display:flex; flex-direction:column; gap:14px;">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="guest_house_name">Guest House Name</label>
+          <input type="text" id="guest_house_name" name="guest_house_name" required
+            style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:10px 14px; width:100%; color:var(--color-text-primary); font-size:14px; outline:none; box-sizing:border-box; transition:border-color 0.15s;"
+            onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="owner_email">Owner Email</label>
+          <input type="email" id="owner_email" name="owner_email" required
+            style="background:var(--color-bg-elevated); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:10px 14px; width:100%; color:var(--color-text-primary); font-size:14px; outline:none; box-sizing:border-box; transition:border-color 0.15s;"
+            onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; padding:12px; font-size:14px; margin-top:4px;">Start Free Trial</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Properties — Circle Core Guest House{% endblock %}
+{% block content %}
+<div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px;">
+  <div>
+    <div class="section-label">System</div>
+    <h1 class="page-title">Properties</h1>
+    <p class="page-subtitle">Each property has its own rooms, bookings, POS, and expenses.</p>
+  </div>
+  <a href="{% url 'core:property_add' %}" class="btn btn-primary">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Property
+  </a>
+</div>
+
+<div style="display:flex; flex-direction:column; gap:12px;">
+  {% for p in properties %}
+  <div style="background:var(--color-bg-surface); border:1px solid {% if active_property.pk == p.pk %}var(--color-green-border){% else %}var(--color-border){% endif %}; border-radius:var(--radius-lg); padding:20px 24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+    <!-- Status dot -->
+    <div style="width:10px; height:10px; border-radius:50%; flex-shrink:0; background:{% if p.is_active %}var(--color-green-500){% else %}var(--color-border-bright){% endif %};"></div>
+    <!-- Info -->
+    <div style="flex:1; min-width:0;">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary);">{{ p.name }}</span>
+        {% if active_property.pk == p.pk %}
+        <span class="badge badge-green" style="font-size:10px;">Active</span>
+        {% endif %}
+        {% if not p.is_active %}
+        <span class="badge badge-gray" style="font-size:10px;">Inactive</span>
+        {% endif %}
+      </div>
+      {% if p.address %}
+      <div style="font-size:12.5px; color:var(--color-text-tertiary); margin-top:3px;">{{ p.address }}</div>
+      {% endif %}
+      <div style="display:flex; gap:16px; margin-top:6px; flex-wrap:wrap;">
+        <span style="font-size:12px; color:var(--color-text-tertiary);">{{ p.room_count }} room{{ p.room_count|pluralize }}</span>
+        {% if p.phone %}<span style="font-size:12px; color:var(--color-text-tertiary);">{{ p.phone }}</span>{% endif %}
+        {% if p.email %}<span style="font-size:12px; color:var(--color-text-tertiary);">{{ p.email }}</span>{% endif %}
+      </div>
+    </div>
+    <!-- Actions -->
+    <div style="display:flex; gap:8px; flex-shrink:0;">
+      {% if active_property.pk != p.pk %}
+      <a href="{% url 'core:property_switch' p.pk %}" class="btn btn-ghost btn-sm">Switch to</a>
+      {% endif %}
+      <a href="{% url 'core:property_edit' p.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+    </div>
+  </div>
+  {% empty %}
+  <div class="empty-state" style="padding:56px;">
+    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>
+    </svg>
+    <div class="empty-state-title">No properties yet</div>
+    <p class="empty-state-body">Add your first property to start organising rooms and bookings.</p>
+    <a href="{% url 'core:property_add' %}" class="btn btn-primary">Add Property</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

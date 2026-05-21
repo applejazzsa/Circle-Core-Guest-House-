@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Circle Core Guest House{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body style="background: var(--color-bg-base); min-height: 100vh; display: flex; flex-direction: column;">
+
+  <!-- Public nav -->
+  <header style="border-bottom: 1px solid var(--color-border); background: var(--color-bg-surface); padding: 0 32px;">
+    <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 60px;">
+      <a href="{% url 'core:plans_page' %}" style="display:flex; align-items:center; gap:10px; text-decoration:none;">
+        <div style="width:28px; height:28px; border-radius:7px; background:var(--color-green-500); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
+            <rect x="9" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
+            <rect x="2" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
+            <rect x="9" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-family:var(--font-display); font-weight:700; font-size:14px; color:var(--color-text-primary); line-height:1.2; letter-spacing:-0.02em;">Circle Core</div>
+          <div style="font-size:9px; color:var(--color-text-tertiary); letter-spacing:0.1em; text-transform:uppercase;">Guest House</div>
+        </div>
+      </a>
+      <a href="{% url 'login' %}" style="font-size:13px; color:var(--color-text-secondary); font-weight:500; text-decoration:none; transition:color 0.15s;" onmouseover="this.style.color='var(--color-text-primary)'" onmouseout="this.style.color='var(--color-text-secondary)'">
+        Sign in →
+      </a>
+    </div>
+  </header>
+
+  <main style="flex:1;">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer style="border-top:1px solid var(--color-border); padding:24px 32px; text-align:center;">
+    <p style="font-size:12px; color:var(--color-text-tertiary);">
+      Circle Core Guest House &middot; A product of Circle Core Technologies (Pty) Ltd &middot; support@circlecoretech.co.za
+    </p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Subscription - Circle Core Guest House{% endblock %}
+
+{% block content %}
+<style>
+  .subscription-page {
+    font-family: var(--font-body);
+  }
+
+  .subscription-metrics {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .subscription-metric {
+    min-height: 150px;
+    padding: 22px 24px;
+  }
+
+  .subscription-plan-name {
+    margin: 12px 0 10px;
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-size: 25px;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .subscription-price {
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-top: 12px;
+  }
+
+  .subscription-price span {
+    color: var(--color-text-tertiary);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .days-number {
+    color: {% if subscription.days_remaining <= 7 %}#f87171{% elif subscription.days_remaining <= 14 %}#f59e0b{% else %}var(--color-green-400){% endif %};
+    font-family: var(--font-body);
+    font-size: 44px;
+    font-weight: 800;
+    line-height: 0.95;
+    margin: 14px 0 18px;
+  }
+
+  .subscription-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 450px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .feature-tile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-tertiary);
+    font-size: 13.5px;
+  }
+
+  .feature-tile.included {
+    border-color: rgba(34, 197, 94, 0.22);
+    background: rgba(34, 197, 94, 0.06);
+    color: var(--color-text-primary);
+  }
+
+  .feature-check {
+    width: 21px;
+    min-width: 21px;
+    height: 21px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-border-bright);
+    color: var(--color-text-tertiary);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .feature-tile.included .feature-check {
+    background: var(--color-green-500);
+    color: #07130b;
+  }
+
+  .subscription-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  @media (max-width: 1180px) {
+    .subscription-layout,
+    .subscription-metrics {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .feature-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div class="subscription-page">
+  <div class="page-header">
+    <div>
+      <div class="section-label">System</div>
+      <h1 class="page-title">Subscription</h1>
+    </div>
+    <div class="page-header-actions">
+      {% if subscription.plan.name != "enterprise" %}
+      <a href="{% url 'core:plans_page' %}" class="btn btn-primary">Upgrade Plan</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="subscription-metrics">
+    <div class="card subscription-metric" style="border-top:3px solid var(--color-green-500);">
+      <div class="section-label">Current Plan</div>
+      <div class="subscription-plan-name">{{ subscription.plan.display_name }}</div>
+      <span class="badge {% if subscription.status == 'active' %}badge-green{% elif subscription.status == 'trial' %}badge-amber{% else %}badge-red{% endif %}">{{ subscription.get_status_display }}</span>
+    </div>
+
+    <div class="card subscription-metric">
+      <div class="section-label">Billing Cycle</div>
+      <div style="margin-top:12px; color:var(--color-text-primary); font-size:16px; font-weight:700;">{{ subscription.get_billing_cycle_display }}</div>
+      <div style="margin-top:8px; color:var(--color-text-tertiary); font-size:13px;">Expires {{ subscription.expires_at|date:"d M Y" }}</div>
+      <div class="subscription-price">
+        {% if subscription.billing_cycle == "annual" %}
+          R {{ subscription.plan.annual_price|floatformat:0 }} <span>/year</span>
+        {% else %}
+          R {{ subscription.plan.monthly_price|floatformat:0 }} <span>/month</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card subscription-metric">
+      <div class="section-label">Days Remaining</div>
+      <div class="days-number">{{ subscription.days_remaining }}</div>
+      <div style="height:7px; background:var(--color-bg-subtle); border-radius:999px; overflow:hidden;">
+        <div style="height:100%; width:{{ progress_pct }}%; background:{% if subscription.days_remaining <= 7 %}#ef4444{% elif subscription.days_remaining <= 14 %}#f59e0b{% else %}var(--color-green-500){% endif %}; border-radius:999px; transition:width 0.3s;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subscription-layout">
+    <div class="card" style="padding:24px;">
+      <div class="section-label" style="margin-bottom:18px;">Features Included</div>
+      <div class="feature-grid">
+        {% for feature in features %}
+        <div class="feature-tile {% if feature.included %}included{% endif %}">
+          <div class="feature-check">✓</div>
+          <span style="font-weight:{% if feature.included %}700{% else %}500{% endif %};">{{ feature.label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="subscription-sidebar">
+      <div class="card" style="padding:22px;">
+        <div class="section-label" style="margin-bottom:16px;">Billing History</div>
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Amount</th><th>Reference</th></tr></thead>
+          <tbody>
+            {% for row in billing_rows %}
+            <tr>
+              <td style="font-family:var(--font-mono); font-size:12px;">{{ row.date|date:"d M Y" }}</td>
+              <td style="font-family:var(--font-mono); font-size:13px;">R {{ row.amount|floatformat:2 }}</td>
+              <td style="font-size:12.5px; color:var(--color-text-tertiary);">{{ row.reference|default:"-" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" style="text-align:center; padding:24px; color:var(--color-text-tertiary); font-size:13px;">No billing history.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" style="padding:22px;">
+        <div class="section-label" style="margin-bottom:10px;">Need Help?</div>
+        <p style="font-size:13.5px; color:var(--color-text-secondary); line-height:1.6; margin-bottom:14px;">To upgrade or renew your subscription, contact our team.</p>
+        <a href="mailto:sales@circlecoretech.co.za?subject=Circle Core Subscription" class="btn btn-ghost btn-sm" style="display:inline-flex;">Contact Sales</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

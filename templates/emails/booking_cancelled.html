@@ -1,0 +1,28 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h1 class="title">Booking Cancelled</h1>
+<p class="subtitle">Hi {{ booking.guest.first_name }}, your booking has been cancelled.</p>
+
+<div class="detail-box">
+  <div class="detail-row">
+    <span class="detail-label">Reference</span>
+    <span class="detail-value" style="font-family:monospace;">{{ booking.booking_reference }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Room</span>
+    <span class="detail-value">{{ booking.room.name }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Original Check-in</span>
+    <span class="detail-value">{{ booking.check_in_date|date:"D, d M Y" }}</span>
+  </div>
+  <div class="detail-row">
+    <span class="detail-label">Status</span>
+    <span class="detail-value"><span class="badge badge-red">Cancelled</span></span>
+  </div>
+</div>
+
+<p style="font-size:13.5px; color:#475569; line-height:1.6;">
+  If you believe this was in error or would like to make a new booking, please contact us directly.
+</p>
+{% endblock %}

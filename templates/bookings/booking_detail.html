@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block title %}{{ booking.booking_reference }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+
+{# ── Page header ── #}
+<div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+        <nav class="mb-2 text-sm text-slate-500">
+            <a href="{% url 'core:home' %}" class="hover:text-slate-900">Dashboard</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'core:booking_list' %}" class="hover:text-slate-900">Bookings</a>
+            <span class="mx-2">/</span>
+            <span class="text-slate-900">{{ booking.booking_reference }}</span>
+        </nav>
+        <p class="text-sm font-medium uppercase tracking-wider text-gold">Bookings</p>
+        <div class="flex flex-wrap items-center gap-3">
+            <h2 class="font-mono text-2xl font-semibold text-slate-950">{{ booking.booking_reference }}</h2>
+
+            {% if booking.status == "Pending" %}
+                <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800">Pending</span>
+            {% elif booking.status == "Confirmed" %}
+                <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">Confirmed</span>
+            {% elif booking.status == "Checked In" %}
+                <span class="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">Checked In</span>
+            {% elif booking.status == "Checked Out" %}
+                <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">Checked Out</span>
+            {% elif booking.status == "Cancelled" %}
+                <span class="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-800">Cancelled</span>
+            {% elif booking.status == "No Show" %}
+                <span class="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-600">No Show</span>
+            {% endif %}
+
+            {# Booking source badge #}
+            <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-600">{{ booking.booking_source }}</span>
+            {% if booking.balance_due <= 0 %}
+                <span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">Fully Paid</span>
+            {% endif %}
+        </div>
+        <p class="mt-1 text-sm text-slate-500">
+            Created {{ booking.created_at|date:"d M Y \a\t H:i" }}
+        </p>
+    </div>
+    <a href="{% url 'core:booking_list' %}"
+       class="self-start text-sm font-medium text-slate-600 hover:text-slate-900">&larr; All Bookings</a>
+</div>
+
+{# ── Two-column grid ── #}
+<div class="grid gap-6 lg:grid-cols-3">
+
+    {# ── Left column: booking info ── #}
+    <div class="space-y-6 lg:col-span-2">
+
+        {# Guest & Stay #}
+        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Guest &amp; Stay</h3>
+            <dl class="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+                <div>
+                    <dt class="text-xs font-medium text-slate-400">Guest</dt>
+                    <dd class="mt-0.5 text-sm font-semibold text-slate-900">
+                        <a href="{% url 'core:guest_detail' booking.guest.pk %}"
+                           class="hover:text-gold">{{ booking.guest.full_name }}</a>
+                    </dd>
+                    <dd class="text-xs text-slate-500">{{ booking.guest.phone }}</dd>
+                    {% if booking.guest.email %}
+                        <dd class="text-xs text-slate-500">{{ booking.guest.email }}</dd>
+                    {% endif %}
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-slate-400">Room</dt>
+                    <dd class="mt-0.5 text-sm font-semibold text-slate-900">{{ booking.room.name }}</dd>
+                    <dd class="text-xs text-slate-500">{{ booking.room.room_type }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-slate-400">Check-in date</dt>
+                    <dd class="mt-0.5 text-sm text-slate-900">{{ booking.check_in_date|date:"D, d M Y" }}</dd>
+                    {% if booking.check_in_time %}
+                        <dd class="text-xs text-slate-500">Checked in at {{ booking.check_in_time|date:"H:i" }}</dd>
+                    {% endif %}
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-slate-400">Check-out date</dt>
+                    <dd class="mt-0.5 text-sm text-slate-900">{{ booking.check_out_date|date:"D, d M Y" }}</dd>
+                    {% if booking.check_out_time %}
+                        <dd class="text-xs text-slate-500">Checked out at {{ booking.check_out_time|date:"H:i" }}</dd>
+                    {% endif %}
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-slate-400">Duration</dt>
+                    <dd class="mt-0.5 text-sm text-slate-900">{{ booking.num_nights }} night{{ booking.num_nights|pluralize }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-slate-400">Guests</dt>
+                    <dd class="mt-0.5 text-sm text-slate-900">{{ booking.num_guests }} person{{ booking.num_guests|pluralize }}</dd>
+                </div>
+            </dl>
+        </section>
+
+        {% if booking.balance_due > 0 %}
+            <div class="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-700">
+                Balance Outstanding: {{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due }}
+            </div>
+        {% else %}
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-700">
+                Fully Paid
+            </div>
+        {% endif %}
+
+        {# Financial breakdown #}
+        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Financials</h3>
+            <div class="divide-y divide-slate-100">
+                <div class="flex justify-between py-2 text-sm">
+                    <span class="text-slate-600">Rate per night</span>
+                    <span class="text-slate-900">{{ guest_house_settings.currency|default:"R" }} {{ booking.rate_per_night }}</span>
+                </div>
+                <div class="flex justify-between py-2 text-sm">
+                    <span class="text-slate-600">Nights</span>
+                    <span class="text-slate-900">&times; {{ booking.num_nights }}</span>
+                </div>
+                {% if booking.discount > 0 %}
+                <div class="flex justify-between py-2 text-sm">
+                    <span class="text-slate-600">Discount</span>
+                    <span class="text-red-600">&minus; {{ guest_house_settings.currency|default:"R" }} {{ booking.discount }}</span>
+                </div>
+                {% endif %}
+                <div class="flex justify-between py-2.5 text-sm font-semibold">
+                    <span class="text-slate-900">Total amount</span>
+                    <span class="text-slate-900">{{ guest_house_settings.currency|default:"R" }} {{ booking.total_amount }}</span>
+                </div>
+                <div class="flex justify-between py-2 text-sm">
+                    <span class="text-slate-500">Deposit required</span>
+                    <span class="text-slate-700">{{ guest_house_settings.currency|default:"R" }} {{ booking.deposit_required }}</span>
+                </div>
+                <div class="flex justify-between py-2 text-sm">
+                    <span class="text-slate-500">Deposit paid</span>
+                    <span class="{% if booking.deposit_paid > 0 %}text-green-700 font-medium{% else %}text-slate-700{% endif %}">
+                        {{ guest_house_settings.currency|default:"R" }} {{ booking.deposit_paid }}
+                    </span>
+                </div>
+                <div class="flex justify-between py-3 text-base font-bold">
+                    <span class="{% if booking.balance_due > 0 %}text-red-700{% else %}text-green-700{% endif %}">
+                        Balance due
+                    </span>
+                    <span class="{% if booking.balance_due > 0 %}text-red-700{% else %}text-green-700{% endif %}">
+                        {{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due }}
+                        {% if booking.balance_due <= 0 %} &check;{% endif %}
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        {# Notes #}
+        {% if booking.notes %}
+        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">Notes</h3>
+            <p class="whitespace-pre-line text-sm text-slate-700">{{ booking.notes }}</p>
+        </section>
+        {% endif %}
+
+        {# Payment history — placeholder #}
+        <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">WhatsApp Messages</h3>
+            {% if booking.guest.phone %}
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <a href="{% url 'core:booking_whatsapp' booking.pk 'confirmation' %}" target="_blank" rel="noopener"
+                       class="rounded-md border border-green-200 bg-green-50 px-4 py-2.5 text-center text-sm font-semibold text-green-800 hover:bg-green-100">
+                        Confirmation
+                    </a>
+                    <a href="{% url 'core:booking_whatsapp' booking.pk 'balance_reminder' %}" target="_blank" rel="noopener"
+                       class="rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-sm font-semibold text-amber-800 hover:bg-amber-100">
+                        Balance Reminder
+                    </a>
+                    <a href="{% url 'core:booking_whatsapp' booking.pk 'welcome' %}" target="_blank" rel="noopener"
+                       class="rounded-md border border-blue-200 bg-blue-50 px-4 py-2.5 text-center text-sm font-semibold text-blue-800 hover:bg-blue-100">
+                        Welcome
+                    </a>
+                    <a href="{% url 'core:booking_whatsapp' booking.pk 'thank_you' %}" target="_blank" rel="noopener"
+                       class="rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                        Thank You
+                    </a>
+                </div>
+            {% else %}
+                <p class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    No phone number on file — add guest phone to enable WhatsApp messages.
+                </p>
+            {% endif %}
+        </section>
+
+        <section class="rounded-xl border border-[#ece9e3] bg-white shadow-sm">
+            <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-widest text-gold">Payments</p>
+                    <h3 class="mt-1 font-serif text-2xl text-gray-900">Payment History</h3>
+                </div>
+                <a href="{% url 'core:payment_add' booking.pk %}"
+                   class="rounded-lg bg-[#c9a84c] px-5 py-2.5 text-sm font-semibold text-[#1a1a2e] shadow-sm transition hover:bg-[#b8963e]">
+                    Add Payment
+                </a>
+            </div>
+            {% if payments %}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-100 text-sm">
+                        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                            <tr>
+                                <th class="px-5 py-3">Date</th>
+                                <th class="px-5 py-3">Type</th>
+                                <th class="px-5 py-3">Method</th>
+                                <th class="px-5 py-3 text-right">Amount</th>
+                                <th class="px-5 py-3">Reference</th>
+                                <th class="px-5 py-3 text-right">Balance After</th>
+                                <th class="px-5 py-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for payment in payments %}
+                                <tr>
+                                    <td class="whitespace-nowrap px-5 py-3 text-slate-700">{{ payment.payment_date|date:"d M Y" }}</td>
+                                    <td class="whitespace-nowrap px-5 py-3 text-slate-700">{{ payment.payment_type }}</td>
+                                    <td class="whitespace-nowrap px-5 py-3 text-slate-700">{{ payment.payment_method }}</td>
+                                    <td class="whitespace-nowrap px-5 py-3 text-right font-semibold text-slate-900">
+                                        {{ guest_house_settings.currency|default:"R" }} {{ payment.amount }}
+                                    </td>
+                                    <td class="px-5 py-3 text-slate-500">{{ payment.reference|default:"-" }}</td>
+                                    <td class="whitespace-nowrap px-5 py-3 text-right font-semibold {% if payment.balance_after > 0 %}text-red-600{% else %}text-emerald-700{% endif %}">
+                                        {{ guest_house_settings.currency|default:"R" }} {{ payment.balance_after }}
+                                    </td>
+                                    <td class="whitespace-nowrap px-5 py-3 text-right">
+                                        <a href="{% url 'core:payment_receipt_pdf' booking.pk payment.pk %}"
+                                           class="font-medium text-slate-600 hover:text-slate-900">Receipt PDF</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="px-5 py-8 text-center text-sm text-slate-400">
+                    No payments recorded yet.
+                </p>
+            {% endif %}
+            <div class="grid gap-3 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:grid-cols-3">
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Total paid</p>
+                    <p class="mt-1 text-sm font-semibold text-green-700">
+                        {{ guest_house_settings.currency|default:"R" }} {{ payment_totals.total_paid }}
+                    </p>
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Total outstanding</p>
+                    <p class="mt-1 text-sm font-semibold {% if booking.balance_due > 0 %}text-red-700{% else %}text-green-700{% endif %}">
+                        {{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due }}
+                    </p>
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Deposit payments</p>
+                    <p class="mt-1 text-sm font-semibold text-slate-900">
+                        {{ guest_house_settings.currency|default:"R" }} {{ payment_totals.deposit_paid }}
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    {# ── Right column: action panel ── #}
+    <aside class="space-y-4">
+
+        {# Actions #}
+        <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</p>
+            <div class="space-y-3">
+
+                {# Check In — only when Confirmed #}
+                {% if booking.status == "Confirmed" %}
+                <form method="post" action="{% url 'core:booking_checkin' booking.pk %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="w-full rounded-md bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500/40">
+                        Check In Guest
+                    </button>
+                </form>
+                {% endif %}
+
+                {# Check Out — only when Checked In #}
+                {% if booking.status == "Checked In" %}
+                <form method="post" action="{% url 'core:booking_checkout' booking.pk %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                        Check Out Guest
+                    </button>
+                </form>
+                {% if booking.balance_due > 0 %}
+                <p class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    Outstanding balance of {{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due }} — collect payment before or at check-out.
+                </p>
+                {% endif %}
+                {% endif %}
+
+                {# Edit booking — always #}
+                <a href="{% url 'core:payment_add' booking.pk %}"
+                   class="block w-full rounded-md bg-gold px-4 py-2.5 text-center text-sm font-semibold text-navy shadow-sm hover:bg-gold/90">
+                    Add Payment
+                </a>
+
+                <a href="{% url 'core:booking_confirmation_pdf' booking.pk %}"
+                   class="block w-full rounded-md border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    Booking Confirmation PDF
+                </a>
+
+                <a href="{% url 'core:booking_invoice_pdf' booking.pk %}"
+                   class="block w-full rounded-md border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    Invoice PDF
+                </a>
+
+                <a href="{% url 'core:booking_edit' booking.pk %}"
+                   class="block w-full rounded-md border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    Edit Booking
+                </a>
+
+                {# Cancel — not available when already cancelled or checked out #}
+                {% if booking.status != "Cancelled" and booking.status != "Checked Out" and booking.status != "No Show" %}
+                <a href="{% url 'core:booking_cancel' booking.pk %}"
+                   class="block w-full rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-center text-sm font-semibold text-red-700 hover:bg-red-100">
+                    Cancel Booking
+                </a>
+                {% endif %}
+
+            </div>
+        </div>
+
+        {# Financial summary #}
+        <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Summary</p>
+            <div class="space-y-2.5">
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-600">Total</span>
+                    <span class="font-semibold text-slate-900">{{ guest_house_settings.currency|default:"R" }} {{ booking.total_amount }}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-600">Paid</span>
+                    <span class="font-semibold text-green-700">{{ guest_house_settings.currency|default:"R" }} {{ payment_totals.total_paid }}</span>
+                </div>
+                <div class="flex justify-between border-t border-slate-200 pt-2.5 text-sm font-bold">
+                    <span class="{% if booking.balance_due > 0 %}text-red-700{% else %}text-green-700{% endif %}">Balance</span>
+                    <span class="{% if booking.balance_due > 0 %}text-red-700{% else %}text-green-700{% endif %}">
+                        {{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {# Room card #}
+        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            {% if booking.room.image %}
+                <img src="{{ booking.room.image.url }}" alt="{{ booking.room.name }}"
+                     class="h-32 w-full object-cover">
+            {% endif %}
+            <div class="p-4">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Room</p>
+                <p class="mt-1 text-sm font-semibold text-slate-900">{{ booking.room.name }}</p>
+                <p class="text-xs text-slate-500">{{ booking.room.room_type }} &middot; max {{ booking.room.max_guests }} guests</p>
+                <div class="mt-2 flex gap-2">
+                    {% if booking.room.status == "Available" %}
+                        <span class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Available</span>
+                    {% elif booking.room.status == "Occupied" %}
+                        <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">Occupied</span>
+                    {% elif booking.room.status == "Cleaning" %}
+                        <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Cleaning</span>
+                    {% elif booking.room.status == "Maintenance" %}
+                        <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">Maintenance</span>
+                    {% else %}
+                        <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{{ booking.room.status }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </aside>
+</div>
+{% endblock %}
