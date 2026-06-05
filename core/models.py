@@ -206,7 +206,7 @@ class Booking(models.Model):
         ("Cancelled", "Cancelled"),
         ("No Show", "No Show"),
     ]
-    INACTIVE_STATUSES = ["Cancelled", "No Show"]
+    INACTIVE_STATUSES = ["Cancelled", "No Show", "Checked Out"]
     DURATION_CHOICES = [
         ("1_hour", "1 Hour"),
         ("2_hours", "2 Hours"),
@@ -398,10 +398,23 @@ class Booking(models.Model):
         self.balance_due = totals["balance_due"]
         self.save(update_fields=["deposit_paid", "balance_due"])
 
+    def validate_room_available(self):
+        if self.room_id and self.status not in self.INACTIVE_STATUSES:
+            room = self.room
+            if room.status in ("Maintenance", "Blocked"):
+                # Allow editing an existing booking already on this room
+                if not self.pk or Booking.objects.filter(pk=self.pk, room_id=self.room_id).exclude(status__in=self.INACTIVE_STATUSES).exists():
+                    existing_room = Room.objects.get(pk=self.room_id)
+                    if existing_room.status in ("Maintenance", "Blocked"):
+                        raise ValidationError(
+                            f"{room.name} is currently {room.status.lower()} and cannot be booked."
+                        )
+
     def save(self, *args, **kwargs):
         if not self.booking_reference:
             self.booking_reference = self._generate_reference()
         self.compute_totals()
+        self.validate_room_available()
         self.validate_room_conflict()
         super().save(*args, **kwargs)
 
@@ -411,9 +424,14 @@ class Payment(models.Model):
         ("Cash", "Cash"),
         ("EFT", "EFT"),
         ("Card", "Card"),
+        ("SnapScan", "SnapScan"),
+        ("Zapper", "Zapper"),
+        ("Bank Deposit", "Bank Deposit"),
+        ("Other", "Other"),
     ]
     PAYMENT_TYPE_CHOICES = [
         ("Payment", "Payment"),
+        ("Deposit", "Deposit"),
     ]
 
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="payments")
@@ -817,6 +835,7 @@ class Subscription(models.Model):
     last_payment_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     last_payment_reference = models.CharField(max_length=100, blank=True)
     next_billing_date = models.DateField(null=True, blank=True)
+    payfast_token = models.CharField(max_length=200, blank=True)
     notes = models.TextField(blank=True)
 
     class Meta:

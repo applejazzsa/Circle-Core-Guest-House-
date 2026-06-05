@@ -240,14 +240,14 @@ class SubscriptionAdmin(admin.ModelAdmin):
         ]
         return ", ".join(feature.replace("_", " ").title() for feature in features if obj.has_feature(feature)) or "No premium features"
 
-    @admin.action(description="Extend by 30 days")
+    @admin.action(description="Renew next billing period")
     def extend_by_30_days(self, request, queryset):
-        from django.utils import timezone
+        from core.subscriptions import apply_paid_renewal
+
         for subscription in queryset:
-            base = subscription.expires_at if subscription.expires_at > timezone.now() else timezone.now()
-            subscription.expires_at = base + timezone.timedelta(days=30)
-            subscription.save(update_fields=["expires_at"])
-        self.message_user(request, "Selected subscriptions extended by 30 days.")
+            apply_paid_renewal(subscription)
+            subscription.save(update_fields=["status", "trial_ends_at", "expires_at", "next_billing_date"])
+        self.message_user(request, "Selected subscriptions renewed for their next billing period.")
 
     @admin.action(description="Mark as Active")
     def mark_as_active(self, request, queryset):

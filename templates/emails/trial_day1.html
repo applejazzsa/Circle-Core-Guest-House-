@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Your trial expires today</title>
+</head>
+<body style="margin:0;padding:0;background:#0d0f12;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0d0f12;padding:48px 16px;">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+  <tr><td>{% include 'emails/_header.html' %}</td></tr>
+
+  <tr><td style="background:#13161b;border:1px solid rgba(239,68,68,0.25);border-radius:16px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#7f1d1d,#ef4444);height:4px;"></div>
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:40px 36px;">
+      <tr><td>
+
+        <!-- Final notice badge -->
+        <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 20px;">
+          <tr><td align="center" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:100px;padding:7px 20px;">
+            <span style="font-size:11px;font-weight:700;color:#f87171;letter-spacing:2px;text-transform:uppercase;">Final Notice</span>
+          </td></tr>
+        </table>
+
+        <h1 style="margin:0 0 14px;font-size:28px;font-weight:900;color:#f1f5f9;line-height:1.2;text-align:center;letter-spacing:-1px;">Your trial expires today</h1>
+        <p style="margin:0 0 28px;font-size:15px;color:#94a3b8;line-height:1.7;text-align:center;">
+          Hi {{ tenant.owner_name }}, today is the last day of your free trial for <strong style="color:#f1f5f9;">{{ tenant.name }}</strong>.
+        </p>
+
+        <!-- EFT steps -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f1218;border:1px solid #2a3142;border-radius:12px;margin-bottom:24px;">
+          <tr><td style="padding:22px 24px;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px;">How to subscribe (EFT)</div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td valign="top" width="22" style="padding:5px 0;font-size:14px;font-weight:800;color:#22c55e;">1.</td>
+                <td style="padding:5px 0 5px 8px;font-size:13px;color:#94a3b8;line-height:1.5;">Email <a href="mailto:support@circlecore.co.za" style="color:#4ade80;text-decoration:none;">support@circlecore.co.za</a> with your business name</td>
+              </tr>
+              <tr>
+                <td valign="top" width="22" style="padding:5px 0;font-size:14px;font-weight:800;color:#22c55e;">2.</td>
+                <td style="padding:5px 0 5px 8px;font-size:13px;color:#94a3b8;line-height:1.5;">We send you an invoice within 1 hour</td>
+              </tr>
+              <tr>
+                <td valign="top" width="22" style="padding:5px 0;font-size:14px;font-weight:800;color:#22c55e;">3.</td>
+                <td style="padding:5px 0 5px 8px;font-size:13px;color:#94a3b8;line-height:1.5;">Make EFT payment — account activated immediately on receipt</td>
+              </tr>
+            </table>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #1e2433;margin-top:16px;padding-top:16px;">
+              <tr>
+                <td style="font-size:13px;color:#64748b;">{{ subscription.plan.display_name }}</td>
+                <td align="right" style="font-size:22px;font-weight:800;color:#4ade80;">R {{ subscription.plan.monthly_price|floatformat:0 }}<span style="font-size:12px;font-weight:500;color:#64748b;">/mo</span></td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <!-- Email CTA -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;">
+          <tr><td align="center">
+            <a href="mailto:support@circlecore.co.za?subject=Subscribe%20-%20{{ tenant.name }}" style="display:inline-block;background:#22c55e;color:#000;font-size:15px;font-weight:700;padding:15px 36px;border-radius:10px;text-decoration:none;">
+              Email Us to Subscribe Now
+            </a>
+          </td></tr>
+        </table>
+
+        <!-- Reassurance -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.15);border-radius:10px;margin-bottom:20px;">
+          <tr><td style="padding:14px 18px;text-align:center;">
+            <p style="margin:0;font-size:13px;color:#64748b;line-height:1.6;">
+              <span style="color:#22c55e;font-weight:700;">Your data is safe.</span> After your trial you get a <strong style="color:#f1f5f9;">5-day grace period</strong> with full access, then read-only beyond that. Nothing is ever deleted.
+            </p>
+          </td></tr>
+        </table>
+
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #1e2433;padding-top:18px;text-align:center;">
+          <p style="margin:0;font-size:13px;color:#475569;">
+            Questions? Reply to this email — we're here to help.
+          </p>
+        </td></tr></table>
+
+      </td></tr>
+    </table>
+  </td></tr>
+
+  <tr><td>{% include 'emails/_footer.html' with recipient_email=subscription.owner_email %}</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

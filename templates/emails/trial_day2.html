@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>48 hours to secure your account</title>
+</head>
+<body style="margin:0;padding:0;background:#0d0f12;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0d0f12;padding:48px 16px;">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+  <tr><td>{% include 'emails/_header.html' %}</td></tr>
+
+  <tr><td style="background:#13161b;border:1px solid #1e2433;border-radius:16px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#b91c1c,#ef4444);height:4px;"></div>
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:40px 36px;">
+      <tr><td>
+
+        <!-- Countdown -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+          <tr><td align="center">
+            <div style="font-size:80px;font-weight:900;color:#f87171;line-height:1;letter-spacing:-4px;">48</div>
+            <div style="font-size:14px;font-weight:600;color:#64748b;margin-top:6px;letter-spacing:2px;text-transform:uppercase;">Hours Remaining</div>
+          </td></tr>
+        </table>
+
+        <h1 style="margin:0 0 14px;font-size:24px;font-weight:800;color:#f1f5f9;line-height:1.3;text-align:center;letter-spacing:-0.5px;">
+          Don't lose access to {{ tenant.name }}
+        </h1>
+        <p style="margin:0 0 28px;font-size:15px;color:#94a3b8;line-height:1.7;text-align:center;">
+          Hi {{ tenant.owner_name }}, your trial ends on <strong style="color:#f87171;">{{ subscription.expires_at|date:"d F Y" }}</strong>. Subscribe now to avoid any disruption.
+        </p>
+
+        <!-- CTA -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+          <tr><td align="center">
+            <a href="{{ login_url }}" style="display:inline-block;background:#ef4444;color:#fff;font-size:16px;font-weight:700;padding:16px 48px;border-radius:10px;text-decoration:none;">
+              Secure My Account — R {{ subscription.plan.monthly_price|floatformat:0 }}/mo
+            </a>
+          </td></tr>
+        </table>
+
+        <!-- What happens next -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:10px;margin-bottom:24px;">
+          <tr><td style="padding:18px 22px;">
+            <div style="font-size:11px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">What happens after your trial ends</div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr><td style="padding:4px 0;font-size:13px;color:#94a3b8;"><span style="color:#f59e0b;margin-right:6px;">→</span> Days 1–5: <strong style="color:#f1f5f9;">Grace period</strong> — full access with a warning banner</td></tr>
+              <tr><td style="padding:4px 0;font-size:13px;color:#94a3b8;"><span style="color:#f87171;margin-right:6px;">→</span> After 5 days: <strong style="color:#f1f5f9;">Read-only mode</strong> — view your data, no new records</td></tr>
+              <tr><td style="padding:4px 0;font-size:13px;color:#94a3b8;"><span style="color:#22c55e;margin-right:6px;">→</span> Subscribe anytime to restore full access instantly</td></tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #1e2433;padding-top:20px;text-align:center;">
+          <p style="margin:0;font-size:13px;color:#475569;line-height:1.6;">
+            Prefer EFT? Email <a href="mailto:support@circlecore.co.za" style="color:#4ade80;text-decoration:none;">support@circlecore.co.za</a> and we'll send banking details immediately.
+          </p>
+        </td></tr></table>
+
+      </td></tr>
+    </table>
+  </td></tr>
+
+  <tr><td>{% include 'emails/_footer.html' with recipient_email=subscription.owner_email %}</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

@@ -15,10 +15,12 @@ from django.contrib.auth.decorators import login_required
 from django import forms
 from django.core.paginator import Paginator
 from django.http import HttpResponse, JsonResponse
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, DecimalField, F, OuterRef, Q, Subquery, Sum, Value
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt
 
 from .forms import BookingForm, BookingRefundForm, ExpenseForm, GuestForm, GuestHouseSettingsForm, PaymentForm, RoomForm
@@ -57,6 +59,8 @@ from .email_utils import (
     notify_payment_received,
 )
 from .pdf_utils import generate_pdf
+from .pdf_documents import render_booking_invoice_pdf, render_payment_receipt_pdf, render_pos_receipt_pdf
+from .subscriptions import trial_end
 from django.contrib.auth.models import Group, User as AuthUser
 from .roles import is_cleaner, is_owner, STAFF_ROLES
 
@@ -149,7 +153,8 @@ def _approval_fields_html():
 
 
 def _cash_shift_required(request):
-    if POSShift.objects.filter(closed_at__isnull=True).exists():
+    active_prop = get_active_property(request)
+    if POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).exists():
         return True
     messages.error(request, "Open a POS cash shift before recording cash transactions.")
     return False
@@ -161,9 +166,9 @@ def _is_date_locked(value):
     return bool(value and DailyCloseLock.objects.filter(close_date=value).exists())
 
 
-def _locked_day_response(request, value, fallback="core:home"):
+def _locked_day_response(request, value, fallback="core:home", *args, **kwargs):
     messages.error(request, f"{value:%d %b %Y} is locked by daily close. Owner must reopen it before changes.")
-    return redirect(fallback)
+    return redirect(fallback, *args, **kwargs)
 
 
 def _owner_required(request):
@@ -180,6 +185,95 @@ def _cleaner_blocked(request):
     return redirect("core:cleaning")
 
 
+def _current_subscription():
+    return Subscription.objects.select_related("plan").first()
+
+
+def _is_unlimited(value):
+    return value is None or value >= 999
+
+
+def _room_limit_context():
+    subscription = _current_subscription()
+    plan = subscription.plan if subscription else None
+    limit = plan.max_rooms if plan else 0
+    current = Room.objects.count()
+    return subscription, plan, current, limit
+
+
+def _user_limit_context():
+    subscription = _current_subscription()
+    plan = subscription.plan if subscription else None
+    limit = plan.max_users if plan else 0
+    current = AuthUser.objects.filter(is_active=True).count()
+    return subscription, plan, current, limit
+
+
+def _limit_reached_response(request, message, feature):
+    messages.error(request, message)
+    return redirect(f"{reverse('core:subscription_upgrade')}?feature={feature}")
+
+
+@login_required
+def notifications_feed(request):
+    today = timezone.localdate()
+    now = timezone.now()
+    active_prop = get_active_property(request)
+    alerts = []
+
+    # Bookings checking out today still Checked In
+    checkouts_due = (
+        Booking.objects.select_related("guest", "room")
+        .filter(room__prop=active_prop, check_out_date=today, status="Checked In")
+    )
+    for b in checkouts_due:
+        alerts.append({
+            "id": f"checkout-{b.pk}",
+            "type": "checkout",
+            "title": "Checkout Due Today",
+            "body": f"{b.guest.full_name} · {b.room.name} — scheduled checkout today",
+            "icon": "🔔",
+        })
+
+    # Bookings checking IN today not yet checked in
+    checkins_due = (
+        Booking.objects.select_related("guest", "room")
+        .filter(room__prop=active_prop, check_in_date=today, status__in=["Pending", "Confirmed"])
+    )
+    for b in checkins_due:
+        alerts.append({
+            "id": f"checkin-{b.pk}",
+            "type": "checkin",
+            "title": "Guest Arriving Today",
+            "body": f"{b.guest.full_name} · {b.room.name} — check-in expected today",
+            "icon": "🏨",
+        })
+
+    # Rooms needing cleaning
+    dirty_rooms = Room.objects.filter(prop=active_prop, cleaning_status="Needs Cleaning")
+    for r in dirty_rooms:
+        alerts.append({
+            "id": f"cleaning-{r.pk}",
+            "type": "needs_cleaning",
+            "title": "Room Needs Cleaning",
+            "body": f"{r.name} — needs to be cleaned",
+            "icon": "🧹",
+        })
+
+    # Rooms just marked clean (status changed to Clean today — approximated via recent check)
+    clean_rooms = Room.objects.filter(prop=active_prop, cleaning_status="Clean", status="Available")
+    for r in clean_rooms:
+        alerts.append({
+            "id": f"cleaned-{r.pk}-{today}",
+            "type": "cleaned",
+            "title": "Room Ready",
+            "body": f"{r.name} — cleaning complete, room is ready",
+            "icon": "✅",
+        })
+
+    return JsonResponse({"alerts": alerts})
+
+
 @login_required
 def home(request):
     if is_cleaner(request.user):
@@ -191,7 +285,11 @@ def home(request):
     next_three_days = today + datetime.timedelta(days=3)
     active_status_filter = ~Q(status__in=Booking.INACTIVE_STATUSES)
 
-    rooms = Room.objects.all()
+    active_prop, rooms = _property_rooms(request)
+    _, property_bookings = _property_bookings(request)
+    _, property_payments = _property_payments(request)
+    _, property_pos_sales = _property_pos_sales(request)
+    _, property_pos_shifts = _property_pos_shifts(request)
     total_rooms = rooms.count()
     occupied_rooms = rooms.filter(status="Occupied").count()
     booked_rooms = rooms.filter(status="Booked").count()
@@ -199,13 +297,34 @@ def home(request):
     rooms_needing_cleaning = rooms.filter(cleaning_status="Needs Cleaning").count()
 
     monthly_revenue = (
-        Payment.objects.filter(payment_date__gte=month_start, payment_date__lte=month_end)
+        property_payments.filter(payment_date__gte=month_start, payment_date__lte=month_end)
         .aggregate(total=Sum("amount"))["total"]
         or Decimal("0.00")
     )
-    active_bookings = Booking.objects.select_related("guest", "room").filter(active_status_filter)
+    active_bookings = property_bookings.select_related("guest", "room").filter(active_status_filter)
+
+    # Subqueries to detect fully-refunded bookings (total refunded >= total paid > 0)
+    _refund_sq = (
+        BookingRefund.objects.filter(booking_id=OuterRef("pk"))
+        .values("booking_id").annotate(s=Sum("amount")).values("s")
+    )
+    _payment_sq = (
+        Payment.objects.filter(booking_id=OuterRef("pk"))
+        .values("booking_id").annotate(s=Sum("amount")).values("s")
+    )
+
+    def _genuinely_outstanding(qs):
+        return (
+            qs.filter(balance_due__gt=0)
+            .annotate(
+                _ann_refunded=Coalesce(Subquery(_refund_sq), Value(Decimal("0.00"), output_field=DecimalField())),
+                _ann_paid=Coalesce(Subquery(_payment_sq), Value(Decimal("0.00"), output_field=DecimalField())),
+            )
+            .exclude(_ann_refunded__gte=F("_ann_paid"), _ann_paid__gt=0)
+        )
+
     outstanding_balances = (
-        active_bookings.filter(balance_due__gt=0).aggregate(total=Sum("balance_due"))["total"]
+        _genuinely_outstanding(active_bookings).aggregate(total=Sum("balance_due"))["total"]
         or Decimal("0.00")
     )
     bookings_this_month = active_bookings.filter(
@@ -213,7 +332,7 @@ def home(request):
         check_in_date__lte=month_end,
     ).count()
 
-    monthly_bookings = Booking.objects.select_related("guest", "room").filter(
+    monthly_bookings = property_bookings.select_related("guest", "room").filter(
         status__in=["Checked In", "Checked Out"],
         check_in_date__lt=month_end + datetime.timedelta(days=1),
         check_out_date__gt=month_start,
@@ -236,7 +355,7 @@ def home(request):
     for offset in range(6):
         chart_month_end = chart_month.replace(day=calendar.monthrange(chart_month.year, chart_month.month)[1])
         revenue = (
-            Payment.objects.filter(payment_date__gte=chart_month, payment_date__lte=chart_month_end)
+            property_payments.filter(payment_date__gte=chart_month, payment_date__lte=chart_month_end)
             .aggregate(total=Sum("amount"))["total"]
             or Decimal("0.00")
         )
@@ -254,8 +373,8 @@ def home(request):
     for booking in in_house_bookings:
         booking.nights_so_far = max((today - booking.check_in_date).days, 0)
 
-    unpaid_bookings = active_bookings.filter(balance_due__gt=0).order_by("-balance_due", "check_out_date")[:8]
-    unpaid_balance_count = active_bookings.filter(balance_due__gt=0).count()
+    unpaid_bookings = _genuinely_outstanding(active_bookings).order_by("-balance_due", "check_out_date")[:8]
+    unpaid_balance_count = _genuinely_outstanding(active_bookings).count()
     upcoming_arrivals = active_bookings.filter(
         status="Confirmed",
         check_in_date__gt=today,
@@ -265,13 +384,16 @@ def home(request):
     alert_count = unpaid_balance_count + upcoming_arrivals_count
     low_stock_inventory_items = InventoryItem.objects.filter(
         is_active=True,
+        prop=active_prop,
         current_stock__lte=F("minimum_stock"),
     ).select_related("category").order_by("current_stock", "name")[:5]
     low_stock_inventory_count = InventoryItem.objects.filter(
         is_active=True,
+        prop=active_prop,
         current_stock__lte=F("minimum_stock"),
     ).count()
     open_maintenance_requests = MaintenanceRequest.objects.select_related("room").filter(
+        room__prop=active_prop,
         status__in=["open", "in_progress"],
     )
     urgent_maintenance_requests = open_maintenance_requests.filter(priority="urgent").order_by("scheduled_for", "-reported_at")[:5]
@@ -289,10 +411,10 @@ def home(request):
             | Q(reason__icontains="cancel")
         ).count()
         owner_refund_count = (
-            POSSale.objects.filter(created_at__date=today, status="refunded").count()
-            + BookingRefund.objects.filter(refund_date=today).count()
+            property_pos_sales.filter(created_at__date=today, status="refunded").count()
+            + BookingRefund.objects.filter(refund_date=today, booking__room__prop=active_prop).count()
         )
-        owner_open_shift_count = POSShift.objects.filter(closed_at__isnull=True).count()
+        owner_open_shift_count = property_pos_shifts.filter(closed_at__isnull=True).count()
         owner_locked_today = DailyCloseLock.objects.filter(close_date=today).exists()
 
     checked_in_by_room = {booking.room_id: booking for booking in in_house_bookings}
@@ -347,25 +469,29 @@ def home(request):
 @login_required
 def search(request):
     query = request.GET.get("q", "").strip()
+    active_prop = get_active_property(request)
     guests = Guest.objects.none()
     bookings = Booking.objects.none()
     rooms = Room.objects.none()
     if query:
+        property_bookings = Booking.objects.filter(room__prop=active_prop)
         guests = Guest.objects.filter(
+            bookings__room__prop=active_prop,
+        ).filter(
             Q(first_name__icontains=query)
             | Q(last_name__icontains=query)
             | Q(phone__icontains=query)
             | Q(email__icontains=query)
-        )[:10]
+        ).distinct()[:10]
         bookings = (
-            Booking.objects.select_related("guest", "room")
+            property_bookings.select_related("guest", "room")
             .filter(
                 Q(booking_reference__icontains=query)
                 | Q(guest__first_name__icontains=query)
                 | Q(guest__last_name__icontains=query)
             )[:10]
         )
-        rooms = Room.objects.filter(name__icontains=query)[:10]
+        rooms = Room.objects.filter(prop=active_prop, name__icontains=query)[:10]
     return render(
         request,
         "search_results.html",
@@ -414,6 +540,9 @@ def settings_view(request):
 def get_active_property(request):
     """Return the Property the user is currently working in, falling back to first/only one."""
     prop_id = request.session.get("active_property_id")
+    default_prop = GuestHouseProperty.objects.filter(is_active=True).order_by("sort_order", "pk").first()
+    if default_prop:
+        _backfill_unassigned_property_data(default_prop)
     if prop_id:
         prop = GuestHouseProperty.objects.filter(pk=prop_id, is_active=True).first()
         if prop:
@@ -423,6 +552,53 @@ def get_active_property(request):
     if prop:
         request.session["active_property_id"] = prop.pk
     return prop
+
+
+def _backfill_unassigned_property_data(default_prop):
+    if not default_prop:
+        return
+    Room.objects.filter(prop__isnull=True).update(prop=default_prop)
+    Expense.objects.filter(prop__isnull=True).update(prop=default_prop)
+    InventoryItem.objects.filter(prop__isnull=True).update(prop=default_prop)
+    POSCategory.objects.filter(prop__isnull=True).update(prop=default_prop)
+    POSItem.objects.filter(prop__isnull=True).update(prop=default_prop)
+    POSSale.objects.filter(prop__isnull=True).update(prop=default_prop)
+    POSShift.objects.filter(prop__isnull=True).update(prop=default_prop)
+
+
+def _property_rooms(request):
+    active_prop = get_active_property(request)
+    if not active_prop:
+        return active_prop, Room.objects.none()
+    return active_prop, Room.objects.filter(prop=active_prop)
+
+
+def _property_bookings(request):
+    active_prop = get_active_property(request)
+    if not active_prop:
+        return active_prop, Booking.objects.none()
+    return active_prop, Booking.objects.filter(room__prop=active_prop)
+
+
+def _property_payments(request):
+    active_prop = get_active_property(request)
+    if not active_prop:
+        return active_prop, Payment.objects.none()
+    return active_prop, Payment.objects.filter(booking__room__prop=active_prop)
+
+
+def _property_pos_shifts(request):
+    active_prop = get_active_property(request)
+    if not active_prop:
+        return active_prop, POSShift.objects.none()
+    return active_prop, POSShift.objects.filter(prop=active_prop)
+
+
+def _property_pos_sales(request):
+    active_prop = get_active_property(request)
+    if not active_prop:
+        return active_prop, POSSale.objects.none()
+    return active_prop, POSSale.objects.filter(prop=active_prop)
 
 
 @login_required
@@ -446,22 +622,40 @@ def property_list(request):
 def property_add(request):
     if not is_owner(request.user):
         return redirect("core:home")
+    form_values = {"name": "", "address": "", "phone": "", "email": "", "description": ""}
+    subscription = _current_subscription()
+    plan = subscription.plan if subscription else None
+    active_property_count = GuestHouseProperty.objects.filter(is_active=True).count()
+    if active_property_count >= 1 and not (subscription and subscription.has_feature("multi_property")):
+        plan_name = plan.display_name if plan else "your current"
+        return _limit_reached_response(
+            request,
+            f"{plan_name} plan allows one active property. Upgrade to Enterprise to add multiple properties.",
+            "multi_property",
+        )
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
         address = request.POST.get("address", "").strip()
         phone = request.POST.get("phone", "").strip()
         email = request.POST.get("email", "").strip()
         description = request.POST.get("description", "").strip()
+        form_values = {
+            "name": name,
+            "address": address,
+            "phone": phone,
+            "email": email,
+            "description": description,
+        }
         if not name:
             messages.error(request, "Property name is required.")
-            return render(request, "core/property_form.html", {"post": request.POST})
+            return render(request, "core/property_form.html", {"form_values": form_values})
         prop = GuestHouseProperty.objects.create(
             name=name, address=address, phone=phone, email=email, description=description
         )
         request.session["active_property_id"] = prop.pk
         messages.success(request, f"Property '{name}' created and set as active.")
         return redirect("core:property_list")
-    return render(request, "core/property_form.html", {})
+    return render(request, "core/property_form.html", {"form_values": form_values})
 
 
 @login_required
@@ -469,6 +663,13 @@ def property_edit(request, pk):
     if not is_owner(request.user):
         return redirect("core:home")
     prop = get_object_or_404(GuestHouseProperty, pk=pk)
+    form_values = {
+        "name": prop.name,
+        "address": prop.address,
+        "phone": prop.phone,
+        "email": prop.email,
+        "description": prop.description,
+    }
     if request.method == "POST":
         prop.name = request.POST.get("name", prop.name).strip()
         prop.address = request.POST.get("address", "").strip()
@@ -476,13 +677,31 @@ def property_edit(request, pk):
         prop.email = request.POST.get("email", "").strip()
         prop.description = request.POST.get("description", "").strip()
         prop.is_active = request.POST.get("is_active") == "on"
+        subscription = _current_subscription()
+        plan = subscription.plan if subscription else None
+        if prop.is_active and not prop.__class__.objects.filter(pk=prop.pk, is_active=True).exists():
+            active_property_count = GuestHouseProperty.objects.filter(is_active=True).exclude(pk=prop.pk).count()
+            if active_property_count >= 1 and not (subscription and subscription.has_feature("multi_property")):
+                plan_name = plan.display_name if plan else "your current"
+                return _limit_reached_response(
+                    request,
+                    f"{plan_name} plan allows one active property. Upgrade to Enterprise to reactivate multiple properties.",
+                    "multi_property",
+                )
+        form_values = {
+            "name": prop.name,
+            "address": prop.address,
+            "phone": prop.phone,
+            "email": prop.email,
+            "description": prop.description,
+        }
         if not prop.name:
             messages.error(request, "Property name is required.")
-            return render(request, "core/property_form.html", {"prop": prop, "editing": True})
+            return render(request, "core/property_form.html", {"prop": prop, "editing": True, "form_values": form_values})
         prop.save()
         messages.success(request, f"Property '{prop.name}' updated.")
         return redirect("core:property_list")
-    return render(request, "core/property_form.html", {"prop": prop, "editing": True})
+    return render(request, "core/property_form.html", {"prop": prop, "editing": True, "form_values": form_values})
 
 
 @login_required
@@ -501,8 +720,15 @@ def staff_list(request):
 def staff_add(request):
     if not is_owner(request.user):
         return redirect("core:home")
+    subscription, plan, current_users, max_users = _user_limit_context()
+    if plan and not _is_unlimited(max_users) and current_users >= max_users:
+        return _limit_reached_response(
+            request,
+            f"{plan.display_name} allows up to {max_users} active users. Upgrade your plan to add more staff accounts.",
+            "users",
+        )
     if request.method == "POST":
-        username = request.POST.get("username", "").strip()
+        username = request.POST.get("username", "").strip().lower()
         email = request.POST.get("email", "").strip()
         password = request.POST.get("password", "").strip()
         role_name = request.POST.get("role", "")
@@ -526,7 +752,10 @@ def staff_add(request):
         messages.success(request, f"{role_name} account created for {username}.")
         return redirect("core:staff_list")
 
-    return render(request, "core/staff_form.html", {"roles": STAFF_ROLES})
+    return render(request, "core/staff_form.html", {
+        "roles": STAFF_ROLES,
+        "post": {"first_name": "", "last_name": "", "username": "", "email": "", "role": ""},
+    })
 
 
 @login_required
@@ -538,6 +767,14 @@ def staff_edit(request, pk):
         role_name = request.POST.get("role", "")
         new_password = request.POST.get("new_password", "").strip()
         is_active = request.POST.get("is_active") == "on"
+        if is_active and not staff_user.is_active:
+            subscription, plan, current_users, max_users = _user_limit_context()
+            if plan and not _is_unlimited(max_users) and current_users >= max_users:
+                return _limit_reached_response(
+                    request,
+                    f"{plan.display_name} allows up to {max_users} active users. Upgrade your plan to reactivate more staff accounts.",
+                    "users",
+                )
 
         if role_name in STAFF_ROLES:
             staff_user.groups.clear()
@@ -563,6 +800,7 @@ def staff_edit(request, pk):
         "roles": STAFF_ROLES,
         "current_role": current_role,
         "editing": True,
+        "post": {"first_name": "", "last_name": "", "username": "", "email": "", "role": ""},
     })
 
 
@@ -583,21 +821,20 @@ def staff_delete(request, pk):
 
 @login_required
 def room_list(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
     _expire_elapsed_bookings()
+    active_prop = get_active_property(request)
     status_filter = request.GET.get("status", "")
-    rooms = Room.objects.all()
+    rooms = Room.objects.filter(prop=active_prop) if active_prop else Room.objects.none()
     if status_filter:
         rooms = rooms.filter(status=status_filter)
+    base_qs = Room.objects.filter(prop=active_prop) if active_prop else Room.objects.none()
     status_counts = {
-        "Available": Room.objects.filter(status="Available").count(),
-        "Booked": Room.objects.filter(status="Booked").count(),
-        "Occupied": Room.objects.filter(status="Occupied").count(),
-        "Cleaning": Room.objects.filter(status="Cleaning").count(),
-        "Maintenance": Room.objects.filter(status="Maintenance").count(),
-        "Blocked": Room.objects.filter(status="Blocked").count(),
+        "Available": base_qs.filter(status="Available").count(),
+        "Booked": base_qs.filter(status="Booked").count(),
+        "Occupied": base_qs.filter(status="Occupied").count(),
+        "Cleaning": base_qs.filter(status="Cleaning").count(),
+        "Maintenance": base_qs.filter(status="Maintenance").count(),
+        "Blocked": base_qs.filter(status="Blocked").count(),
     }
     return render(
         request,
@@ -606,6 +843,7 @@ def room_list(request):
             "rooms": rooms,
             "status_filter": status_filter,
             "status_counts": status_counts,
+            "is_cleaner": is_cleaner(request.user),
         },
     )
 
@@ -615,10 +853,20 @@ def room_add(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
+    active_prop = get_active_property(request)
+    subscription, plan, current_rooms, max_rooms = _room_limit_context()
+    if plan and not _is_unlimited(max_rooms) and current_rooms >= max_rooms:
+        return _limit_reached_response(
+            request,
+            f"{plan.display_name} allows up to {max_rooms} rooms. Upgrade your plan to add more rooms.",
+            "rooms",
+        )
     if request.method == "POST":
         form = RoomForm(request.POST)
         if form.is_valid():
-            form.save()
+            room = form.save(commit=False)
+            room.prop = active_prop
+            room.save()
             messages.success(request, "Room added successfully.")
             return redirect("core:room_list")
     else:
@@ -631,7 +879,8 @@ def room_edit(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    room = get_object_or_404(Room, pk=pk)
+    active_prop = get_active_property(request)
+    room = get_object_or_404(Room, pk=pk, prop=active_prop)
     if request.method == "POST":
         form = RoomForm(request.POST, instance=room)
         if form.is_valid():
@@ -649,10 +898,8 @@ def room_edit(request, pk):
 
 @login_required
 def room_detail(request, pk):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    room = get_object_or_404(Room, pk=pk)
+    active_prop = get_active_property(request)
+    room = get_object_or_404(Room, pk=pk, prop=active_prop)
     _expire_elapsed_bookings(room=room)
     room.refresh_from_db()
     maintenance_requests = room.maintenance_requests.select_related("reported_by").all().order_by("-reported_at")
@@ -698,6 +945,7 @@ def room_detail(request, pk):
             "history_period": history_period,
             "history_label": history_label,
             "active_booking": active_booking,
+            "is_cleaner": is_cleaner(request.user),
         },
     )
 
@@ -707,7 +955,8 @@ def room_delete(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    room = get_object_or_404(Room, pk=pk)
+    active_prop = get_active_property(request)
+    room = get_object_or_404(Room, pk=pk, prop=active_prop)
     if request.method == "POST":
         approver = _manager_approval(request, "Delete room")
         if not approver:
@@ -727,10 +976,11 @@ def cleaning_board(request):
     _expire_elapsed_bookings()
     today = timezone.localdate()
     clean_preview_limit = 12
-    rooms = list(Room.objects.all())
+    active_prop, rooms_qs = _property_rooms(request)
+    rooms = list(rooms_qs)
     upcoming_bookings = (
         Booking.objects.select_related("guest")
-        .filter(status="Confirmed", check_in_date__gte=today)
+        .filter(room__prop=active_prop, status="Confirmed", check_in_date__gte=today)
         .order_by("check_in_date")
     )
     next_booking_by_room = {}
@@ -761,16 +1011,13 @@ def cleaning_board(request):
 
 @login_required
 def cleaning_set_status(request, pk):
-    room = get_object_or_404(Room, pk=pk)
+    active_prop = get_active_property(request)
+    room = get_object_or_404(Room, pk=pk, prop=active_prop)
     if request.method == "POST":
         cleaning_status = request.POST.get("cleaning_status")
         valid_statuses = {choice[0] for choice in Room.CLEANING_STATUS_CHOICES}
         if cleaning_status not in valid_statuses:
             messages.error(request, "Invalid cleaning status.")
-            return redirect("core:cleaning")
-
-        if cleaning_status == "Clean" and not request.FILES.get("cleaning_photo"):
-            messages.error(request, "Upload a cleaning proof photo before marking the room clean.")
             return redirect("core:cleaning")
 
         before = _model_snapshot(room, ["status", "cleaning_status"])
@@ -779,20 +1026,21 @@ def cleaning_set_status(request, pk):
             room.status = "Available"
         room.save()
         if cleaning_status == "Clean":
-            proof = CleaningProof.objects.create(
-                room=room,
-                uploaded_by=request.user,
-                photo=request.FILES["cleaning_photo"],
-                notes=request.POST.get("cleaning_notes", ""),
-            )
             _sync_room_status(room)
-            _audit(
-                request,
-                "create",
-                proof,
-                after={"room": room.name, "photo": proof.photo.name},
-                reason="Cleaning proof uploaded",
-            )
+            if request.FILES.get("cleaning_photo"):
+                proof = CleaningProof.objects.create(
+                    room=room,
+                    uploaded_by=request.user,
+                    photo=request.FILES["cleaning_photo"],
+                    notes=request.POST.get("cleaning_notes", ""),
+                )
+                _audit(
+                    request,
+                    "create",
+                    proof,
+                    after={"room": room.name, "photo": proof.photo.name},
+                    reason="Cleaning proof uploaded",
+                )
         _audit(
             request,
             "update",
@@ -812,7 +1060,8 @@ def cleaning_proof_review(request):
     today = timezone.localdate()
     selected_date = request.GET.get("date", "")
     room_id = request.GET.get("room", "")
-    proofs = CleaningProof.objects.select_related("room", "uploaded_by").all()
+    active_prop = get_active_property(request)
+    proofs = CleaningProof.objects.select_related("room", "uploaded_by").filter(room__prop=active_prop)
     if selected_date:
         try:
             proofs = proofs.filter(created_at__date=datetime.date.fromisoformat(selected_date))
@@ -822,7 +1071,7 @@ def cleaning_proof_review(request):
         proofs = proofs.filter(room_id=room_id)
     paginator = Paginator(proofs, 24)
     page_obj = paginator.get_page(request.GET.get("page"))
-    rooms = Room.objects.order_by("name")
+    rooms = Room.objects.filter(prop=active_prop).order_by("name")
     return render(
         request,
         "core/cleaning_proof_review.html",
@@ -853,7 +1102,8 @@ def expense_list(request):
         month_start = today.replace(day=1)
     month_end = month_start.replace(day=calendar.monthrange(month_start.year, month_start.month)[1])
 
-    expenses = Expense.objects.filter(date__gte=month_start, date__lte=month_end)
+    active_prop = get_active_property(request)
+    expenses = Expense.objects.filter(date__gte=month_start, date__lte=month_end, prop=active_prop)
     if selected_category:
         expenses = expenses.filter(category=selected_category)
 
@@ -877,12 +1127,15 @@ def expense_add(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
+    active_prop = get_active_property(request)
     if request.method == "POST":
         form = ExpenseForm(request.POST)
         if form.is_valid():
             if _is_date_locked(form.cleaned_data["date"]):
                 return _locked_day_response(request, form.cleaned_data["date"], "core:expense_list")
-            form.save()
+            expense = form.save(commit=False)
+            expense.prop = active_prop
+            expense.save()
             messages.success(request, "Expense added successfully.")
             return redirect("core:expense_list")
     else:
@@ -901,7 +1154,8 @@ def expense_edit(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    expense = get_object_or_404(Expense, pk=pk)
+    active_prop = get_active_property(request)
+    expense = get_object_or_404(Expense, pk=pk, prop=active_prop)
     if _is_date_locked(expense.date):
         return _locked_day_response(request, expense.date, "core:expense_list")
     if request.method == "POST":
@@ -926,7 +1180,8 @@ def expense_delete(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    expense = get_object_or_404(Expense, pk=pk)
+    active_prop = get_active_property(request)
+    expense = get_object_or_404(Expense, pk=pk, prop=active_prop)
     if _is_date_locked(expense.date):
         return _locked_day_response(request, expense.date, "core:expense_list")
     if request.method == "POST":
@@ -959,29 +1214,45 @@ def reports(request):
     month_end = month_start.replace(day=calendar.monthrange(selected_year, selected_month)[1])
     next_month_start = month_end + datetime.timedelta(days=1)
     active_status_filter = ~Q(status__in=Booking.INACTIVE_STATUSES)
+    active_prop, property_bookings = _property_bookings(request)
+    _, property_payments = _property_payments(request)
+    property_expenses = Expense.objects.filter(prop=active_prop)
 
     total_revenue = (
-        Payment.objects.filter(payment_date__gte=month_start, payment_date__lte=month_end)
+        property_payments.filter(payment_date__gte=month_start, payment_date__lte=month_end)
         .aggregate(total=Sum("amount"))["total"]
         or Decimal("0.00")
     )
     total_expenses = (
-        Expense.objects.filter(date__gte=month_start, date__lte=month_end)
+        property_expenses.filter(date__gte=month_start, date__lte=month_end)
         .aggregate(total=Sum("amount"))["total"]
         or Decimal("0.00")
     )
     net_profit = total_revenue - total_expenses
+    _refund_sq_r = (
+        BookingRefund.objects.filter(booking_id=OuterRef("pk"))
+        .values("booking_id").annotate(s=Sum("amount")).values("s")
+    )
+    _payment_sq_r = (
+        Payment.objects.filter(booking_id=OuterRef("pk"))
+        .values("booking_id").annotate(s=Sum("amount")).values("s")
+    )
     outstanding_balances = (
-        Booking.objects.filter(active_status_filter, balance_due__gt=0)
+        property_bookings.filter(active_status_filter, balance_due__gt=0)
+        .annotate(
+            _ann_refunded=Coalesce(Subquery(_refund_sq_r), Value(Decimal("0.00"), output_field=DecimalField())),
+            _ann_paid=Coalesce(Subquery(_payment_sq_r), Value(Decimal("0.00"), output_field=DecimalField())),
+        )
+        .exclude(_ann_refunded__gte=F("_ann_paid"), _ann_paid__gt=0)
         .aggregate(total=Sum("balance_due"))["total"]
         or Decimal("0.00")
     )
 
-    total_rooms = Room.objects.count()
+    total_rooms = Room.objects.filter(prop=active_prop).count()
     days_in_month = month_end.day
     total_possible_room_nights = total_rooms * days_in_month
 
-    sold_bookings = Booking.objects.select_related("room", "guest").filter(
+    sold_bookings = property_bookings.select_related("room", "guest").filter(
         status__in=["Checked In", "Checked Out"],
         check_in_date__lt=next_month_start,
         check_out_date__gt=month_start,
@@ -1045,7 +1316,7 @@ def reports(request):
         else Decimal("0.00")
     )
 
-    monthly_bookings = Booking.objects.filter(
+    monthly_bookings = property_bookings.filter(
         check_in_date__gte=month_start,
         check_in_date__lte=month_end,
     )
@@ -1058,7 +1329,7 @@ def reports(request):
     for row in booking_source_rows:
         source_bookings = monthly_bookings.filter(booking_source=row["booking_source"])
         source_revenue = (
-            Payment.objects.filter(
+            property_payments.filter(
                 booking__in=source_bookings,
                 payment_date__gte=month_start,
                 payment_date__lte=month_end,
@@ -1093,12 +1364,12 @@ def reports(request):
     while week_start <= month_end:
         week_end = min(week_start + datetime.timedelta(days=6), month_end)
         revenue_total = (
-            Payment.objects.filter(payment_date__gte=week_start, payment_date__lte=week_end)
+            property_payments.filter(payment_date__gte=week_start, payment_date__lte=week_end)
             .aggregate(total=Sum("amount"))["total"]
             or Decimal("0.00")
         )
         expense_total = (
-            Expense.objects.filter(date__gte=week_start, date__lte=week_end)
+            property_expenses.filter(date__gte=week_start, date__lte=week_end)
             .aggregate(total=Sum("amount"))["total"]
             or Decimal("0.00")
         )
@@ -1145,7 +1416,7 @@ def reports(request):
     for day_number in range(1, days_in_month + 1):
         current_day = datetime.date(selected_year, selected_month, day_number)
         occupied_room_count = (
-            Booking.objects.filter(
+            property_bookings.filter(
                 active_status_filter,
                 check_in_date__lte=current_day,
                 check_out_date__gt=current_day,
@@ -1199,7 +1470,8 @@ def reports(request):
 @login_required
 def guest_list(request):
     query = request.GET.get("q", "").strip()
-    guests = Guest.objects.all()
+    active_prop = get_active_property(request)
+    guests = Guest.objects.filter(Q(bookings__room__prop=active_prop) | Q(bookings__isnull=True)).distinct()
     if query:
         guests = guests.filter(
             Q(first_name__icontains=query)
@@ -1223,10 +1495,38 @@ def guest_add(request):
 
 
 @login_required
+def guest_quick_create(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed."}, status=405)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+
+    first_name = data.get("first_name", "").strip()
+    last_name = data.get("last_name", "").strip()
+    phone = data.get("phone", "").strip()
+
+    errors = {}
+    if not first_name:
+        errors["first_name"] = "First name is required."
+    if not last_name:
+        errors["last_name"] = "Last name is required."
+    if not phone:
+        errors["phone"] = "Phone number is required."
+    if errors:
+        return JsonResponse({"errors": errors}, status=400)
+
+    guest = Guest.objects.create(first_name=first_name, last_name=last_name, phone=phone)
+    return JsonResponse({"id": guest.pk, "full_name": guest.full_name, "phone": guest.phone})
+
+
+@login_required
 def guest_detail(request, pk):
     guest = get_object_or_404(Guest, pk=pk)
+    active_prop = get_active_property(request)
     try:
-        bookings = guest.bookings.select_related("room").order_by("-check_in_date")
+        bookings = guest.bookings.select_related("room").filter(room__prop=active_prop).order_by("-check_in_date")
     except AttributeError:
         bookings = []
     booking_list = list(bookings)
@@ -1344,7 +1644,9 @@ def completed_booking_reminders_api(request):
     since = datetime.datetime.fromtimestamp(since_ms / 1000, tz=datetime.timezone.utc) if since_ms > 0 else now
     window_start = max(since, now - datetime.timedelta(hours=12))
     settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+    active_prop = get_active_property(request)
     candidate_bookings = Booking.objects.select_related("guest", "room").filter(
+        room__prop=active_prop,
         status__in=("Pending", "Confirmed", "Checked In", "Checked Out", "No Show"),
         check_in_date__lte=now.date(),
         check_out_date__gte=(now - datetime.timedelta(days=1)).date(),
@@ -1374,10 +1676,11 @@ def completed_booking_reminders_api(request):
     )
 
 
-def _room_prices_json():
+def _room_prices_json(active_prop=None):
     settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
     data = {}
-    for room in Room.objects.all():
+    rooms = Room.objects.filter(prop=active_prop) if active_prop else Room.objects.none()
+    for room in rooms:
         data[str(room.pk)] = {
             "daily": str(room.get_price_for_duration("daily") or settings_obj.default_price_per_night or ""),
             "24_hours": str(room.get_price_for_duration("24_hours") or settings_obj.default_price_24_hours or ""),
@@ -1413,7 +1716,7 @@ def availability(request):
     has_valid_dates = bool(check_in_date and check_out_date and check_out_date > check_in_date)
     nights = (check_out_date - check_in_date).days if has_valid_dates else 0
 
-    rooms = Room.objects.all()
+    active_prop, rooms = _property_rooms(request)
     available_rooms = []
     unavailable_rooms = []
 
@@ -1423,6 +1726,7 @@ def availability(request):
     if has_valid_dates:
         active_booking_room_ids = set(
             Booking.objects.filter(
+                room__prop=active_prop,
                 check_in_date__lt=check_out_date,
                 check_out_date__gt=check_in_date,
             )
@@ -1460,7 +1764,8 @@ def booking_list(request):
     if blocked:
         return blocked
     _expire_elapsed_bookings()
-    bookings = Booking.objects.select_related("guest", "room").all().order_by("-check_in_date", "-created_at")
+    active_prop, property_bookings = _property_bookings(request)
+    bookings = property_bookings.select_related("guest", "room").order_by("-check_in_date", "-created_at")
     status_filter = request.GET.get("status", "")
     source_filter = request.GET.get("source", "")
     month_filter = request.GET.get("month", "")
@@ -1480,7 +1785,7 @@ def booking_list(request):
     filtered_count = bookings.count()
     filtered_revenue = bookings.aggregate(total=Sum("total_amount"))["total"] or Decimal("0.00")
     status_counts = {
-        status: Booking.objects.filter(status=status).count()
+        status: property_bookings.filter(status=status).count()
         for status in ["Confirmed", "Checked In", "Checked Out", "Pending", "Cancelled"]
     }
     status_counts["checked_in"] = status_counts.get("Checked In", 0)
@@ -1524,6 +1829,7 @@ def booking_add(request):
         return blocked
     initial = {}
     locked_room = None
+    active_prop, property_rooms = _property_rooms(request)
     guest_id = request.GET.get("guest")
     if guest_id:
         initial["guest"] = guest_id
@@ -1532,10 +1838,12 @@ def booking_add(request):
     check_out = _parse_date(request.GET.get("check_out", ""))
     if room_id:
         initial["room"] = room_id
-        room = Room.objects.filter(pk=room_id).first()
+        room = property_rooms.filter(pk=room_id).first()
         if room:
             locked_room = room
             initial["rate_per_night"] = room.price_per_night
+        else:
+            initial.pop("room", None)
     if check_in:
         initial["check_in_date"] = check_in
     if check_out:
@@ -1554,6 +1862,7 @@ def booking_add(request):
 
     if request.method == "POST":
         form = BookingForm(request.POST)
+        form.fields["room"].queryset = property_rooms
         if form.is_valid():
             candidate = form.save(commit=False)
             needs_approval = candidate.check_in_date < timezone.localdate() or candidate.discount > SENSITIVE_DISCOUNT_AMOUNT
@@ -1578,6 +1887,7 @@ def booking_add(request):
             return redirect("core:booking_detail", pk=booking.pk)
     else:
         form = BookingForm(initial=initial)
+        form.fields["room"].queryset = property_rooms
 
     return render(
         request,
@@ -1585,7 +1895,7 @@ def booking_add(request):
         {
             "form": form,
             "title": "Add Booking",
-            "room_prices_json": _room_prices_json(),
+            "room_prices_json": _room_prices_json(active_prop),
             "walk_in_mode": walk_in_mode,
             "locked_room": locked_room,
         },
@@ -1597,7 +1907,8 @@ def booking_detail(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=pk)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=pk, room__prop=active_prop)
     _expire_elapsed_bookings(room=booking.room)
     booking.refresh_from_db()
     payments = list(booking.payments.order_by("payment_date", "recorded_at"))
@@ -1635,7 +1946,8 @@ def booking_refund(request, booking_id):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=booking_id)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=booking_id, room__prop=active_prop)
     payment_totals = booking.payment_totals()
     refundable_amount = max(payment_totals["net_paid"], Decimal("0.00"))
     if refundable_amount <= 0:
@@ -1646,7 +1958,7 @@ def booking_refund(request, booking_id):
         form = BookingRefundForm(request.POST, max_refund=refundable_amount)
         if form.is_valid():
             if _is_date_locked(form.cleaned_data["refund_date"]):
-                return _locked_day_response(request, form.cleaned_data["refund_date"], "core:booking_detail")
+                return _locked_day_response(request, form.cleaned_data["refund_date"], "core:booking_detail", pk=booking.pk)
             approver = _manager_approval(request, "Booking refund")
             if not approver:
                 messages.error(request, "Owner approval is required to refund a booking payment.")
@@ -1689,21 +2001,32 @@ def payment_add(request, booking_id):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=booking_id)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=booking_id, room__prop=active_prop)
 
     if request.method == "POST":
         form = PaymentForm(request.POST)
         if form.is_valid():
             payment = form.save(commit=False)
             if _is_date_locked(payment.payment_date):
-                return _locked_day_response(request, payment.payment_date, "core:booking_detail")
+                return _locked_day_response(request, payment.payment_date, "core:booking_detail", pk=booking.pk)
             if payment.payment_method == "Cash" and not _cash_shift_required(request):
                 return redirect("core:payment_add", booking_id=booking.pk)
             payment.booking = booking
-            balance_due = booking.payment_totals()["balance_due"]
+            totals = booking.payment_totals()
+            balance_due = totals["balance_due"]
+            total_paid_so_far = totals["total_paid"]
             tendered = payment.amount
             settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+
+            is_deposit_payment = (
+                total_paid_so_far == Decimal("0.00")
+                and booking.deposit_required > 0
+                and tendered == booking.deposit_required
+            )
+
             if tendered > balance_due > 0:
+                # Overpayment — cap to balance and give change
                 payment.amount = balance_due
                 change = tendered - balance_due
                 payment.save()
@@ -1711,13 +2034,29 @@ def payment_add(request, booking_id):
                 booking.recalculate_balance()
                 notify_payment_received(booking, payment, settings_obj)
                 messages.success(request, f"Payment of R {balance_due:.2f} recorded. Change to give: R {change:.2f}")
-            else:
+                return redirect("core:booking_detail", pk=booking.pk)
+            elif tendered == balance_due or is_deposit_payment:
                 payment.save()
                 _audit(request, "create", payment, after=_model_snapshot(payment, ["amount", "payment_method", "reference"]))
                 booking.recalculate_balance()
                 notify_payment_received(booking, payment, settings_obj)
-                messages.success(request, "Payment recorded successfully.")
-            return redirect("core:booking_detail", pk=booking.pk)
+                if is_deposit_payment and tendered < balance_due:
+                    messages.success(request, f"Deposit of R {tendered:.2f} recorded. Remaining balance: R {balance_due - tendered:.2f}")
+                else:
+                    messages.success(request, "Payment recorded successfully.")
+                return redirect("core:booking_detail", pk=booking.pk)
+            else:
+                # Partial amount that is neither the full balance nor the deposit
+                if total_paid_so_far == Decimal("0.00") and booking.deposit_required > 0:
+                    form.add_error(
+                        "amount",
+                        f"Amount must be the full balance (R {balance_due:.2f}) or the deposit (R {booking.deposit_required:.2f}).",
+                    )
+                else:
+                    form.add_error(
+                        "amount",
+                        f"Amount must equal the full balance due: R {balance_due:.2f}.",
+                    )
     else:
         form = PaymentForm(
             initial={
@@ -1733,6 +2072,7 @@ def payment_add(request, booking_id):
             "booking": booking,
             "form": form,
             "payment_totals": booking.payment_totals(),
+            "open_shift": POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).first(),
         },
     )
 
@@ -1753,7 +2093,8 @@ def payment_list(request):
         month_start = today.replace(day=1)
     month_end = month_start.replace(day=calendar.monthrange(month_start.year, month_start.month)[1])
 
-    payments = Payment.objects.select_related("booking", "booking__guest", "booking__room").filter(
+    active_prop, payments_qs = _property_payments(request)
+    payments = payments_qs.select_related("booking", "booking__guest", "booking__room").filter(
         payment_date__gte=month_start,
         payment_date__lte=month_end,
     )
@@ -1802,6 +2143,7 @@ def exception_report(request):
         report_date = datetime.date.fromisoformat(selected_date)
     except ValueError:
         report_date = today
+    active_prop = get_active_property(request)
 
     audits = AuditLog.objects.select_related("actor", "approved_by").filter(created_at__date=report_date)
     sensitive_audits = audits.filter(
@@ -1811,16 +2153,18 @@ def exception_report(request):
         | Q(reason__icontains="cancel")
     )[:100]
     discounted_bookings = Booking.objects.select_related("guest", "room").filter(
+        room__prop=active_prop,
         created_at__date=report_date,
         discount__gt=0,
     )
     refunded_sales = POSSale.objects.select_related("served_by").filter(
+        prop=active_prop,
         created_at__date=report_date,
         status="refunded",
     )
     shift_variances = [
         shift
-        for shift in POSShift.objects.select_related("opened_by", "closed_by").filter(closed_at__date=report_date)
+        for shift in POSShift.objects.select_related("opened_by", "closed_by").filter(prop=active_prop, closed_at__date=report_date)
         if shift.cash_variance and shift.cash_variance != 0
     ]
 
@@ -1898,12 +2242,13 @@ def daily_close(request):
     except ValueError:
         close_date = today
     close_lock = DailyCloseLock.objects.select_related("locked_by").filter(close_date=close_date).first()
+    active_prop = get_active_property(request)
 
-    payments = Payment.objects.filter(payment_date=close_date)
-    expenses = Expense.objects.filter(date=close_date)
-    pos_sales = POSSale.objects.filter(created_at__date=close_date)
-    shifts = POSShift.objects.select_related("opened_by", "closed_by").filter(Q(opened_at__date=close_date) | Q(closed_at__date=close_date))
-    bookings = Booking.objects.select_related("guest", "room").filter(check_in_date__lte=close_date, check_out_date__gte=close_date)
+    payments = Payment.objects.filter(booking__room__prop=active_prop, payment_date=close_date)
+    expenses = Expense.objects.filter(prop=active_prop, date=close_date)
+    pos_sales = POSSale.objects.filter(prop=active_prop, created_at__date=close_date)
+    shifts = POSShift.objects.select_related("opened_by", "closed_by").filter(prop=active_prop).filter(Q(opened_at__date=close_date) | Q(closed_at__date=close_date))
+    bookings = Booking.objects.select_related("guest", "room").filter(room__prop=active_prop, check_in_date__lte=close_date, check_out_date__gte=close_date)
     audit_logs = AuditLog.objects.select_related("actor", "approved_by").filter(created_at__date=close_date)
 
     cash_payments = payments.filter(payment_method="Cash").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
@@ -1915,7 +2260,7 @@ def daily_close(request):
     pos_wallet = pos_sales.filter(status="completed", payment_method__in=["snapscan", "zapper"]).aggregate(total=Sum("total"))["total"] or Decimal("0.00")
     pos_room_charge = pos_sales.filter(status="completed", payment_method="room_charge").aggregate(total=Sum("total"))["total"] or Decimal("0.00")
     pos_refunds = abs(pos_sales.filter(status="refunded").aggregate(total=Sum("total"))["total"] or Decimal("0.00"))
-    booking_refunds_qs = BookingRefund.objects.filter(refund_date=close_date)
+    booking_refunds_qs = BookingRefund.objects.filter(booking__room__prop=active_prop, refund_date=close_date)
     booking_refunds = booking_refunds_qs.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
     refunds = pos_refunds + booking_refunds
     cash_expenses = expenses.filter(payment_method="Cash").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
@@ -1965,8 +2310,8 @@ def daily_close(request):
             "open_shifts": open_shifts,
             "refunds": refunds,
             "discounts": discounts,
-            "checkins": Booking.objects.filter(check_in_date=close_date).exclude(status__in=Booking.INACTIVE_STATUSES).count(),
-            "checkouts": Booking.objects.filter(check_out_date=close_date).exclude(status__in=Booking.INACTIVE_STATUSES).count(),
+            "checkins": Booking.objects.filter(room__prop=active_prop, check_in_date=close_date).exclude(status__in=Booking.INACTIVE_STATUSES).count(),
+            "checkouts": Booking.objects.filter(room__prop=active_prop, check_out_date=close_date).exclude(status__in=Booking.INACTIVE_STATUSES).count(),
             "shift_rows": shift_rows,
             "sensitive_actions": audit_logs.filter(action__in=["delete", "refund", "login_override", "exception"])[:20],
         },
@@ -2020,8 +2365,10 @@ def room_calendar(request):
     days = min(max(int(request.GET.get("days", "14") or 14), 7), 31)
     date_range = [start + datetime.timedelta(days=offset) for offset in range(days)]
     end = date_range[-1] + datetime.timedelta(days=1)
-    rooms = list(Room.objects.all())
+    active_prop, rooms_qs = _property_rooms(request)
+    rooms = list(rooms_qs)
     bookings = Booking.objects.select_related("guest", "room").filter(
+        room__prop=active_prop,
         check_in_date__lt=end,
         check_out_date__gt=start,
     ).exclude(status__in=Booking.INACTIVE_STATUSES)
@@ -2045,15 +2392,19 @@ def communications_center(request):
         {"name": "Welcome", "url_name": "welcome", "body": "Short welcome message after check-in."},
         {"name": "Thank You", "url_name": "thank_you", "body": "Thank-you message after checkout."},
     ]
-    recent_bookings = Booking.objects.select_related("guest", "room").order_by("-created_at")[:20]
-    logs = CommunicationLog.objects.select_related("booking", "guest", "created_by").all()[:50]
+    active_prop = get_active_property(request)
+    recent_bookings = Booking.objects.select_related("guest", "room").filter(room__prop=active_prop).order_by("-created_at")[:20]
+    logs = CommunicationLog.objects.select_related("booking", "guest", "created_by").filter(
+        Q(booking__room__prop=active_prop) | Q(booking__isnull=True)
+    )[:50]
     return render(request, "core/communications.html", {"templates": templates, "recent_bookings": recent_bookings, "logs": logs})
 
 
 @login_required
 def housekeeping_mobile(request):
     _expire_elapsed_bookings()
-    rooms = Room.objects.filter(cleaning_status__in=["Needs Cleaning", "In Progress"]).order_by("cleaning_status", "name")
+    active_prop = get_active_property(request)
+    rooms = Room.objects.filter(prop=active_prop, cleaning_status__in=["Needs Cleaning", "In Progress"]).order_by("cleaning_status", "name")
     return render(request, "core/housekeeping_mobile.html", {"rooms": rooms})
 
 
@@ -2071,22 +2422,23 @@ def _csv_response(filename, headers, rows):
 def export_data(request, dataset):
     if not is_owner(request.user):
         return redirect("core:home")
+    active_prop = get_active_property(request)
     if dataset == "bookings":
-        rows = Booking.objects.select_related("guest", "room").order_by("-created_at")
+        rows = Booking.objects.select_related("guest", "room").filter(room__prop=active_prop).order_by("-created_at")
         return _csv_response(
             "bookings.csv",
             ["Reference", "Guest", "Room", "Check In", "Check Out", "Status", "Total", "Balance"],
             [[b.booking_reference, b.guest.full_name, b.room.name, b.check_in_date, b.check_out_date, b.status, b.total_amount, b.balance_due] for b in rows],
         )
     if dataset == "payments":
-        rows = Payment.objects.select_related("booking", "booking__guest").order_by("-recorded_at")
+        rows = Payment.objects.select_related("booking", "booking__guest").filter(booking__room__prop=active_prop).order_by("-recorded_at")
         return _csv_response(
             "payments.csv",
             ["Date", "Reference", "Booking", "Guest", "Method", "Amount"],
             [[p.payment_date, p.reference, p.booking.booking_reference, p.booking.guest.full_name, p.payment_method, p.amount] for p in rows],
         )
     if dataset == "refunds":
-        rows = BookingRefund.objects.select_related("booking", "booking__guest", "approved_by", "recorded_by").order_by("-refund_date", "-recorded_at")
+        rows = BookingRefund.objects.select_related("booking", "booking__guest", "approved_by", "recorded_by").filter(booking__room__prop=active_prop).order_by("-refund_date", "-recorded_at")
         return _csv_response(
             "refunds.csv",
             ["Date", "Reference", "Booking", "Guest", "Method", "Amount", "Reason", "Approved By", "Recorded By"],
@@ -2106,14 +2458,14 @@ def export_data(request, dataset):
             ],
         )
     if dataset == "expenses":
-        rows = Expense.objects.order_by("-date", "-created_at")
+        rows = Expense.objects.filter(prop=active_prop).order_by("-date", "-created_at")
         return _csv_response(
             "expenses.csv",
             ["Date", "Category", "Description", "Paid To", "Method", "Amount", "Reference"],
             [[e.date, e.category, e.description, e.paid_to, e.payment_method, e.amount, e.reference] for e in rows],
         )
     if dataset == "inventory":
-        rows = InventoryItem.objects.select_related("category").order_by("name")
+        rows = InventoryItem.objects.select_related("category").filter(prop=active_prop).order_by("name")
         return _csv_response(
             "inventory.csv",
             ["Item", "Category", "Stock", "Unit", "Minimum", "Location", "Value"],
@@ -2125,10 +2477,11 @@ def export_data(request, dataset):
 
 @login_required
 def payment_delete(request, booking_id, payment_id):
-    booking = get_object_or_404(Booking, pk=booking_id)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking, pk=booking_id, room__prop=active_prop)
     payment = get_object_or_404(Payment, pk=payment_id, booking=booking)
     if _is_date_locked(payment.payment_date):
-        return _locked_day_response(request, payment.payment_date, "core:booking_detail")
+        return _locked_day_response(request, payment.payment_date, "core:booking_detail", pk=booking.pk)
     if request.method == "POST":
         approver = _manager_approval(request, "Delete recorded payment")
         if not approver:
@@ -2165,7 +2518,8 @@ def _pdf_settings_context():
 
 @login_required
 def booking_confirmation_pdf(request, pk):
-    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=pk)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=pk, room__prop=active_prop)
     context = _pdf_settings_context()
     context.update(
         {
@@ -2180,7 +2534,8 @@ def booking_confirmation_pdf(request, pk):
 
 @login_required
 def booking_invoice_pdf(request, pk):
-    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=pk)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=pk, room__prop=active_prop)
     context = _pdf_settings_context()
     settings_obj = context["settings"]
     payment_totals = booking.payment_totals()
@@ -2191,22 +2546,13 @@ def booking_invoice_pdf(request, pk):
             Decimal("0.01"),
             rounding=ROUND_HALF_UP,
         )
-    context.update(
-        {
-            "booking": booking,
-            "payment_totals": payment_totals,
-            "line_total": booking.rate_per_night * booking.num_nights,
-            "vat_amount": vat_amount,
-        }
-    )
-    response = generate_pdf("pdfs/invoice.html", context)
-    response["Content-Disposition"] = f'inline; filename="{booking.booking_reference}-invoice.pdf"'
-    return response
+    return render_booking_invoice_pdf(booking, settings_obj, payment_totals, vat_amount)
 
 
 @login_required
 def payment_receipt_pdf(request, booking_id, payment_id):
-    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=booking_id)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=booking_id, room__prop=active_prop)
     payment = get_object_or_404(Payment, pk=payment_id, booking=booking)
     payments = list(booking.payments.order_by("payment_date", "recorded_at", "pk"))
     running_balance = booking.total_amount
@@ -2216,19 +2562,14 @@ def payment_receipt_pdf(request, booking_id, payment_id):
         if row.pk == payment.pk:
             balance_after_payment = running_balance
             break
-    context = _pdf_settings_context()
-    context.update(
-        {
-            "booking": booking,
-            "payment": payment,
-            "payment_totals": booking.payment_totals(),
-            "receipt_number": f"RCP-{payment.pk}",
-            "balance_after_payment": balance_after_payment,
-        }
+    settings_obj = _pdf_settings_context()["settings"]
+    return render_payment_receipt_pdf(
+        booking,
+        payment,
+        settings_obj,
+        receipt_number=f"RCP-{payment.pk}",
+        balance_after_payment=balance_after_payment,
     )
-    response = generate_pdf("pdfs/receipt.html", context)
-    response["Content-Disposition"] = f'inline; filename="{booking.booking_reference}-receipt-{payment.pk}.pdf"'
-    return response
 
 
 def _whatsapp_phone(phone):
@@ -2237,7 +2578,8 @@ def _whatsapp_phone(phone):
 
 @login_required
 def booking_whatsapp(request, pk, template_name):
-    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=pk)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=pk, room__prop=active_prop)
     settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
     phone = _whatsapp_phone(booking.guest.phone)
     if not phone:
@@ -2292,12 +2634,13 @@ def booking_checkin(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    booking = get_object_or_404(Booking, pk=pk)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking, pk=pk, room__prop=active_prop)
     if _is_date_locked(booking.check_in_date):
-        return _locked_day_response(request, booking.check_in_date, "core:booking_detail")
+        return _locked_day_response(request, booking.check_in_date, "core:booking_detail", pk=pk)
     if request.method == "POST":
-        if booking.status != "Confirmed":
-            messages.error(request, "Only confirmed bookings can be checked in.")
+        if booking.status not in ("Confirmed", "Pending"):
+            messages.error(request, "Only pending or confirmed bookings can be checked in.")
             return redirect("core:booking_detail", pk=pk)
         before = _model_snapshot(booking, ["status", "check_in_time"])
         booking.status = "Checked In"
@@ -2317,9 +2660,10 @@ def booking_checkout(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    booking = get_object_or_404(Booking, pk=pk)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking, pk=pk, room__prop=active_prop)
     if _is_date_locked(timezone.localdate()):
-        return _locked_day_response(request, timezone.localdate(), "core:booking_detail")
+        return _locked_day_response(request, timezone.localdate(), "core:booking_detail", pk=pk)
     if request.method == "POST":
         if booking.status != "Checked In":
             messages.error(request, "Only checked-in bookings can be checked out.")
@@ -2351,9 +2695,10 @@ def booking_no_show(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    booking = get_object_or_404(Booking.objects.select_related("room"), pk=pk)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking.objects.select_related("room"), pk=pk, room__prop=active_prop)
     if _is_date_locked(booking.check_in_date):
-        return _locked_day_response(request, booking.check_in_date, "core:booking_detail")
+        return _locked_day_response(request, booking.check_in_date, "core:booking_detail", pk=pk)
     if request.method == "POST":
         if booking.status == "Confirmed" and booking.check_in_date < timezone.localdate():
             before = _model_snapshot(booking, ["status"])
@@ -2372,9 +2717,10 @@ def booking_cancel(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    booking = get_object_or_404(Booking, pk=pk)
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking, pk=pk, room__prop=active_prop)
     if _is_date_locked(booking.check_in_date):
-        return _locked_day_response(request, booking.check_in_date, "core:booking_detail")
+        return _locked_day_response(request, booking.check_in_date, "core:booking_detail", pk=pk)
     if booking.status in ("Cancelled", "Checked Out"):
         return redirect("core:booking_detail", pk=pk)
     if request.method == "POST":
@@ -2400,7 +2746,8 @@ def booking_edit(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    booking = get_object_or_404(Booking, pk=pk)
+    active_prop, property_rooms = _property_rooms(request)
+    booking = get_object_or_404(Booking, pk=pk, room__prop=active_prop)
     if _is_date_locked(booking.check_in_date) or _is_date_locked(booking.check_out_date):
         messages.error(request, "This booking touches a locked daily close date. Reopen the day before editing.")
         return redirect("core:booking_detail", pk=booking.pk)
@@ -2411,6 +2758,7 @@ def booking_edit(request, pk):
     )
     if request.method == "POST":
         form = BookingForm(request.POST, instance=booking)
+        form.fields["room"].queryset = property_rooms
         if form.is_valid():
             candidate = form.save(commit=False)
             if _is_date_locked(candidate.check_in_date) or _is_date_locked(candidate.check_out_date):
@@ -2445,6 +2793,7 @@ def booking_edit(request, pk):
             return redirect("core:booking_detail", pk=booking.pk)
     else:
         form = BookingForm(instance=booking)
+        form.fields["room"].queryset = property_rooms
 
     return render(
         request,
@@ -2453,7 +2802,7 @@ def booking_edit(request, pk):
             "form": form,
             "booking": booking,
             "title": f"Edit {booking.booking_reference}",
-            "room_prices_json": _room_prices_json(),
+            "room_prices_json": _room_prices_json(active_prop),
         },
     )
 
@@ -2704,6 +3053,8 @@ def plans_page(request):
 
 
 FEATURE_DISPLAY_NAMES = {
+    "rooms": "More Rooms",
+    "users": "More Staff Users",
     "expenses": "Expenses & Cost Tracking",
     "inventory": "Inventory Management",
     "full_reports": "Full Reports & Charts",
@@ -2729,12 +3080,11 @@ class SubscriptionSetupForm(forms.Form):
         super().__init__(*args, **kwargs)
         plans = SubscriptionPlan.objects.order_by("monthly_price")
         self.fields["plan"].choices = [(plan.pk, plan.display_name) for plan in plans]
-        field_class = "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
         for name, field in self.fields.items():
             if name == "plan":
                 field.widget = forms.RadioSelect(choices=field.choices)
             else:
-                field.widget.attrs.update({"class": field_class})
+                field.widget.attrs.update({"class": "form-input"})
 
 
 def subscription_upgrade(request):
@@ -2744,8 +3094,18 @@ def subscription_upgrade(request):
     plans = {plan.name: plan for plan in SubscriptionPlan.objects.all()}
     professional = plans.get("professional")
     enterprise = plans.get("enterprise")
-    professional_has_feature = bool(professional and getattr(professional, f"feature_{feature}", False))
-    enterprise_has_feature = bool(enterprise and getattr(enterprise, f"feature_{feature}", False))
+    current_plan = subscription.plan if subscription else None
+    if feature == "rooms":
+        current_limit = current_plan.max_rooms if current_plan else 0
+        professional_has_feature = bool(professional and (_is_unlimited(professional.max_rooms) or professional.max_rooms > current_limit))
+        enterprise_has_feature = bool(enterprise and (_is_unlimited(enterprise.max_rooms) or enterprise.max_rooms > current_limit))
+    elif feature == "users":
+        current_limit = current_plan.max_users if current_plan else 0
+        professional_has_feature = bool(professional and (_is_unlimited(professional.max_users) or professional.max_users > current_limit))
+        enterprise_has_feature = bool(enterprise and (_is_unlimited(enterprise.max_users) or enterprise.max_users > current_limit))
+    else:
+        professional_has_feature = bool(professional and getattr(professional, f"feature_{feature}", False))
+        enterprise_has_feature = bool(enterprise and getattr(enterprise, f"feature_{feature}", False))
     return render(
         request,
         "subscription/upgrade_gate.html",
@@ -2753,7 +3113,7 @@ def subscription_upgrade(request):
             "feature": feature,
             "feature_display": feature_display,
             "subscription": subscription,
-            "current_plan": subscription.plan if subscription else None,
+            "current_plan": current_plan,
             "professional": professional,
             "enterprise": enterprise,
             "professional_has_feature": professional_has_feature,
@@ -2785,17 +3145,18 @@ def subscription_setup(request):
     if request.method == "POST" and form.is_valid():
         plan = get_object_or_404(SubscriptionPlan, pk=form.cleaned_data["plan"])
         now = timezone.now()
+        trial_expires_at = trial_end(now)
         Subscription.objects.all().delete()
         subscription = Subscription.objects.create(
             plan=plan,
             billing_cycle="monthly",
             status="trial",
-            expires_at=now + datetime.timedelta(days=30),
-            trial_ends_at=now + datetime.timedelta(days=30),
+            expires_at=trial_expires_at,
+            trial_ends_at=trial_expires_at,
             owner_name=form.cleaned_data["owner_name"],
             owner_email=form.cleaned_data["owner_email"],
             owner_phone=form.cleaned_data.get("owner_phone", ""),
-            next_billing_date=(now + datetime.timedelta(days=30)).date(),
+            next_billing_date=trial_expires_at.date(),
         )
         settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
         settings_obj.guest_house_name = form.cleaned_data["guest_house_name"]
@@ -2969,9 +3330,16 @@ class MaintenanceResolutionForm(forms.Form):
             field.widget.attrs.update({"class": "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"})
 
 
+def _maintenance_form_for_property(active_prop, *args, **kwargs):
+    form = MaintenanceRequestForm(*args, **kwargs)
+    form.fields["room"].queryset = Room.objects.filter(prop=active_prop)
+    return form
+
+
 @login_required
 def maintenance_board(request):
-    requests = MaintenanceRequest.objects.select_related("room", "reported_by").all()
+    active_prop = get_active_property(request)
+    requests = MaintenanceRequest.objects.select_related("room", "reported_by").filter(room__prop=active_prop)
     columns = {
         "open": requests.filter(status="open"),
         "in_progress": requests.filter(status="in_progress"),
@@ -3004,7 +3372,8 @@ def maintenance_board(request):
 
 @login_required
 def maintenance_add(request):
-    form = MaintenanceRequestForm(request.POST or None, initial={"room": request.GET.get("room", "")})
+    active_prop = get_active_property(request)
+    form = _maintenance_form_for_property(active_prop, request.POST or None, initial={"room": request.GET.get("room", "")})
     if request.method == "POST" and form.is_valid():
         maintenance_request = form.save(commit=False)
         maintenance_request.reported_by = request.user
@@ -3016,8 +3385,9 @@ def maintenance_add(request):
 
 @login_required
 def maintenance_edit(request, pk):
-    maintenance_request = get_object_or_404(MaintenanceRequest, pk=pk)
-    form = MaintenanceRequestForm(request.POST or None, instance=maintenance_request)
+    active_prop = get_active_property(request)
+    maintenance_request = get_object_or_404(MaintenanceRequest, pk=pk, room__prop=active_prop)
+    form = _maintenance_form_for_property(active_prop, request.POST or None, instance=maintenance_request)
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "Maintenance request updated.")
@@ -3031,7 +3401,8 @@ def maintenance_edit(request, pk):
 
 @login_required
 def maintenance_detail(request, pk):
-    maintenance_request = get_object_or_404(MaintenanceRequest.objects.select_related("room", "reported_by"), pk=pk)
+    active_prop = get_active_property(request)
+    maintenance_request = get_object_or_404(MaintenanceRequest.objects.select_related("room", "reported_by"), pk=pk, room__prop=active_prop)
     resolution_form = MaintenanceResolutionForm(
         initial={
             "resolution_notes": maintenance_request.resolution_notes,
@@ -3072,7 +3443,8 @@ def maintenance_detail(request, pk):
 
 @login_required
 def maintenance_set_status(request, pk):
-    maintenance_request = get_object_or_404(MaintenanceRequest, pk=pk)
+    active_prop = get_active_property(request)
+    maintenance_request = get_object_or_404(MaintenanceRequest, pk=pk, room__prop=active_prop)
     if request.method == "POST":
         status = request.POST.get("status")
         valid_statuses = {choice[0] for choice in MaintenanceRequest.STATUS_CHOICES}
@@ -3087,12 +3459,32 @@ def maintenance_set_status(request, pk):
     return redirect("core:maintenance_board")
 
 
+_DEFAULT_INVENTORY_CATEGORIES = [
+    ("Cleaning Supplies", "#22c55e"),
+    ("Toiletries & Amenities", "#c9a84c"),
+    ("Linen & Towels", "#3b82f6"),
+    ("Kitchen & Dining", "#f97316"),
+    ("Maintenance & Tools", "#ef4444"),
+    ("Office & Admin", "#8b5cf6"),
+    ("Food & Beverages", "#14b8a6"),
+    ("Other", "#6b7280"),
+]
+
+
+def _seed_default_inventory_categories():
+    if InventoryCategory.objects.exists():
+        return
+    for name, color in _DEFAULT_INVENTORY_CATEGORIES:
+        InventoryCategory.objects.get_or_create(name=name, defaults={"color": color})
+
+
 @login_required
 def inventory_dashboard(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    items = InventoryItem.objects.select_related("category").filter(is_active=True)
+    active_prop = get_active_property(request)
+    items = InventoryItem.objects.select_related("category").filter(is_active=True, prop=active_prop)
     category_filter = request.GET.get("category", "")
     location_filter = request.GET.get("location", "")
     status_filter = request.GET.get("status", "")
@@ -3111,12 +3503,12 @@ def inventory_dashboard(request):
     elif status_filter == "sufficient":
         items = items.filter(current_stock__gt=F("minimum_stock"))
 
-    all_active = InventoryItem.objects.select_related("category").filter(is_active=True)
+    all_active = InventoryItem.objects.select_related("category").filter(is_active=True, prop=active_prop)
     low_stock_items = all_active.filter(current_stock__lte=F("minimum_stock")).order_by("current_stock", "name")
     total_stock_value = sum((item.stock_value for item in all_active), Decimal("0.00"))
     categories = InventoryCategory.objects.all()
     locations = (
-        InventoryItem.objects.filter(is_active=True)
+        InventoryItem.objects.filter(is_active=True, prop=active_prop)
         .exclude(location="")
         .values_list("location", flat=True)
         .distinct()
@@ -3148,12 +3540,20 @@ def inventory_add(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
+    _seed_default_inventory_categories()
+    active_prop = get_active_property(request)
     form = InventoryItemForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        item = form.save()
+        item = form.save(commit=False)
+        item.prop = active_prop
+        item.save()
         messages.success(request, "Inventory item added.")
         return redirect("core:inventory_detail", pk=item.pk)
-    return render(request, "core/inventory_form.html", {"form": form, "title": "Add Inventory Item"})
+    return render(request, "core/inventory_form.html", {
+        "form": form,
+        "title": "Add Inventory Item",
+        "has_categories": InventoryCategory.objects.exists(),
+    })
 
 
 @login_required
@@ -3161,7 +3561,8 @@ def inventory_edit(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    item = get_object_or_404(InventoryItem, pk=pk)
+    active_prop = get_active_property(request)
+    item = get_object_or_404(InventoryItem, pk=pk, prop=active_prop)
     form = InventoryItemForm(request.POST or None, instance=item)
     if request.method == "POST" and form.is_valid():
         form.save()
@@ -3175,7 +3576,8 @@ def inventory_detail(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    item = get_object_or_404(InventoryItem.objects.select_related("category"), pk=pk)
+    active_prop = get_active_property(request)
+    item = get_object_or_404(InventoryItem.objects.select_related("category"), pk=pk, prop=active_prop)
     transactions = item.transactions.select_related("room", "booking", "recorded_by").all()[:50]
     return render(request, "core/inventory_detail.html", {"item": item, "transactions": transactions})
 
@@ -3219,12 +3621,13 @@ def inventory_stock_in(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    item = get_object_or_404(InventoryItem, pk=pk)
+    active_prop = get_active_property(request)
+    item = get_object_or_404(InventoryItem, pk=pk, prop=active_prop)
     form = StockInForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         recorded_date = form.cleaned_data.get("date")
         if _is_date_locked(recorded_date):
-            return _locked_day_response(request, recorded_date, "core:inventory_detail")
+            return _locked_day_response(request, recorded_date, "core:inventory_detail", pk=item.pk)
         _record_inventory_transaction(
             item,
             "in",
@@ -3244,8 +3647,13 @@ def inventory_stock_out(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    item = get_object_or_404(InventoryItem, pk=pk)
-    form = StockOutForm(request.POST or None)
+    active_prop = get_active_property(request)
+    item = get_object_or_404(InventoryItem, pk=pk, prop=active_prop)
+    if request.method == "POST":
+        form = StockOutForm(request.POST)
+        form.fields["room"].queryset = Room.objects.filter(prop=active_prop)
+    else:
+        form = StockOutForm()
     if request.method == "POST" and form.is_valid():
         quantity = form.cleaned_data["quantity"]
         if item.current_stock - quantity < 0 and not form.cleaned_data.get("confirm_negative"):
@@ -3270,7 +3678,8 @@ def inventory_transactions(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    transactions = InventoryTransaction.objects.select_related("item", "item__category", "room", "recorded_by").all()
+    active_prop = get_active_property(request)
+    transactions = InventoryTransaction.objects.select_related("item", "item__category", "room", "recorded_by").filter(item__prop=active_prop)
     item_filter = request.GET.get("item", "")
     type_filter = request.GET.get("type", "")
     start = request.GET.get("start", "")
@@ -3288,7 +3697,7 @@ def inventory_transactions(request):
         "core/inventory_transactions.html",
         {
             "transactions": transactions,
-            "items": InventoryItem.objects.all(),
+            "items": InventoryItem.objects.filter(prop=active_prop),
             "transaction_types": InventoryTransaction.TRANSACTION_TYPES,
             "item_filter": item_filter,
             "type_filter": type_filter,
@@ -3353,23 +3762,51 @@ class POSCategoryForm(forms.ModelForm):
                 field.widget.attrs.update({'style': 'padding:10px 14px; width:100%; box-sizing:border-box;'})
 
 
+_DEFAULT_POS_CATEGORIES = [
+    ("Food & Snacks",     "🍔", "#f97316"),
+    ("Drinks",            "🥤", "#3b82f6"),
+    ("Alcohol",           "🍺", "#f59e0b"),
+    ("Toiletries",        "🧴", "#8b5cf6"),
+    ("Cleaning",          "🧹", "#22c55e"),
+    ("Miscellaneous",     "📦", "#6b7280"),
+]
+
+
+def _seed_default_pos_categories(active_prop):
+    if POSCategory.objects.filter(prop=active_prop).exists():
+        return
+    for i, (name, icon, color) in enumerate(_DEFAULT_POS_CATEGORIES):
+        POSCategory.objects.get_or_create(
+            name=name,
+            prop=active_prop,
+            defaults={"icon": icon, "color": color, "sort_order": i},
+        )
+
+
+def _pos_item_form_for_property(active_prop, *args, **kwargs):
+    form = POSItemForm(*args, **kwargs)
+    form.fields["category"].queryset = POSCategory.objects.filter(prop=active_prop)
+    return form
+
+
 @login_required
 def pos_items_list(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    categories = POSCategory.objects.filter(is_active=True)
+    active_prop = get_active_property(request)
+    categories = POSCategory.objects.filter(prop=active_prop, is_active=True)
     category_filter = request.GET.get('category', '')
-    items = POSItem.objects.select_related('category').all()
+    items = POSItem.objects.select_related('category').filter(prop=active_prop)
     if category_filter:
         items = items.filter(category_id=category_filter)
-    quick_items = POSItem.objects.filter(is_quick_item=True, is_active=True).order_by('sort_order', 'name')
+    quick_items = POSItem.objects.filter(prop=active_prop, is_quick_item=True, is_active=True).order_by('sort_order', 'name')
     return render(request, 'pos/items_list.html', {
         'items': items,
         'categories': categories,
         'category_filter': category_filter,
         'quick_items': quick_items,
-        'total_items': POSItem.objects.filter(is_active=True).count(),
+        'total_items': POSItem.objects.filter(prop=active_prop, is_active=True).count(),
         'quick_count': quick_items.count(),
     })
 
@@ -3379,15 +3816,19 @@ def pos_item_add(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
+    active_prop = get_active_property(request)
+    _seed_default_pos_categories(active_prop)
     cat_form = POSCategoryForm()
     if request.method == 'POST':
-        form = POSItemForm(request.POST)
+        form = _pos_item_form_for_property(active_prop, request.POST)
         if form.is_valid():
-            item = form.save()
+            item = form.save(commit=False)
+            item.prop = active_prop
+            item.save()
             messages.success(request, f'"{item.name}" added to POS menu.')
             return redirect('core:pos_items_list')
     else:
-        form = POSItemForm()
+        form = _pos_item_form_for_property(active_prop)
     return render(request, 'pos/item_form.html', {
         'form': form, 'cat_form': cat_form, 'title': 'Add POS Item',
     })
@@ -3398,16 +3839,17 @@ def pos_item_edit(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    item = get_object_or_404(POSItem, pk=pk)
+    active_prop = get_active_property(request)
+    item = get_object_or_404(POSItem, pk=pk, prop=active_prop)
     cat_form = POSCategoryForm()
     if request.method == 'POST':
-        form = POSItemForm(request.POST, instance=item)
+        form = _pos_item_form_for_property(active_prop, request.POST, instance=item)
         if form.is_valid():
             form.save()
             messages.success(request, f'"{item.name}" updated.')
             return redirect('core:pos_items_list')
     else:
-        form = POSItemForm(instance=item)
+        form = _pos_item_form_for_property(active_prop, instance=item)
     return render(request, 'pos/item_form.html', {
         'form': form, 'cat_form': cat_form, 'item': item, 'title': f'Edit {item.name}',
     })
@@ -3418,7 +3860,8 @@ def pos_item_delete(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    item = get_object_or_404(POSItem, pk=pk)
+    active_prop = get_active_property(request)
+    item = get_object_or_404(POSItem, pk=pk, prop=active_prop)
     if request.method == 'POST':
         approver = _manager_approval(request, "Delete POS item")
         if not approver:
@@ -3440,7 +3883,9 @@ def pos_category_add(request):
     if request.method == 'POST':
         form = POSCategoryForm(request.POST)
         if form.is_valid():
-            cat = form.save()
+            cat = form.save(commit=False)
+            cat.prop = get_active_property(request)
+            cat.save()
             messages.success(request, f'Category "{cat.name}" created.')
     return redirect('core:pos_items_list')
 
@@ -3454,8 +3899,9 @@ def pos_items_reorder(request):
         try:
             data = json.loads(request.body)
             ids = data.get('ids', [])
+            active_prop = get_active_property(request)
             for order, item_id in enumerate(ids):
-                POSItem.objects.filter(pk=item_id).update(sort_order=order)
+                POSItem.objects.filter(pk=item_id, prop=active_prop).update(sort_order=order)
             return JsonResponse({'success': True})
         except Exception:
             return JsonResponse({'success': False}, status=400)
@@ -3469,11 +3915,12 @@ def pos_terminal(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    categories = POSCategory.objects.filter(is_active=True).prefetch_related('items')
-    items = POSItem.objects.select_related('category').filter(is_active=True)
+    active_prop = get_active_property(request)
+    categories = POSCategory.objects.filter(prop=active_prop, is_active=True).prefetch_related('items')
+    items = POSItem.objects.select_related('category').filter(prop=active_prop, is_active=True)
     quick_items = items.filter(is_quick_item=True)
     settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
-    open_shift = POSShift.objects.filter(closed_at__isnull=True).first()
+    open_shift = POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).first()
     items_json = json.dumps([
         {
             'id': item.pk,
@@ -3499,13 +3946,13 @@ def pos_terminal(request):
         POSSale.objects
         .select_related('guest')
         .prefetch_related('items')
-        .filter(created_at__date=timezone.localdate())
+        .filter(prop=active_prop, created_at__date=timezone.localdate())
         .order_by('-created_at')[:20]
     )
     active_bookings = (
         Booking.objects
         .select_related('guest', 'room')
-        .filter(status='Checked In')
+        .filter(room__prop=active_prop, status='Checked In')
         .order_by('room__name')
     )
     active_bookings_json = json.dumps([
@@ -3539,7 +3986,8 @@ def pos_active_bookings_api(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    bookings = Booking.objects.select_related('guest', 'room').filter(status='Checked In')
+    active_prop = get_active_property(request)
+    bookings = Booking.objects.select_related('guest', 'room').filter(room__prop=active_prop, status='Checked In')
     data = [
         {
             'id': b.pk,
@@ -3558,7 +4006,8 @@ def pos_barcode_lookup(request, barcode):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    item = POSItem.objects.filter(barcode=barcode, is_active=True).select_related('category').first()
+    active_prop = get_active_property(request)
+    item = POSItem.objects.filter(prop=active_prop, barcode=barcode, is_active=True).select_related('category').first()
     if not item:
         return JsonResponse({'found': False})
     return JsonResponse({
@@ -3591,15 +4040,16 @@ def pos_complete_sale(request):
         return JsonResponse({'error': 'No items in cart'}, status=400)
 
     settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+    active_prop = get_active_property(request)
     booking = None
     booking_id = data.get('booking_id')
     if booking_id:
-        booking = Booking.objects.select_related('guest').filter(pk=booking_id).first()
+        booking = Booking.objects.select_related('guest').filter(pk=booking_id, room__prop=active_prop).first()
 
     discount_pct = Decimal(str(data.get('discount_pct', 0)))
     discount_amount = Decimal(str(data.get('discount_amount', 0)))
     payment_method = data.get('payment_method', 'cash')
-    if payment_method in ("cash", "split") and not POSShift.objects.filter(closed_at__isnull=True).exists():
+    if payment_method in ("cash", "split") and not POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).exists():
         return JsonResponse({'error': 'Open a POS shift before taking cash payments.'}, status=400)
 
     subtotal = Decimal('0.00')
@@ -3653,9 +4103,10 @@ def pos_complete_sale(request):
     cash_amount = Decimal(str(data.get('cash_amount', 0)))
     card_amount = Decimal(str(data.get('card_amount', 0)))
 
-    open_shift = POSShift.objects.filter(closed_at__isnull=True).first()
+    open_shift = POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).first()
 
     sale = POSSale.objects.create(
+        prop=active_prop,
         booking=booking,
         guest=booking.guest if booking else None,
         shift=open_shift,
@@ -3685,7 +4136,7 @@ def pos_complete_sale(request):
     for item_data in sale_items_to_create:
         pos_item = None
         if item_data['pos_item_id']:
-            pos_item = POSItem.objects.filter(pk=item_data['pos_item_id']).first()
+            pos_item = POSItem.objects.filter(pk=item_data['pos_item_id'], prop=active_prop).first()
         POSSaleItem.objects.create(
             sale=sale,
             pos_item=pos_item,
@@ -3700,16 +4151,12 @@ def pos_complete_sale(request):
             pos_item.save(update_fields=['stock_quantity'])
 
     if payment_method == 'room_charge' and booking:
-        Payment.objects.create(
-            booking=booking,
-            amount=total,
-            payment_date=timezone.localdate(),
-            payment_method='Cash',
-            payment_type='Payment',
-            reference=sale.sale_reference,
-            notes=f"POS charge — {sale.sale_reference}",
+        # Room charge increases what the guest owes — use update() to bypass compute_totals()
+        from django.db.models import F as DbF
+        Booking.objects.filter(pk=booking.pk).update(
+            total_amount=DbF('total_amount') + total,
+            balance_due=DbF('balance_due') + total,
         )
-        booking.recalculate_balance()
 
     return JsonResponse({
         'success': True,
@@ -3733,8 +4180,9 @@ def pos_sales_list(request):
     date_to = request.GET.get('date_to', '')
     method_filter = request.GET.get('method', '')
     query = request.GET.get('q', '').strip()
+    active_prop = get_active_property(request)
 
-    sales = POSSale.objects.select_related('guest', 'booking', 'served_by').prefetch_related('items')
+    sales = POSSale.objects.select_related('guest', 'booking', 'served_by').prefetch_related('items').filter(prop=active_prop)
     if date_from:
         sales = sales.filter(created_at__date__gte=date_from)
     if date_to:
@@ -3748,13 +4196,13 @@ def pos_sales_list(request):
             | Q(guest__last_name__icontains=query)
         )
 
-    today_sales = POSSale.objects.filter(created_at__date=today, status='completed')
+    today_sales = POSSale.objects.filter(prop=active_prop, created_at__date=today, status='completed')
     today_revenue = today_sales.aggregate(t=Sum('total'))['t'] or Decimal('0.00')
     today_count = today_sales.count()
     avg_sale = (today_revenue / today_count).quantize(Decimal('0.01')) if today_count else Decimal('0.00')
     top_item_qs = (
         POSSaleItem.objects
-        .filter(sale__created_at__date=today, sale__status='completed')
+        .filter(sale__prop=active_prop, sale__created_at__date=today, sale__status='completed')
         .values('name')
         .annotate(cnt=Sum('quantity'))
         .order_by('-cnt')
@@ -3781,10 +4229,12 @@ def pos_sale_detail(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
+    active_prop = get_active_property(request)
     sale = get_object_or_404(
         POSSale.objects.select_related('guest', 'booking', 'booking__room', 'served_by')
         .prefetch_related('items', 'items__pos_item'),
         pk=pk,
+        prop=active_prop,
     )
     return render(request, 'pos/sale_detail.html', {'sale': sale})
 
@@ -3794,7 +4244,8 @@ def pos_sale_refund(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    sale = get_object_or_404(POSSale, pk=pk)
+    active_prop = get_active_property(request)
+    sale = get_object_or_404(POSSale, pk=pk, prop=active_prop)
     if request.method == 'POST':
         reason = request.POST.get('refund_reason', '').strip()
         approver = _manager_approval(request, "POS refund")
@@ -3806,6 +4257,7 @@ def pos_sale_refund(request, pk):
             return redirect('core:pos_sale_detail', pk=pk)
 
         refund = POSSale.objects.create(
+            prop=active_prop,
             booking=sale.booking,
             guest=sale.guest,
             subtotal=-sale.subtotal,
@@ -3868,16 +4320,15 @@ def pos_receipt_pdf(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
+    active_prop = get_active_property(request)
     sale = get_object_or_404(
         POSSale.objects.select_related('guest', 'booking', 'booking__room', 'served_by')
         .prefetch_related('items'),
         pk=pk,
+        prop=active_prop,
     )
-    context = _pdf_settings_context()
-    context['sale'] = sale
-    response = generate_pdf('pdfs/pos_receipt.html', context)
-    response['Content-Disposition'] = f'inline; filename="{sale.sale_reference}-receipt.pdf"'
-    return response
+    settings_obj = _pdf_settings_context()["settings"]
+    return render_pos_receipt_pdf(sale, settings_obj)
 
 
 # ─── POS SHIFTS ─────────────────────────────────────────────
@@ -3887,8 +4338,9 @@ def pos_shifts(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    open_shift = POSShift.objects.filter(closed_at__isnull=True).first()
-    past_shifts = POSShift.objects.filter(closed_at__isnull=False).select_related('opened_by', 'closed_by')[:20]
+    active_prop = get_active_property(request)
+    open_shift = POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).first()
+    past_shifts = POSShift.objects.filter(prop=active_prop, closed_at__isnull=False).select_related('opened_by', 'closed_by')[:20]
     return render(request, 'pos/shifts.html', {
         'open_shift': open_shift,
         'past_shifts': past_shifts,
@@ -3900,8 +4352,13 @@ def pos_open_shift(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        next_url = reverse('core:pos_shifts')
+
     if request.method == 'POST':
-        if POSShift.objects.filter(closed_at__isnull=True).exists():
+        active_prop = get_active_property(request)
+        if POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).exists():
             messages.error(request, 'A shift is already open.')
         else:
             opening_float_str = request.POST.get('opening_float', '0')
@@ -3910,13 +4367,14 @@ def pos_open_shift(request):
             except Exception:
                 opening_float = Decimal('0')
             shift = POSShift.objects.create(
+                prop=active_prop,
                 opened_by=request.user,
                 opening_float=opening_float,
                 notes=request.POST.get('notes', ''),
             )
             _audit(request, "create", shift, after=_model_snapshot(shift, ["opening_float", "notes"]))
             messages.success(request, f'Shift opened with R{opening_float} float.')
-    return redirect('core:pos_shifts')
+    return redirect(next_url)
 
 
 @login_required
@@ -3924,7 +4382,8 @@ def pos_close_shift(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    shift = get_object_or_404(POSShift, pk=pk)
+    active_prop = get_active_property(request)
+    shift = get_object_or_404(POSShift, pk=pk, prop=active_prop)
     if request.method == 'POST':
         if shift.closed_at:
             messages.error(request, 'Shift is already closed.')
@@ -3968,6 +4427,7 @@ def pos_reports(request):
         return blocked
     today = timezone.localdate()
     month_start = today.replace(day=1)
+    active_prop = get_active_property(request)
 
     date_from_str = request.GET.get('date_from', month_start.isoformat())
     date_to_str = request.GET.get('date_to', today.isoformat())
@@ -3979,6 +4439,7 @@ def pos_reports(request):
         date_to = today
 
     sales = POSSale.objects.filter(
+        prop=active_prop,
         created_at__date__gte=date_from,
         created_at__date__lte=date_to,
         status='completed',

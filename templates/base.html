@@ -6,10 +6,17 @@
   <title>{% block title %}Circle Core Guest House{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   {% load static %}
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#13161b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Circle Core">
+  <link rel="icon" href="{% static 'icons/circle-core-icon.svg' %}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{% static 'icons/circle-core-icon-192.png' %}">
   <link rel="stylesheet" href="{% static 'css/theme.css' %}">
   <style>
     /* Chart.js global dark config */
@@ -501,6 +508,25 @@
   </div>
   {% endif %}
 
+  <!-- Subscription state banners -->
+  {% if request.subscription_state == 'grace' %}
+  <div style="background:rgba(245,158,11,0.08); border-bottom:1px solid rgba(245,158,11,0.25); padding:10px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="3"/></svg>
+    <span style="font-size:13px; color:#f59e0b; font-weight:500;">
+      Your subscription has expired. You have <strong>{{ request.grace_days_left }} day{{ request.grace_days_left|pluralize }}</strong> remaining in your grace period before the account switches to read-only.
+    </span>
+    <a href="mailto:support@circlecore.co.za?subject=Renew Subscription" style="margin-left:auto; font-size:12px; font-weight:600; color:#f59e0b; text-decoration:none; white-space:nowrap; border:1px solid rgba(245,158,11,0.4); padding:4px 12px; border-radius:6px;">Contact Us</a>
+  </div>
+  {% elif request.subscription_state == 'read_only' %}
+  <div style="background:rgba(239,68,68,0.08); border-bottom:1px solid rgba(239,68,68,0.25); padding:10px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <span style="font-size:13px; color:#f87171; font-weight:500;">
+      Read-only mode — your data is safe but you cannot create or edit records until your subscription is renewed.
+    </span>
+    <a href="mailto:support@circlecore.co.za?subject=Reactivate Account" style="margin-left:auto; font-size:12px; font-weight:600; color:#f87171; text-decoration:none; white-space:nowrap; border:1px solid rgba(239,68,68,0.4); padding:4px 12px; border-radius:6px;">Contact Us</a>
+  </div>
+  {% endif %}
+
   <!-- Page content -->
   <main class="main-content" style="flex:1; padding:28px 28px 40px; overflow-y:auto; overflow-x:hidden;">
     {% block content %}{% endblock %}
@@ -598,7 +624,7 @@
   padding: 0 2px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   #sidebar { position: fixed; transform: translateX(-100%); }
   #sidebar.open { transform: translateX(0); }
   #hamburger { display: flex !important; }
@@ -614,6 +640,12 @@
 }
 </style>
 <script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+  });
+}
+
 // Chart.js global dark defaults
 if (typeof Chart !== 'undefined') {
   Chart.defaults.color = '#64748b';
@@ -786,5 +818,83 @@ setTimeout(() => {
 </script>
 
 {% block extra_js %}{% endblock %}
+
+{% if user.is_authenticated %}
+<!-- ── Live Notifications (checkout, check-in, cleaning) ── -->
+<style>
+#notif-stack{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column-reverse;gap:10px;pointer-events:none;}
+.notif-toast{pointer-events:all;display:flex;align-items:flex-start;gap:12px;min-width:300px;max-width:360px;padding:14px 16px;background:var(--color-bg-surface);border:1px solid var(--color-border-bright);border-radius:var(--radius-lg);box-shadow:0 8px 28px rgba(0,0,0,0.45);animation:notifIn 0.28s ease;cursor:default;}
+.notif-toast.notif-checkout{border-left:3px solid #f59e0b;}
+.notif-toast.notif-checkin{border-left:3px solid #3b82f6;}
+.notif-toast.notif-needs_cleaning{border-left:3px solid #f97316;}
+.notif-toast.notif-cleaned{border-left:3px solid #22c55e;}
+.notif-icon{font-size:22px;line-height:1;flex-shrink:0;margin-top:1px;}
+.notif-title{font-size:13px;font-weight:700;color:var(--color-text-primary);margin-bottom:2px;}
+.notif-body{font-size:12px;color:var(--color-text-secondary);line-height:1.45;}
+.notif-close{margin-left:auto;flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:18px;line-height:1;padding:0 2px;align-self:flex-start;}
+.notif-close:hover{color:var(--color-text-primary);}
+@keyframes notifIn{from{opacity:0;transform:translateX(40px);}to{opacity:1;transform:translateX(0);}}
+</style>
+
+<div id="notif-stack"></div>
+
+<script>
+(function(){
+  const FEED_URL = '{% url "core:notifications_feed" %}';
+  const SEEN_KEY = 'ccnotif.seen';
+  const TYPE_CLS = {checkout:'notif-checkout',checkin:'notif-checkin',needs_cleaning:'notif-needs_cleaning',cleaned:'notif-cleaned'};
+
+  let audioCtx = null;
+  function unlockAudio(){ if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+  ['pointerdown','keydown'].forEach(e => window.addEventListener(e, unlockAudio, {once:true}));
+
+  function ringBell(){
+    unlockAudio();
+    if(!audioCtx) return;
+    const t = audioCtx.currentTime;
+    [[0,880,0.5],[0.18,1100,0.32],[0.34,660,0.22]].forEach(([off,freq,gain])=>{
+      const osc = audioCtx.createOscillator(), env = audioCtx.createGain();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      env.gain.setValueAtTime(gain, t+off);
+      env.gain.exponentialRampToValueAtTime(0.001, t+off+0.75);
+      osc.connect(env); env.connect(audioCtx.destination);
+      osc.start(t+off); osc.stop(t+off+0.8);
+    });
+  }
+
+  function getSeen(){ try{ return JSON.parse(localStorage.getItem(SEEN_KEY)||'{}'); }catch{ return {}; } }
+  function markSeen(id){
+    const seen = getSeen(); seen[id] = Date.now();
+    const cut = Date.now()-86400000;
+    Object.keys(seen).forEach(k=>{ if(seen[k]<cut) delete seen[k]; });
+    localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+  }
+
+  function escH(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function showToast(a){
+    const stack = document.getElementById('notif-stack'); if(!stack) return;
+    const el = document.createElement('div');
+    el.className = 'notif-toast '+(TYPE_CLS[a.type]||'');
+    el.innerHTML = `<div class="notif-icon">${a.icon}</div><div style="flex:1;min-width:0;"><div class="notif-title">${escH(a.title)}</div><div class="notif-body">${escH(a.body)}</div></div><button class="notif-close" title="Dismiss">×</button>`;
+    el.querySelector('.notif-close').addEventListener('click', ()=>{ el.style.opacity='0'; el.style.transition='opacity 0.2s'; setTimeout(()=>el.remove(),220); });
+    stack.appendChild(el);
+    setTimeout(()=>{ if(el.parentNode){ el.style.opacity='0'; el.style.transition='opacity 0.4s'; setTimeout(()=>el.remove(),420); }}, 12000);
+  }
+
+  async function poll(){
+    try{
+      const res = await fetch(FEED_URL,{credentials:'same-origin'}); if(!res.ok) return;
+      const data = await res.json(); const seen = getSeen();
+      const fresh = (data.alerts||[]).filter(a=>!seen[a.id]);
+      if(fresh.length){ ringBell(); fresh.forEach(a=>{ showToast(a); markSeen(a.id); }); }
+    }catch{}
+  }
+
+  setTimeout(poll, 8000);
+  setInterval(poll, 60000);
+})();
+</script>
+{% endif %}
 </body>
 </html>

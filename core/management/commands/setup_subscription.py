@@ -1,66 +1,71 @@
-from datetime import timedelta
-
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
+from django_tenants.utils import schema_context
 
-from core.models import Subscription, SubscriptionPlan
+from core.subscriptions import next_renewal_datetime, trial_end
+from tenants.models import GuestHouseTenant
 
 
 class Command(BaseCommand):
-    help = "Create or replace the Circle Core subscription for this installation."
+    help = 'Create or replace the subscription for a specific tenant schema.'
+
+    def add_arguments(self, parser):
+        parser.add_argument('--schema', required=True, help='Tenant schema name (e.g. madlanga_bb).')
 
     def handle(self, *args, **options):
-        plans = list(SubscriptionPlan.objects.order_by("monthly_price"))
-        if not plans:
-            raise CommandError("No subscription plans found. Run migrations to seed plans first.")
+        schema_name = options['schema']
 
-        owner_name = input("Owner name: ").strip()
-        owner_email = input("Owner email: ").strip()
-        owner_phone = input("Owner phone: ").strip()
+        if not GuestHouseTenant.objects.filter(schema_name=schema_name).exists():
+            raise CommandError(f'No tenant found with schema "{schema_name}". '
+                               f'Run: python manage.py list_tenants')
 
-        self.stdout.write("Plan choice:")
-        for index, plan in enumerate(plans, start=1):
-            self.stdout.write(f"{index}= {plan.display_name}")
-        plan_index = int(input("Choose plan: ").strip() or "1") - 1
-        plan = plans[plan_index]
+        with schema_context(schema_name):
+            from core.models import Subscription, SubscriptionPlan
 
-        billing_choice = input("Billing cycle (1=Monthly, 2=Annual): ").strip() or "1"
-        billing_cycle = "annual" if billing_choice == "2" else "monthly"
+            plans = list(SubscriptionPlan.objects.order_by('monthly_price'))
+            if not plans:
+                raise CommandError('No subscription plans in this schema. Run migrate_schemas first.')
 
-        status_choice = input("Trial or Active? (1=Start 30-day trial, 2=Mark as Active): ").strip() or "1"
-        status = "active" if status_choice == "2" else "trial"
+            owner_name = input('Owner name: ').strip()
+            owner_email = input('Owner email: ').strip()
+            owner_phone = input('Owner phone: ').strip()
 
-        now = timezone.now()
-        if status == "trial":
-            expires_at = now + timedelta(days=30)
-            trial_ends_at = expires_at
-        elif billing_cycle == "annual":
-            expires_at = now + timedelta(days=365)
-            trial_ends_at = None
-        else:
-            expires_at = now + timedelta(days=30)
-            trial_ends_at = None
+            self.stdout.write('Available plans:')
+            for i, plan in enumerate(plans, start=1):
+                self.stdout.write(f'  {i}. {plan.display_name} — R {plan.monthly_price}/mo')
+            plan_idx = int(input('Choose plan number: ').strip() or '1') - 1
+            plan = plans[plan_idx]
 
-        Subscription.objects.all().delete()
-        subscription = Subscription.objects.create(
-            plan=plan,
-            billing_cycle=billing_cycle,
-            status=status,
-            expires_at=expires_at,
-            trial_ends_at=trial_ends_at,
-            owner_name=owner_name,
-            owner_email=owner_email,
-            owner_phone=owner_phone,
-            next_billing_date=expires_at.date(),
-        )
+            billing = input('Billing cycle (1=Monthly, 2=Annual) [1]: ').strip() or '1'
+            billing_cycle = 'annual' if billing == '2' else 'monthly'
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                "Subscription configured. "
-                f"Plan: {subscription.plan.display_name}. "
-                f"Billing: {subscription.get_billing_cycle_display()}. "
-                f"Status: {subscription.get_status_display()}. "
-                f"Expires: {subscription.expires_at:%Y-%m-%d}. "
-                f"Days remaining: {subscription.days_remaining}."
+            status_choice = input('Status (1=Trial, 2=Active) [1]: ').strip() or '1'
+            status = 'active' if status_choice == '2' else 'trial'
+
+            now = timezone.now()
+            if status == 'trial':
+                expires_at = trial_end(now)
+                trial_ends_at = expires_at
+            else:
+                expires_at = next_renewal_datetime(billing_cycle, now)
+                trial_ends_at = None
+
+            Subscription.objects.all().delete()
+            subscription = Subscription.objects.create(
+                plan=plan,
+                billing_cycle=billing_cycle,
+                status=status,
+                expires_at=expires_at,
+                trial_ends_at=trial_ends_at,
+                owner_name=owner_name,
+                owner_email=owner_email,
+                owner_phone=owner_phone,
+                next_billing_date=expires_at.date(),
             )
-        )
+
+            self.stdout.write(self.style.SUCCESS(
+                f'[{schema_name}] Subscription configured. '
+                f'Plan: {subscription.plan.display_name}. '
+                f'Status: {subscription.get_status_display()}. '
+                f'Expires: {subscription.expires_at:%Y-%m-%d}.'
+            ))

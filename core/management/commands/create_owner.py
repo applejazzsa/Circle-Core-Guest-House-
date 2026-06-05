@@ -1,28 +1,17 @@
-from getpass import getpass
-
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
-    help = "Create a superuser owner account for Circle Core Guest House."
+    help = 'Deprecated. Owner accounts are now created via the registration page at circlecore.co.za/register/'
 
     def handle(self, *args, **options):
-        username = input("Username: ").strip()
-        email = input("Email: ").strip()
-        password = getpass("Password: ")
-
-        if not username:
-            raise CommandError("Username is required.")
-        if not password:
-            raise CommandError("Password is required.")
-
-        User = get_user_model()
-        if User.objects.filter(username=username).exists():
-            raise CommandError(f'User "{username}" already exists.')
-
-        user = User.objects.create_superuser(username=username, email=email, password=password)
-        owner_group, _ = Group.objects.get_or_create(name="Owner")
-        user.groups.add(owner_group)
-        self.stdout.write(self.style.SUCCESS(f'Owner account "{username}" created.'))
+        self.stdout.write(self.style.WARNING(
+            'create_owner is no longer used.\n'
+            'Tenant admin accounts are created automatically when a guest house\n'
+            'registers at https://circlecore.co.za/register/\n\n'
+            'To create a tenant admin via CLI:\n'
+            '  from django_tenants.utils import schema_context\n'
+            '  with schema_context("your_schema"):\n'
+            '      from django.contrib.auth import get_user_model\n'
+            '      get_user_model().objects.create_superuser(...)'
+        ))

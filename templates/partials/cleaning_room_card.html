@@ -8,7 +8,7 @@
       {% if room.status == 'Available' %}badge-green
       {% elif room.status == 'Occupied' %}badge-blue
       {% elif room.status == 'Cleaning' %}badge-amber
-      {% elif room.status == 'Maintenance' %}badge-amber
+      {% elif room.status == 'Maintenance' %}badge-red
       {% else %}badge-gray{% endif %}" style="font-size:9px; flex-shrink:0;">{{ room.status }}</span>
   </div>
 
@@ -31,7 +31,7 @@
     <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}" enctype="multipart/form-data" style="width:100%;">
       {% csrf_token %}
       <input type="hidden" name="cleaning_status" value="Clean">
-      <input type="file" name="cleaning_photo" accept="image/*" capture="environment" required style="width:100%; margin-bottom:6px; font-size:11px;">
+      <input type="file" name="cleaning_photo" accept="image/*" capture="environment" style="width:100%; margin-bottom:6px; font-size:11px;">
       <button type="submit" class="btn btn-primary btn-sm">Done - Available</button>
     </form>
     <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}">
@@ -44,7 +44,7 @@
     <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}" enctype="multipart/form-data" style="width:100%;">
       {% csrf_token %}
       <input type="hidden" name="cleaning_status" value="Clean">
-      <input type="file" name="cleaning_photo" accept="image/*" capture="environment" required style="width:100%; margin-bottom:6px; font-size:11px;">
+      <input type="file" name="cleaning_photo" accept="image/*" capture="environment" style="width:100%; margin-bottom:6px; font-size:11px;">
       <button type="submit" class="btn btn-primary btn-sm">Mark Clean</button>
     </form>
     {% endif %}

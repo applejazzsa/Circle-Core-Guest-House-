@@ -38,7 +38,7 @@
       {% elif room.status == 'Booked' %}#ef4444
       {% elif room.status == 'Occupied' %}var(--color-blue)
       {% elif room.status == 'Cleaning' %}var(--color-amber)
-      {% elif room.status == 'Maintenance' %}var(--color-amber)
+      {% elif room.status == 'Maintenance' %}#ef4444
       {% else %}var(--color-text-tertiary){% endif %};"></div>
 
     <div style="padding:20px;">
@@ -52,7 +52,7 @@
           {% elif room.status == 'Booked' %}badge-red
           {% elif room.status == 'Occupied' %}badge-blue
           {% elif room.status == 'Cleaning' %}badge-amber
-          {% elif room.status == 'Maintenance' %}badge-amber
+          {% elif room.status == 'Maintenance' %}badge-red
           {% else %}badge-gray{% endif %}">{{ room.status }}</span>
       </div>
 

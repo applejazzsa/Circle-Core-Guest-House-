@@ -1,0 +1,39 @@
+{% extends "base_auth.html" %}
+{% block title %}Redirecting to PayFast…{% endblock %}
+
+{% block content %}
+<main style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--color-bg-base);">
+  <div style="width:100%;max-width:400px;text-align:center;">
+    <div style="width:56px;height:56px;border-radius:13px;background:var(--color-green-500);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:var(--shadow-green);">
+      <svg width="26" height="26" viewBox="0 0 16 16" fill="none">
+        <rect x="2" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
+        <rect x="9" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
+        <rect x="2" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
+        <rect x="9" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
+      </svg>
+    </div>
+    <h1 style="font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--color-text-primary);margin-bottom:8px;">Redirecting to PayFast</h1>
+    <p style="font-size:14px;color:var(--color-text-secondary);margin-bottom:28px;">You are being redirected to PayFast to complete your payment securely.</p>
+
+    <form id="payfast-form" action="{{ payfast_url }}" method="post">
+      {% for key, value in form_data.items %}
+      <input type="hidden" name="{{ key }}" value="{{ value }}">
+      {% endfor %}
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:13px;font-size:14px;font-weight:600;">
+        Continue to Payment
+      </button>
+    </form>
+
+    <p style="margin-top:16px;font-size:12px;color:var(--color-text-tertiary);">
+      Secured by PayFast &middot; Your card details are never stored by Circle Core
+    </p>
+  </div>
+</main>
+
+<script>
+  // Auto-submit after 1.5s unless user is already clicking
+  setTimeout(function() {
+    document.getElementById('payfast-form').submit();
+  }, 1500);
+</script>
+{% endblock %}

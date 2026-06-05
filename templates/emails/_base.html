@@ -15,10 +15,10 @@
   .title { font-size:22px; font-weight:700; color:#0f172a; margin:0 0 8px; }
   .subtitle { font-size:14px; color:#64748b; margin:0 0 28px; }
   .detail-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:20px; margin-bottom:24px; }
-  .detail-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #e2e8f0; font-size:13.5px; }
+  .detail-row { display:table; width:100%; padding:8px 0; border-bottom:1px solid #e2e8f0; font-size:13.5px; box-sizing:border-box; }
   .detail-row:last-child { border-bottom:none; }
-  .detail-label { color:#64748b; font-weight:500; }
-  .detail-value { color:#0f172a; font-weight:600; text-align:right; }
+  .detail-label { display:table-cell; color:#64748b; font-weight:500; padding-right:16px; white-space:nowrap; }
+  .detail-value { display:table-cell; color:#0f172a; font-weight:600; text-align:right; width:100%; }
   .highlight { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:16px 20px; margin-bottom:24px; }
   .highlight .amount { font-size:28px; font-weight:800; color:#16a34a; }
   .highlight .label { font-size:12px; color:#15803d; text-transform:uppercase; letter-spacing:0.08em; font-weight:600; }

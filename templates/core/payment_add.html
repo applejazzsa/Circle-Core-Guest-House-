@@ -54,6 +54,31 @@
   <!-- Payment Form -->
   <div class="card">
     <div class="section-label" style="margin-bottom:20px;">Payment Details</div>
+    {% if not open_shift %}
+    <div id="cash-shift-panel" style="margin-bottom:18px; padding:14px; border:1px solid rgba(245,158,11,0.3); border-radius:var(--radius-md); background:rgba(245,158,11,0.08);">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:220px;">
+          <div style="font-size:13px; font-weight:700; color:#fbbf24; margin-bottom:4px;">Cash shift required</div>
+          <div style="font-size:12.5px; color:var(--color-text-secondary); line-height:1.5;">
+            Open a POS cash shift before recording cash payments. EFT and card payments can still be recorded without a cash shift.
+          </div>
+        </div>
+        <form method="post" action="{% url 'core:pos_open_shift' %}" style="display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap; margin:0;">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <label style="display:flex; flex-direction:column; gap:5px; margin:0;">
+            <span style="font-size:10px; font-weight:700; color:var(--color-text-tertiary); letter-spacing:0.08em; text-transform:uppercase;">Float</span>
+            <input type="number" name="opening_float" value="0" min="0" step="0.01" style="width:110px; padding:8px 10px; font-size:13px;">
+          </label>
+          <button type="submit" class="btn btn-amber btn-sm">Open cash shift</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div style="margin-bottom:18px; padding:10px 12px; border:1px solid var(--color-green-border); border-radius:var(--radius-md); background:var(--color-green-glow); font-size:12.5px; color:var(--color-green-400); font-weight:600;">
+      Cash shift is open. Cash payments can be recorded.
+    </div>
+    {% endif %}
     <form method="post">
       {% csrf_token %}
       {% if form.non_field_errors %}
@@ -73,7 +98,7 @@
           {% for value, label in form.fields.payment_method.choices %}
           <label style="cursor:pointer; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); background:var(--color-bg-subtle); padding:12px 14px; transition:border-color 0.15s; display:block; text-align:center; font-size:13px; color:var(--color-text-secondary);">
             <input type="radio" name="payment_method" value="{{ value }}" style="display:none;" {% if form.payment_method.value == value %}checked{% endif %}>
-            <span style="display:block; font-size:16px; margin-bottom:2px;">{% if value == "Cash" %}💵{% elif value == "EFT" %}🏦{% elif value == "Card" %}💳{% else %}●{% endif %}</span>
+            <span style="display:block; font-size:16px; margin-bottom:2px;">{% if value == "Cash" %}💵{% elif value == "EFT" %}🏦{% elif value == "Card" %}💳{% elif value == "SnapScan" %}📱{% elif value == "Zapper" %}⚡{% elif value == "Bank Deposit" %}🏦{% elif value == "Other" %}💰{% else %}●{% endif %}</span>
             {{ label }}
           </label>
           {% endfor %}
@@ -115,32 +140,48 @@
 <script>
 (function() {
   var balanceDue = parseFloat("{{ payment_totals.balance_due }}") || 0;
+  var depositRequired = parseFloat("{{ booking.deposit_required }}") || 0;
+  var totalPaid = parseFloat("{{ payment_totals.total_paid }}") || 0;
   var amountInput = document.getElementById("{{ form.amount.id_for_label }}");
   var display = document.getElementById("change-display");
 
   function updateChange() {
     var entered = parseFloat(amountInput.value) || 0;
     if (entered <= 0) { display.style.display = "none"; return; }
-    if (entered > balanceDue && balanceDue > 0) {
+
+    var isDepositPayment = totalPaid === 0 && depositRequired > 0 && Math.abs(entered - depositRequired) < 0.001;
+    var isFullPayment = Math.abs(entered - balanceDue) < 0.001;
+    var isOverpayment = entered > balanceDue && balanceDue > 0;
+
+    if (isOverpayment) {
       var change = (entered - balanceDue).toFixed(2);
       display.textContent = "Change to give: R " + change;
       display.style.display = "block";
       display.style.background = "rgba(251,191,36,0.1)";
       display.style.border = "1px solid rgba(251,191,36,0.35)";
       display.style.color = "#fbbf24";
-    } else if (entered < balanceDue) {
-      var remaining = (balanceDue - entered).toFixed(2);
-      display.textContent = "Remaining balance after: R " + remaining;
-      display.style.display = "block";
-      display.style.background = "rgba(99,102,241,0.08)";
-      display.style.border = "1px solid rgba(99,102,241,0.25)";
-      display.style.color = "var(--color-text-secondary)";
-    } else {
+    } else if (isFullPayment) {
       display.textContent = "Exact amount — fully settled";
       display.style.display = "block";
       display.style.background = "var(--color-green-glow)";
       display.style.border = "1px solid var(--color-green-border)";
       display.style.color = "var(--color-green-400)";
+    } else if (isDepositPayment) {
+      var remaining = (balanceDue - entered).toFixed(2);
+      display.textContent = "Deposit amount — R " + remaining + " balance remains";
+      display.style.display = "block";
+      display.style.background = "rgba(99,102,241,0.08)";
+      display.style.border = "1px solid rgba(99,102,241,0.25)";
+      display.style.color = "#818cf8";
+    } else {
+      var hint = totalPaid === 0 && depositRequired > 0
+        ? "Only R " + balanceDue.toFixed(2) + " (full) or R " + depositRequired.toFixed(2) + " (deposit) accepted"
+        : "Only R " + balanceDue.toFixed(2) + " (full balance) accepted";
+      display.textContent = hint;
+      display.style.display = "block";
+      display.style.background = "rgba(239,68,68,0.08)";
+      display.style.border = "1px solid rgba(239,68,68,0.2)";
+      display.style.color = "#f87171";
     }
   }
 
@@ -157,9 +198,16 @@
           l.style.borderColor = i.checked ? 'var(--color-green-500)' : 'var(--color-border-bright)';
           l.style.color = i.checked ? 'var(--color-text-primary)' : 'var(--color-text-secondary)';
         });
+        toggleCashShiftPanel();
       }
       if (input) { input.addEventListener('change', update); if (input.checked) update(); }
     });
+  }
+  function toggleCashShiftPanel() {
+    var panel = document.getElementById('cash-shift-panel');
+    if (!panel) return;
+    var selected = document.querySelector('input[name="payment_method"]:checked');
+    panel.style.display = selected && selected.value === 'Cash' ? 'block' : 'none';
   }
   wireRadioCards('payment-method-cards');
   document.querySelectorAll('#payment-method-cards label').forEach(function(label) {
@@ -168,6 +216,7 @@
       if (input) { input.checked = true; input.dispatchEvent(new Event('change', {bubbles:true})); }
     });
   });
+  toggleCashShiftPanel();
 })();
 </script>
 {% endblock %}

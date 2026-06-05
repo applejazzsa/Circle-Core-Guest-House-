@@ -1,5 +1,8 @@
-django
+django>=4.2
 pillow
 weasyprint
 xhtml2pdf
 python-decouple
+django-tenants
+psycopg2-binary
+gunicorn

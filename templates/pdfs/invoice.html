@@ -1,116 +1,306 @@
 <!doctype html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Invoice</title>
-    <style>
-        @page { size: A4; margin: 18mm; }
-        body { margin: 0; color: #1f2937; font-family: "DejaVu Sans", "Segoe UI", Arial, sans-serif; font-size: 12px; line-height: 1.45; }
-        .header { background: #1a1a2e; color: #fff; padding: 18px 22px; }
-        .header-table { width: 100%; border-collapse: collapse; }
-        .logo { max-width: 86px; max-height: 70px; }
-        .house-name { font-size: 22px; font-weight: 700; margin: 0 0 5px; }
-        .muted { color: #6b7280; }
-        .header .muted { color: #d1d5db; }
-        .title { color: #1a1a2e; font-size: 24px; font-weight: 700; letter-spacing: 1px; margin: 26px 0 16px; }
-        .section { margin-top: 18px; }
-        .section-title { border-bottom: 2px solid #c9a84c; color: #1a1a2e; font-size: 13px; font-weight: 700; margin-bottom: 8px; padding-bottom: 5px; text-transform: uppercase; }
-        table { width: 100%; border-collapse: collapse; }
-        td, th { padding: 8px; vertical-align: top; }
-        th { background: #f3f4f6; color: #374151; text-align: left; }
-        .right { text-align: right; }
-        .line-table td, .line-table th { border-bottom: 1px solid #e5e7eb; }
-        .totals { margin-left: auto; margin-top: 14px; width: 48%; }
-        .totals td { border-bottom: 1px solid #e5e7eb; }
-        .total-row td { color: #1a1a2e; font-size: 14px; font-weight: 700; }
-        .note { background: #f9fafb; border-left: 4px solid #c9a84c; padding: 10px 12px; white-space: pre-line; }
-        .footer { border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 10px; margin-top: 28px; padding-top: 10px; text-align: center; }
-    </style>
+  <meta charset="utf-8">
+  <title>{{ invoice_number }}</title>
+  <style>
+    @page { size: A4; margin: 16mm 15mm; }
+    body {
+      margin: 0;
+      color: #0d0f12;
+      font-family: "Helvetica", "Arial", sans-serif;
+      font-size: 10.5px;
+      line-height: 1.45;
+      background: #ffffff;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { vertical-align: top; }
+    .right { text-align: right; }
+    .center { text-align: center; }
+    .muted { color: #64748b; }
+    .green { color: #22c55e; }
+    .dark { color: #0d0f12; }
+    .small-label {
+      color: #22c55e;
+      font-size: 8.5px;
+      font-weight: bold;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+    }
+    .top-line {
+      height: 6px;
+      background: #22c55e;
+      margin-bottom: 22px;
+    }
+    .brand-name {
+      font-size: 21px;
+      font-weight: bold;
+      color: #0d0f12;
+      margin: 0 0 8px;
+    }
+    .company-info {
+      color: #64748b;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+    .invoice-title {
+      font-size: 34px;
+      font-weight: bold;
+      color: #0d0f12;
+      letter-spacing: 1px;
+      margin: 0 0 8px;
+    }
+    .status {
+      font-size: 9px;
+      font-weight: bold;
+      color: {% if payment_totals.balance_due <= 0 %}#16a34a{% else %}#f59e0b{% endif %};
+      border: 1px solid {% if payment_totals.balance_due <= 0 %}#22c55e{% else %}#f59e0b{% endif %};
+      padding: 3px 8px;
+      text-transform: uppercase;
+    }
+    .meta-table {
+      margin-top: 16px;
+      width: 210px;
+      margin-left: auto;
+    }
+    .meta-table td {
+      padding: 4px 0;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 10px;
+    }
+    .meta-label { color: #64748b; width: 70px; }
+    .meta-value { color: #0d0f12; font-weight: bold; text-align: right; }
+    .section-gap { height: 22px; }
+    .info-table td.box {
+      border: 1px solid #cbd5e1;
+      padding: 13px 14px;
+      background: #f8fafc;
+      height: 105px;
+    }
+    .box-spacer { width: 18px; }
+    .box-title {
+      color: #22c55e;
+      font-size: 8.5px;
+      font-weight: bold;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      padding-bottom: 9px;
+    }
+    .name-line {
+      font-size: 14px;
+      font-weight: bold;
+      color: #0d0f12;
+      padding-bottom: 7px;
+    }
+    .detail-table td {
+      padding: 3px 0;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 10px;
+    }
+    .detail-label { color: #64748b; width: 84px; }
+    .detail-value { color: #0d0f12; font-weight: bold; }
+    .items {
+      margin-top: 24px;
+      border: 1px solid #0d0f12;
+    }
+    .items th {
+      background: #13161b;
+      color: #ffffff;
+      padding: 10px 9px;
+      font-size: 9px;
+      font-weight: bold;
+      text-transform: uppercase;
+      border-right: 1px solid #2a3142;
+    }
+    .items th:last-child { border-right: 0; }
+    .items td {
+      padding: 12px 9px;
+      border-top: 1px solid #cbd5e1;
+      border-right: 1px solid #e2e8f0;
+      font-size: 10.5px;
+    }
+    .items td:last-child { border-right: 0; }
+    .item-name {
+      font-weight: bold;
+      color: #0d0f12;
+      padding-bottom: 5px;
+    }
+    .item-dates {
+      color: #64748b;
+      font-size: 9.5px;
+    }
+    .money {
+      white-space: nowrap;
+      font-weight: bold;
+      color: #0d0f12;
+    }
+    .totals {
+      margin-top: 18px;
+      width: 42%;
+      margin-left: auto;
+      border: 1px solid #cbd5e1;
+    }
+    .totals td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 10.5px;
+    }
+    .totals .label { color: #475569; }
+    .totals .amount { text-align: right; font-weight: bold; color: #0d0f12; }
+    .total-row td {
+      background: #13161b;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: bold;
+      border-bottom: 0;
+      padding: 11px 10px;
+    }
+    .balance-row td {
+      color: {% if payment_totals.balance_due <= 0 %}#16a34a{% else %}#f59e0b{% endif %};
+      font-weight: bold;
+      border-bottom: 0;
+    }
+    .notes-table {
+      margin-top: 24px;
+    }
+    .notes-table td.note-box {
+      border: 1px solid #cbd5e1;
+      border-left: 4px solid #22c55e;
+      padding: 11px 12px;
+      background: #f8fafc;
+      min-height: 62px;
+      font-size: 10px;
+      color: #334155;
+      white-space: pre-line;
+    }
+    .footer {
+      margin-top: 26px;
+      padding-top: 11px;
+      border-top: 1px solid #cbd5e1;
+      color: #64748b;
+      font-size: 9px;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-    <div class="header">
-        <table class="header-table">
-            <tr>
-                <td>
-                    <p class="house-name">{{ settings.guest_house_name }}</p>
-                    <div class="muted">{{ settings.address|linebreaksbr }}</div>
-                    <div class="muted">{{ settings.phone }}{% if settings.email %} | {{ settings.email }}{% endif %}</div>
-                    {% if settings.vat_registered and settings.vat_number %}<div class="muted">VAT: {{ settings.vat_number }}</div>{% endif %}
-                </td>
-                <td style="text-align: right; width: 100px;">
-                    {% if logo_url %}<img src="{{ logo_url }}" class="logo" alt="Logo">{% endif %}
-                </td>
-            </tr>
-        </table>
-    </div>
+  <div class="top-line"></div>
 
-    <h1 class="title">INVOICE</h1>
-
-    <div class="section">
-        <div class="section-title">Guest Details</div>
-        <table>
-            <tr><td style="width: 32%; color: #6b7280;">Guest</td><td>{{ booking.guest.full_name }}</td></tr>
-            <tr><td style="color: #6b7280;">Booking reference</td><td><strong>{{ booking.booking_reference }}</strong></td></tr>
-            <tr><td style="color: #6b7280;">Stay</td><td>{{ booking.check_in_date|date:"d M Y" }} to {{ booking.check_out_date|date:"d M Y" }}</td></tr>
+  <table>
+    <tr>
+      <td style="width:55%;">
+        <div class="brand-name">{{ settings.guest_house_name|default:"Circle Core Guest House" }}</div>
+        <div class="company-info">
+          {% if settings.address %}{{ settings.address|linebreaksbr }}<br>{% endif %}
+          {% if settings.phone %}{{ settings.phone }}{% endif %}{% if settings.phone and settings.email %} | {% endif %}{% if settings.email %}{{ settings.email }}{% endif %}
+          {% if settings.vat_registered and settings.vat_number %}<br>VAT No: {{ settings.vat_number }}{% endif %}
+        </div>
+      </td>
+      <td class="right" style="width:45%;">
+        <div class="invoice-title">INVOICE</div>
+        <span class="status">{{ invoice_status }}</span>
+        <table class="meta-table">
+          <tr><td class="meta-label">Invoice</td><td class="meta-value">{{ invoice_number }}</td></tr>
+          <tr><td class="meta-label">Issued</td><td class="meta-value">{{ issue_date|date:"d M Y" }}</td></tr>
+          <tr><td class="meta-label">Due</td><td class="meta-value">{{ due_date|date:"d M Y" }}</td></tr>
         </table>
-    </div>
+      </td>
+    </tr>
+  </table>
 
-    <div class="section">
-        <div class="section-title">Line Items</div>
-        <table class="line-table">
-            <thead>
-                <tr>
-                    <th>Description</th>
-                    <th class="right">Qty</th>
-                    <th class="right">Rate</th>
-                    <th class="right">Amount</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>{{ booking.room.name }} accommodation</td>
-                    <td class="right">{{ booking.num_nights }} night{{ booking.num_nights|pluralize }}</td>
-                    <td class="right">{{ settings.currency }} {{ booking.rate_per_night }}</td>
-                    <td class="right">{{ settings.currency }} {{ line_total }}</td>
-                </tr>
-                {% if booking.discount > 0 %}
-                <tr>
-                    <td>Discount</td>
-                    <td></td>
-                    <td></td>
-                    <td class="right">- {{ settings.currency }} {{ booking.discount }}</td>
-                </tr>
-                {% endif %}
-            </tbody>
-        </table>
-        <table class="totals">
-            {% if settings.vat_registered %}
-                <tr><td>VAT included at {{ settings.vat_rate }}%</td><td class="right">{{ settings.currency }} {{ vat_amount }}</td></tr>
-            {% endif %}
-            <tr class="total-row"><td>Total</td><td class="right">{{ settings.currency }} {{ booking.total_amount|floatformat:2 }}</td></tr>
-            <tr><td>Amount paid</td><td class="right">{{ settings.currency }} {{ payment_totals.total_paid|floatformat:2 }}</td></tr>
-            {% if payment_totals.total_refunded > 0 %}
-            <tr><td>Refunded</td><td class="right">- {{ settings.currency }} {{ payment_totals.total_refunded|floatformat:2 }}</td></tr>
-            <tr><td>Net paid</td><td class="right">{{ settings.currency }} {{ payment_totals.net_paid|floatformat:2 }}</td></tr>
-            {% endif %}
-            <tr><td>Balance due</td><td class="right">{{ settings.currency }} {{ booking.balance_due|floatformat:2 }}</td></tr>
-        </table>
-    </div>
+  <div class="section-gap"></div>
 
-    {% if settings.banking_details %}
-    <div class="section">
-        <div class="section-title">Banking Details</div>
-        <div class="note">{{ settings.banking_details }}</div>
-    </div>
+  <table class="info-table">
+    <tr>
+      <td class="box" style="width:49%;">
+        <div class="box-title">Bill To</div>
+        <div class="name-line">{{ booking.guest.full_name }}</div>
+        <table class="detail-table">
+          <tr><td class="detail-label">Phone</td><td class="detail-value">{{ booking.guest.phone|default:"N/A" }}</td></tr>
+          {% if booking.guest.email %}<tr><td class="detail-label">Email</td><td class="detail-value">{{ booking.guest.email }}</td></tr>{% endif %}
+          {% if booking.guest.id_passport_number %}<tr><td class="detail-label">ID/Passport</td><td class="detail-value">{{ booking.guest.id_passport_number }}</td></tr>{% endif %}
+        </table>
+      </td>
+      <td class="box-spacer"></td>
+      <td class="box" style="width:49%;">
+        <div class="box-title">Booking Details</div>
+        <table class="detail-table">
+          <tr><td class="detail-label">Reference</td><td class="detail-value">{{ booking.booking_reference }}</td></tr>
+          <tr><td class="detail-label">Room</td><td class="detail-value">{{ booking.room.name }}</td></tr>
+          <tr><td class="detail-label">Stay</td><td class="detail-value">{{ booking.check_in_date|date:"d M Y" }} to {{ booking.check_out_date|date:"d M Y" }}</td></tr>
+          <tr><td class="detail-label">Type</td><td class="detail-value">{{ booking.duration_label }}</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width:52%;">Description</th>
+        <th class="right" style="width:16%;">Quantity</th>
+        <th class="right" style="width:16%;">Rate</th>
+        <th class="right" style="width:16%;">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div class="item-name">{{ booking.room.name }} accommodation</div>
+          <div class="item-dates">{{ booking.check_in_date|date:"d M Y" }} to {{ booking.check_out_date|date:"d M Y" }}</div>
+        </td>
+        <td class="right">{{ quantity_label }}</td>
+        <td class="right money">{{ settings.currency }} {{ booking.rate_per_night|floatformat:2 }}</td>
+        <td class="right money">{{ settings.currency }} {{ line_total|floatformat:2 }}</td>
+      </tr>
+      {% if booking.discount > 0 %}
+      <tr>
+        <td><div class="item-name">Discount</div></td>
+        <td></td>
+        <td></td>
+        <td class="right money">- {{ settings.currency }} {{ booking.discount|floatformat:2 }}</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    {% if settings.vat_registered %}
+    <tr><td class="label">VAT included at {{ settings.vat_rate }}%</td><td class="amount">{{ settings.currency }} {{ vat_amount|floatformat:2 }}</td></tr>
     {% endif %}
-
-    {% if settings.invoice_notes %}
-    <div class="section">
-        <div class="section-title">Invoice Notes</div>
-        <div class="note">{{ settings.invoice_notes }}</div>
-    </div>
+    <tr class="total-row"><td>Total</td><td class="right">{{ settings.currency }} {{ booking.total_amount|floatformat:2 }}</td></tr>
+    <tr><td class="label">Amount paid</td><td class="amount">{{ settings.currency }} {{ payment_totals.total_paid|floatformat:2 }}</td></tr>
+    {% if payment_totals.total_refunded > 0 %}
+    <tr><td class="label">Refunded</td><td class="amount">- {{ settings.currency }} {{ payment_totals.total_refunded|floatformat:2 }}</td></tr>
+    <tr><td class="label">Net paid</td><td class="amount">{{ settings.currency }} {{ payment_totals.net_paid|floatformat:2 }}</td></tr>
     {% endif %}
+    <tr class="balance-row"><td>Balance due</td><td class="right">{{ settings.currency }} {{ payment_totals.balance_due|floatformat:2 }}</td></tr>
+  </table>
 
-    <div class="footer">Generated by Circle Core Guest House</div>
+  {% if settings.banking_details or settings.invoice_notes %}
+  <table class="notes-table">
+    <tr>
+      {% if settings.banking_details %}
+      <td style="width:49%;">
+        <div class="small-label" style="padding-bottom:6px;">Payment Details</div>
+        <div class="note-box">{{ settings.banking_details }}</div>
+      </td>
+      {% endif %}
+      {% if settings.banking_details and settings.invoice_notes %}
+      <td style="width:18px;"></td>
+      {% endif %}
+      {% if settings.invoice_notes %}
+      <td style="width:49%;">
+        <div class="small-label" style="padding-bottom:6px;">Notes</div>
+        <div class="note-box">{{ settings.invoice_notes }}</div>
+      </td>
+      {% endif %}
+    </tr>
+  </table>
+  {% endif %}
+
+  <div class="footer">
+    Thank you for your business. Generated by Circle Core Guest House.
+  </div>
 </body>
 </html>

@@ -1,63 +1,198 @@
 # Circle Core Guest House
 
-A Django guest house management app using Django templates, SQLite for local development, static/media configuration, Tailwind CSS via CDN, authentication, PDF support, and production-aware settings.
+A multi-tenant SaaS guest house management system built with Django and `django-tenants`. Each guest house gets a fully isolated PostgreSQL schema at `{name}.circlecore.co.za`.
 
-## Local Setup
+## Architecture
 
-```powershell
+- **Multi-tenancy**: `django-tenants` — schema-per-tenant on PostgreSQL
+- **Public schema** (`circlecore.co.za`): landing page, registration, email verification
+- **Tenant schemas** (`{name}.circlecore.co.za`): full guest house management app
+- **Payments**: PayFast recurring subscriptions
+- **Auth**: fully isolated per tenant — no cross-tenant user access
+
+---
+
+## Requirements
+
+- Python 3.10+
+- PostgreSQL 15+ (SQLite is not supported)
+- Redis 7+ (rate limiting, cache)
+
+---
+
+## Local Development Setup
+
+### 1. Install PostgreSQL and Redis
+
+**macOS:**
+```bash
+brew install postgresql redis
+brew services start postgresql
+brew services start redis
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install postgresql redis-server
+```
+
+**Windows:** Install [PostgreSQL](https://www.postgresql.org/download/windows/) and [Redis for Windows](https://github.com/microsoftarchive/redis/releases).
+
+### 2. Create the database
+
+```bash
+sudo -u postgres psql
+```
+```sql
+CREATE DATABASE circlecore;
+CREATE USER circlecore WITH PASSWORD 'devpassword';
+GRANT ALL PRIVILEGES ON DATABASE circlecore TO circlecore;
+\q
+```
+
+### 3. Install Python dependencies
+
+```bash
 python -m venv .venv
+# Windows:
 .\.venv\Scripts\Activate.ps1
+# macOS/Linux:
+source .venv/bin/activate
+
 pip install -r requirements.txt
-python manage.py migrate
-python manage.py create_owner
+```
+
+### 4. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` — minimum for local dev:
+```
+SECRET_KEY=any-local-dev-secret
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1,.circlecore.co.za
+BASE_DOMAIN=circlecore.co.za
+DB_NAME=circlecore
+DB_USER=circlecore
+DB_PASSWORD=devpassword
+DB_HOST=localhost
+DB_PORT=5432
+PAYFAST_SANDBOX=True
+```
+
+### 5. Run migrations
+
+```bash
+# Shared (public) schema first — creates tenants + sessions tables
+python manage.py migrate_schemas --shared
+
+# This also runs tenant migrations in any existing tenant schemas
+python manage.py migrate_schemas
+```
+
+### 6. Start the server
+
+```bash
 python manage.py runserver
 ```
 
-Open http://127.0.0.1:8000/ and log in with the owner account.
+Visit `http://localhost:8000/` — you'll see the public landing page.
 
-## Owner Account
+### 7. Register a guest house
 
-Create the first administrator account with:
+Go to `http://localhost:8000/register/` and create your first tenant. After submitting, you'll be redirected to `http://{name}.circlecore.co.za/login/`.
 
-```powershell
-python manage.py create_owner
-```
+> **Local subdomain routing**: For local development, add an entry to your hosts file:
+> ```
+> # Windows: C:\Windows\System32\drivers\etc\hosts
+> # macOS/Linux: /etc/hosts
+> 127.0.0.1  yourname.circlecore.co.za
+> ```
 
-The command prompts for username, email, and password, then creates a Django superuser.
+---
 
-## Production Settings
+## Management Commands
 
-Copy `.env.example` to `.env` and set real values:
+All tenant-specific commands require `--schema <schema_name>`. Use `list_tenants` to find schema names.
 
-```powershell
-SECRET_KEY=your-production-secret
-DEBUG=False
-ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
-DATABASE_URL=sqlite:///db.sqlite3
-```
+| Command | Description |
+|---|---|
+| `list_tenants` | Show all tenants, domains, subscription status |
+| `extend_subscription --schema <name> <days>` | Add days to a tenant's subscription |
+| `setup_subscription --schema <name>` | Interactively configure a tenant's subscription |
+| `send_trial_reminders` | Send expiry emails to tenants at 7, 3, 1 day remaining |
+| `send_trial_reminders --dry-run` | Preview without sending |
+| `backup_local` | pg_dump + media zip backup |
+| `backup_local --output /path/to/dir` | Write backup to a specific directory |
+| `seed_pos_items --schema <name>` | Seed default POS items for a tenant |
 
-Run with production settings:
+### Examples
 
-```powershell
-$env:DJANGO_SETTINGS_MODULE="config.settings_production"
-python manage.py collectstatic
-python manage.py migrate
-```
+```bash
+# See all tenants
+python manage.py list_tenants
 
-## Notes
+# Extend Madlanga B&B trial by 14 days
+python manage.py extend_subscription --schema madlanga_bb 14
 
-- Local development uses SQLite by default.
-- `config/settings_production.py` can read a future PostgreSQL `DATABASE_URL`.
-- A PostgreSQL migration and Docker deployment setup can be added in a future phase.
-- Tailwind CSS is loaded from the CDN; no npm or frontend build step is required.
-- Media uploads are stored in `media/`; collected static files go to `staticfiles/`.
+# Run trial reminder emails
+python manage.py send_trial_reminders
 
-## Local Backups
-
-For a no-cost local backup of the SQLite database and uploaded media:
-
-```powershell
+# Back up everything
 python manage.py backup_local
 ```
 
-Backups are written to `backups/` as zip files. Move these files off the computer regularly.
+### Applying new migrations
+
+When you add new core migrations, apply them to ALL tenant schemas:
+
+```bash
+python manage.py migrate_schemas
+```
+
+This automatically applies the migration to every existing tenant schema.
+
+---
+
+## Production Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full VPS setup guide covering:
+- PostgreSQL, Redis, Gunicorn, Nginx
+- Wildcard subdomain routing
+- Let's Encrypt wildcard SSL
+- DNS configuration
+- Cron jobs
+- PayFast configuration
+
+---
+
+## Project Structure
+
+```
+config/
+  settings.py              — Base settings (dev)
+  settings_production.py   — Production overrides
+  urls.py                  — Tenant schema URL conf
+  urls_public.py           — Public schema URL conf (landing, register)
+
+tenants/                   — Tenant management app (public schema)
+  models.py                — GuestHouseTenant, Domain
+  views.py                 — Registration, verification, PayFast
+  payfast.py               — PayFast utilities
+
+core/                      — Guest house app (per-tenant schema)
+  models.py                — All guest house models
+  views.py                 — All guest house views
+  middleware.py            — Subscription + role enforcement
+  management/commands/     — CLI tools
+
+templates/
+  public/                  — Landing page, registration
+  emails/                  — Transactional email templates
+  subscription/            — Subscription management pages
+  base.html                — In-app base template
+  base_public.html         — Public pages base template
+  base_auth.html           — Login page base template
+```

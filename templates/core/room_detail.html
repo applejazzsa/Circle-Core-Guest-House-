@@ -36,7 +36,7 @@
             {% elif room.status == 'Booked' %}badge-red
             {% elif room.status == 'Occupied' %}badge-blue
             {% elif room.status == 'Cleaning' %}badge-amber
-            {% elif room.status == 'Maintenance' %}badge-amber
+            {% elif room.status == 'Maintenance' %}badge-red
             {% else %}badge-gray{% endif %}" style="margin-top:6px;">{{ room.status }}</span>
         </div>
         <div>

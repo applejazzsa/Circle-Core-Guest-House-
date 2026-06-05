@@ -34,7 +34,7 @@
     <div class="card" style="padding:24px;">
       <div class="section-label" style="margin-bottom:16px;">Stay Details</div>
 
-      <div class="grid-2" style="gap:0;">
+      <div class="grid-2" style="row-gap:0; column-gap:24px;">
         <div class="detail-row">
           <span class="detail-label">Guest</span>
           <a href="{% url 'core:guest_detail' booking.guest.pk %}" style="font-size:14px; color:var(--color-green-400); text-decoration:none;">{{ booking.guest.full_name }}</a>
@@ -171,7 +171,7 @@
     <!-- Actions row -->
     <div class="card" style="padding:20px;">
       <div class="section-label" style="margin-bottom:14px;">Actions</div>
-      {% if booking.status == 'Confirmed' and payment_totals.balance_due <= 0 %}
+      {% if booking.status in 'Confirmed,Pending' and payment_totals.balance_due <= 0 %}
       <form method="post" action="{% url 'core:booking_checkin' booking.pk %}" style="margin-bottom:12px;">
         {% csrf_token %}
         <button type="submit" class="btn btn-primary" style="width:100%; padding:14px 20px; font-size:15px; font-weight:700; letter-spacing:0.03em; justify-content:center;">Check In Guest</button>
@@ -273,7 +273,11 @@
       </div>
       {% endif %}
 
-      {% if payment_totals.balance_due > 0 %}
+      {% if payment_totals.balance_due > 0 and payment_totals.total_refunded > 0 and payment_totals.net_paid <= 0 %}
+      <div style="background:rgba(139,92,246,0.07); border:1px solid rgba(139,92,246,0.2); border-radius:var(--radius-md); padding:12px; margin-top:12px; text-align:center;">
+        <span style="font-size:12.5px; font-weight:600; color:#a78bfa;">↩ Fully Refunded</span>
+      </div>
+      {% elif payment_totals.balance_due > 0 %}
       <div style="background:rgba(239,68,68,0.07); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); padding:12px; margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
         <div style="font-size:12px; font-weight:600; color:#f87171;">Balance Due</div>
         <div style="font-family:var(--font-mono); font-size:16px; font-weight:700; color:#f87171;">R {{ payment_totals.balance_due|floatformat:2 }}</div>

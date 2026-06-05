@@ -1,0 +1,61 @@
+{% extends "base_public.html" %}
+{% block title %}Sign in - Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div style="max-width:680px; margin:0 auto; padding:64px 24px 88px;">
+  <div style="margin-bottom:28px;">
+    <div class="section-label" style="color:var(--color-green-400); margin-bottom:6px;">Sign in</div>
+    <h1 style="font-family:var(--font-display); font-size:32px; font-weight:800; color:var(--color-text-primary); letter-spacing:-0.02em; margin-bottom:8px;">Use your guest house workspace</h1>
+    <p style="font-size:14px; color:var(--color-text-secondary); line-height:1.7;">
+      Each guest house has its own login address. Register first, then sign in from your tenant domain.
+    </p>
+  </div>
+
+  {% if debug %}
+  <div class="card" style="padding:24px; margin-bottom:18px; border-color:var(--color-green-border);">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap;">
+      <div>
+        <div style="font-family:var(--font-display); font-size:15px; font-weight:700; color:var(--color-text-primary); margin-bottom:6px;">Local demo login</div>
+        <div style="font-size:13px; color:var(--color-text-secondary); line-height:1.7;">
+          Creates a local workspace at <span style="font-family:var(--font-mono); color:var(--color-text-primary);">demo.localhost</span>.
+          Use <span style="font-family:var(--font-mono); color:var(--color-text-primary);">admin</span> /
+          <span style="font-family:var(--font-mono); color:var(--color-text-primary);">admin12345</span>.
+        </div>
+      </div>
+      <form method="post" style="margin:0;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">Create demo login</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if tenant_links %}
+  <div class="card" style="padding:24px; margin-bottom:18px;">
+    <div style="font-family:var(--font-display); font-size:15px; font-weight:700; color:var(--color-text-primary); margin-bottom:14px;">Available local workspaces</div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      {% for tenant in tenant_links %}
+      <a href="{{ tenant.login_url }}" style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 14px; border:1px solid var(--color-border-bright); border-radius:var(--radius-md); background:var(--color-bg-subtle); text-decoration:none;">
+        <span>
+          <span style="display:block; font-size:14px; font-weight:600; color:var(--color-text-primary);">{{ tenant.name }}</span>
+          <span style="display:block; font-size:12px; color:var(--color-text-tertiary); margin-top:2px;">{{ tenant.domain }}</span>
+        </span>
+        <span style="font-size:13px; font-weight:600; color:var(--color-green-400); white-space:nowrap;">Open login</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div style="font-size:13px; color:var(--color-text-secondary); line-height:1.7;">
+    Local workspace links use <span style="font-family:var(--font-mono); color:var(--color-text-primary);">.localhost</span>, so they should open without editing your hosts file.
+  </div>
+  {% else %}
+  <div class="card" style="padding:24px; margin-bottom:18px;">
+    <div style="font-size:14px; color:var(--color-text-secondary); line-height:1.7;">
+      No guest house workspaces exist yet. Create one first, then use the workspace login URL.
+    </div>
+  </div>
+  <a href="/register/" class="btn btn-primary btn-lg">Create workspace</a>
+  {% endif %}
+</div>
+{% endblock %}

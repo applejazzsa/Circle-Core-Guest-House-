@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Welcome to Circle Core</title>
+</head>
+<body style="margin:0;padding:0;background:#0d0f12;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0d0f12;padding:48px 16px;">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+  <!-- Shared header -->
+  <tr><td>{% include 'emails/_header.html' %}</td></tr>
+
+  <!-- Card -->
+  <tr><td style="background:#13161b;border:1px solid #1e2433;border-radius:16px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#16a34a,#22c55e);height:4px;"></div>
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:36px;">
+      <tr><td>
+
+        <h1 style="margin:0 0 8px;font-size:26px;font-weight:800;color:#f1f5f9;line-height:1.2;letter-spacing:-0.5px;">
+          Welcome aboard, {{ owner_name }}!
+        </h1>
+        <p style="margin:0 0 24px;font-size:15px;color:#94a3b8;line-height:1.7;">
+          <strong style="color:#f1f5f9;">{{ guest_house_name }}</strong> is live on Circle Core. Your 30-day free trial has started — no credit card required, no surprises.
+        </p>
+
+        <!-- Dashboard CTA -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:32px;">
+          <tr><td align="center">
+            <a href="{{ login_url }}" style="display:inline-block;background:#22c55e;color:#000;font-size:15px;font-weight:700;padding:15px 40px;border-radius:10px;text-decoration:none;letter-spacing:-0.2px;">
+              Go to Your Dashboard →
+            </a>
+          </td></tr>
+        </table>
+
+        <!-- Info grid -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1a1e26;border-radius:10px;margin-bottom:28px;">
+          <tr><td style="padding:20px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding:7px 0;border-bottom:1px solid #252a35;">
+                  <span style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Your workspace</span>
+                </td>
+                <td align="right" style="padding:7px 0;border-bottom:1px solid #252a35;">
+                  <a href="{{ login_url }}" style="font-size:13px;color:#4ade80;text-decoration:none;">{{ login_url }}</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:7px 0;border-bottom:1px solid #252a35;">
+                  <span style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Trial period</span>
+                </td>
+                <td align="right" style="padding:7px 0;border-bottom:1px solid #252a35;">
+                  <span style="font-size:13px;color:#f1f5f9;">30 days — free</span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:7px 0;">
+                  <span style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Support</span>
+                </td>
+                <td align="right" style="padding:7px 0;">
+                  <a href="mailto:support@circlecore.co.za" style="font-size:13px;color:#4ade80;text-decoration:none;">support@circlecore.co.za</a>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <!-- Verify email -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f1218;border:1px solid #2a3142;border-radius:10px;margin-bottom:24px;">
+          <tr><td style="padding:20px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td valign="top" width="36">
+                  <div style="width:32px;height:32px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);border-radius:8px;text-align:center;line-height:32px;font-size:15px;">✉</div>
+                </td>
+                <td style="padding-left:12px;">
+                  <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">Confirm your email address</div>
+                  <div style="font-size:13px;color:#64748b;line-height:1.5;margin-bottom:12px;">Click below to verify and keep your account secure.</div>
+                  <a href="{{ verify_url }}" style="display:inline-block;border:1px solid rgba(34,197,94,0.35);color:#4ade80;font-size:13px;font-weight:600;padding:8px 18px;border-radius:8px;text-decoration:none;">
+                    Verify Email →
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <p style="margin:0;font-size:13px;color:#475569;line-height:1.6;text-align:center;">
+          Questions? Reply to this email or contact <a href="mailto:support@circlecore.co.za" style="color:#4ade80;text-decoration:none;">support@circlecore.co.za</a>
+        </p>
+
+      </td></tr>
+    </table>
+  </td></tr>
+
+  <!-- Shared footer -->
+  <tr><td>{% include 'emails/_footer.html' with recipient_email=owner_email %}</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

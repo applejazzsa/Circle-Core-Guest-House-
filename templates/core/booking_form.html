@@ -60,7 +60,13 @@
       <div class="section-label" style="margin-bottom:20px;">Guest &amp; Room</div>
       <div class="grid-2" style="gap:16px;">
         <div class="form-group" style="grid-column:1/-1;">
-          <label class="form-label" for="{{ form.guest.id_for_label }}">Guest</label>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+            <label class="form-label" for="{{ form.guest.id_for_label }}" style="margin-bottom:0;">Guest</label>
+            <button type="button" id="open-quick-guest" style="background:none; border:none; cursor:pointer; font-size:12px; font-weight:600; color:var(--color-green-400); padding:2px 0; display:flex; align-items:center; gap:4px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New Guest
+            </button>
+          </div>
           {{ form.guest }}
           {% if form.guest.errors %}<div class="form-error">{{ form.guest.errors.0 }}</div>{% endif %}
         </div>
@@ -467,6 +473,137 @@
     if (wk) wk.checked = true;
   }
   setMode(activeMode(), false);
+})();
+</script>
+
+<!-- Quick-create guest modal -->
+<div id="quick-guest-modal" style="display:none; position:fixed; inset:0; z-index:900; background:rgba(0,0,0,0.55); align-items:center; justify-content:center;">
+  <div style="background:var(--color-bg-card); border:1px solid var(--color-border); border-radius:var(--radius-lg); padding:28px; width:100%; max-width:380px; box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+    <div style="font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); margin-bottom:4px;">New Guest</div>
+    <h3 style="font-size:18px; font-weight:700; color:var(--color-text-primary); margin:0 0 20px;">Quick Add Guest</h3>
+
+    <div id="qg-error" style="display:none; margin-bottom:14px; padding:10px 12px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;"></div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="qg-first-name">First Name</label>
+        <input id="qg-first-name" type="text" autocomplete="given-name" style="width:100%;">
+        <div id="qg-err-first-name" class="form-error" style="display:none;"></div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="qg-last-name">Last Name</label>
+        <input id="qg-last-name" type="text" autocomplete="family-name" style="width:100%;">
+        <div id="qg-err-last-name" class="form-error" style="display:none;"></div>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:20px;">
+      <label class="form-label" for="qg-phone">Phone Number</label>
+      <input id="qg-phone" type="tel" autocomplete="tel" style="width:100%;">
+      <div id="qg-err-phone" class="form-error" style="display:none;"></div>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+      <button type="button" id="qg-save" class="btn btn-primary" style="flex:1; justify-content:center;">Save Guest</button>
+      <button type="button" id="qg-cancel" class="btn btn-ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var modal       = document.getElementById('quick-guest-modal');
+  var openBtn     = document.getElementById('open-quick-guest');
+  var saveBtn     = document.getElementById('qg-save');
+  var cancelBtn   = document.getElementById('qg-cancel');
+  var guestSelect = document.getElementById('{{ form.guest.id_for_label }}');
+
+  function openModal() {
+    document.getElementById('qg-first-name').value = '';
+    document.getElementById('qg-last-name').value  = '';
+    document.getElementById('qg-phone').value      = '';
+    document.getElementById('qg-error').style.display = 'none';
+    ['first-name', 'last-name', 'phone'].forEach(function(k) {
+      var el = document.getElementById('qg-err-' + k);
+      if (el) { el.style.display = 'none'; el.textContent = ''; }
+    });
+    modal.style.display = 'flex';
+    document.getElementById('qg-first-name').focus();
+  }
+
+  function closeModal() { modal.style.display = 'none'; }
+
+  function saveGuest() {
+    var firstName = document.getElementById('qg-first-name').value.trim();
+    var lastName  = document.getElementById('qg-last-name').value.trim();
+    var phone     = document.getElementById('qg-phone').value.trim();
+
+    ['first-name', 'last-name', 'phone'].forEach(function(k) {
+      var el = document.getElementById('qg-err-' + k);
+      if (el) { el.style.display = 'none'; el.textContent = ''; }
+    });
+    document.getElementById('qg-error').style.display = 'none';
+
+    saveBtn.disabled    = true;
+    saveBtn.textContent = 'Saving…';
+
+    fetch('{% url "core:guest_quick_create" %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)[1]
+      },
+      body: JSON.stringify({ first_name: firstName, last_name: lastName, phone: phone })
+    })
+    .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+    .then(function(r) {
+      if (r.ok) {
+        var opt = document.createElement('option');
+        opt.value = r.data.id;
+        opt.textContent = r.data.full_name + ' (' + r.data.phone + ')';
+        opt.selected = true;
+        // Insert after the blank/walk-in option so it appears near the top
+        if (guestSelect.options.length > 1) {
+          guestSelect.insertBefore(opt, guestSelect.options[1]);
+        } else {
+          guestSelect.appendChild(opt);
+        }
+        guestSelect.value = r.data.id;
+        closeModal();
+      } else {
+        if (r.data.errors) {
+          var map = { first_name: 'first-name', last_name: 'last-name', phone: 'phone' };
+          Object.keys(r.data.errors).forEach(function(k) {
+            var el = document.getElementById('qg-err-' + (map[k] || k));
+            if (el) { el.textContent = r.data.errors[k]; el.style.display = 'block'; }
+          });
+        } else {
+          var errEl = document.getElementById('qg-error');
+          errEl.textContent = r.data.error || 'Could not save guest.';
+          errEl.style.display = 'block';
+        }
+      }
+    })
+    .catch(function() {
+      var errEl = document.getElementById('qg-error');
+      errEl.textContent = 'Network error — please try again.';
+      errEl.style.display = 'block';
+    })
+    .finally(function() {
+      saveBtn.disabled    = false;
+      saveBtn.textContent = 'Save Guest';
+    });
+  }
+
+  if (openBtn)   openBtn.addEventListener('click', openModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+  if (saveBtn)   saveBtn.addEventListener('click', saveGuest);
+
+  modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+
+  ['qg-first-name', 'qg-last-name', 'qg-phone'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); saveGuest(); } });
+  });
 })();
 </script>
 {% endblock %}

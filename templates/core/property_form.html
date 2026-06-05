@@ -14,7 +14,7 @@
 
       <div style="margin-bottom:16px;">
         <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Property Name <span style="color:#f87171;">*</span></label>
-        <input type="text" name="name" value="{{ prop.name|default:post.name }}" required placeholder="e.g. Main Guest House"
+        <input type="text" name="name" value="{{ form_values.name }}" required placeholder="e.g. Main Guest House"
           style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-body); box-sizing:border-box;"
           onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
       </div>
@@ -23,19 +23,19 @@
         <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Address</label>
         <textarea name="address" rows="2" placeholder="Physical address"
           style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-body); box-sizing:border-box; resize:vertical;"
-          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">{{ prop.address|default:post.address }}</textarea>
+          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">{{ form_values.address }}</textarea>
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
         <div>
           <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Phone</label>
-          <input type="text" name="phone" value="{{ prop.phone|default:post.phone }}" placeholder="Contact number"
+          <input type="text" name="phone" value="{{ form_values.phone }}" placeholder="Contact number"
             style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-body); box-sizing:border-box;"
             onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
         </div>
         <div>
           <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Email</label>
-          <input type="email" name="email" value="{{ prop.email|default:post.email }}" placeholder="info@example.com"
+          <input type="email" name="email" value="{{ form_values.email }}" placeholder="info@example.com"
             style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-body); box-sizing:border-box;"
             onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">
         </div>
@@ -45,7 +45,7 @@
         <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Description</label>
         <textarea name="description" rows="2" placeholder="Optional notes about this property"
           style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-body); box-sizing:border-box; resize:vertical;"
-          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">{{ prop.description|default:post.description }}</textarea>
+          onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">{{ form_values.description }}</textarea>
       </div>
 
       {% if editing %}

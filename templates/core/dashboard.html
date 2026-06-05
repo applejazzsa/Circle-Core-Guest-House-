@@ -335,7 +335,7 @@
               {% elif room.status == 'Booked' %}badge-red
               {% elif room.status == 'Occupied' %}badge-blue
               {% elif room.status == 'Cleaning' %}badge-amber
-              {% elif room.status == 'Maintenance' %}badge-amber
+              {% elif room.status == 'Maintenance' %}badge-red
               {% else %}badge-gray{% endif %}" style="font-size:10px; padding:2px 8px;">
               {{ room.status }}
             </span>
@@ -445,7 +445,7 @@
         x: {
           grid: { display: false },
           border: { display: false },
-          ticks: { color: '#64748b', font: { family: "'DM Sans', sans-serif", size: 11 } }
+          ticks: { color: '#64748b', font: { family: "'Inter', sans-serif", size: 11 } }
         },
         y: {
           beginAtZero: true,
@@ -453,7 +453,7 @@
           border: { display: false },
           ticks: {
             color: '#64748b',
-            font: { family: "'DM Mono', monospace", size: 10 },
+            font: { family: "'JetBrains Mono', monospace", size: 10 },
             callback: v => `R${(v/1000).toFixed(0)}k`
           }
         }

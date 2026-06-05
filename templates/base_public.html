@@ -6,9 +6,15 @@
   <title>{% block title %}Circle Core Guest House{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   {% load static %}
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#13161b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Circle Core">
+  <link rel="icon" href="{% static 'icons/circle-core-icon.svg' %}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{% static 'icons/circle-core-icon-192.png' %}">
   <link rel="stylesheet" href="{% static 'css/theme.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
@@ -17,7 +23,7 @@
   <!-- Public nav -->
   <header style="border-bottom: 1px solid var(--color-border); background: var(--color-bg-surface); padding: 0 32px;">
     <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 60px;">
-      <a href="{% url 'core:plans_page' %}" style="display:flex; align-items:center; gap:10px; text-decoration:none;">
+      <a href="/" style="display:flex; align-items:center; gap:10px; text-decoration:none;">
         <div style="width:28px; height:28px; border-radius:7px; background:var(--color-green-500); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
             <rect x="2" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
@@ -31,7 +37,7 @@
           <div style="font-size:9px; color:var(--color-text-tertiary); letter-spacing:0.1em; text-transform:uppercase;">Guest House</div>
         </div>
       </a>
-      <a href="{% url 'login' %}" style="font-size:13px; color:var(--color-text-secondary); font-weight:500; text-decoration:none; transition:color 0.15s;" onmouseover="this.style.color='var(--color-text-primary)'" onmouseout="this.style.color='var(--color-text-secondary)'">
+      <a href="/login/" style="font-size:13px; color:var(--color-text-secondary); font-weight:500; text-decoration:none; transition:color 0.15s;" onmouseover="this.style.color='var(--color-text-primary)'" onmouseout="this.style.color='var(--color-text-secondary)'">
         Sign in →
       </a>
     </div>
@@ -43,8 +49,15 @@
 
   <footer style="border-top:1px solid var(--color-border); padding:24px 32px; text-align:center;">
     <p style="font-size:12px; color:var(--color-text-tertiary);">
-      Circle Core Guest House &middot; A product of Circle Core Technologies (Pty) Ltd &middot; support@circlecoretech.co.za
+      Circle Core Guest House &middot; A product of Circle Core Technologies (Pty) Ltd &middot; support@circlecore.co.za
     </p>
   </footer>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>

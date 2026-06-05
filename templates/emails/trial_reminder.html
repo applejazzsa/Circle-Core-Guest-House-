@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0d0f12;font-family:'Inter',Arial,sans-serif;color:#f1f5f9;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0d0f12;padding:40px 20px;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+
+      <!-- Header -->
+      <tr><td style="text-align:center;padding-bottom:32px;">
+        <div style="display:inline-block;background:#22c55e;border-radius:12px;padding:10px 14px;margin-bottom:16px;">
+          <span style="font-size:18px;font-weight:800;color:#000;">CC</span>
+        </div>
+        <div style="font-size:20px;font-weight:800;color:#f1f5f9;">Circle Core</div>
+        <div style="font-size:10px;color:#64748b;letter-spacing:0.12em;text-transform:uppercase;">Guest House</div>
+      </td></tr>
+
+      <!-- Card -->
+      <tr><td style="background:#13161b;border:1px solid #1e2433;border-radius:14px;padding:36px 32px;">
+
+        <!-- Warning icon -->
+        <div style="width:52px;height:52px;border-radius:50%;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+          <span style="font-size:22px;">⏳</span>
+        </div>
+
+        <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#f1f5f9;line-height:1.2;text-align:center;">
+          {% if days == 1 %}Your trial ends tomorrow{% else %}{{ days }} days left in your trial{% endif %}
+        </h1>
+        <p style="margin:0 0 24px;font-size:14px;color:#94a3b8;line-height:1.6;text-align:center;">
+          Hi {{ tenant.owner_name }}, your Circle Core trial for <strong style="color:#f1f5f9;">{{ tenant.name }}</strong>
+          {% if days == 1 %}ends tomorrow{% else %}ends in {{ days }} days{% endif %}.
+          Subscribe now to keep full access to all your data and features.
+        </p>
+
+        <!-- CTA -->
+        <div style="text-align:center;margin:28px 0;">
+          <a href="{{ login_url }}" style="display:inline-block;background:#22c55e;color:#000;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">
+            Subscribe Now — R {{ subscription.plan.monthly_price|floatformat:0 }}/mo
+          </a>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #1e2433;margin:24px 0;">
+
+        <!-- Plan summary -->
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:8px 0;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">Current plan</td>
+            <td style="padding:8px 0;font-size:13px;color:#f1f5f9;text-align:right;">{{ subscription.plan.display_name }}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">Monthly price</td>
+            <td style="padding:8px 0;font-size:13px;color:#4ade80;text-align:right;">R {{ subscription.plan.monthly_price|floatformat:0 }}/mo</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">Trial expires</td>
+            <td style="padding:8px 0;font-size:13px;color:#f87171;text-align:right;">{{ subscription.expires_at|date:"d M Y" }}</td>
+          </tr>
+        </table>
+
+      </td></tr>
+
+      <!-- Footer -->
+      <tr><td style="text-align:center;padding-top:24px;">
+        <p style="font-size:11px;color:#64748b;margin:0;">
+          Circle Core Guest House &middot; <a href="mailto:support@circlecore.co.za" style="color:#64748b;">support@circlecore.co.za</a>
+        </p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

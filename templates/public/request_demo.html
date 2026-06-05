@@ -1,0 +1,82 @@
+{% extends "base_public.html" %}
+{% block title %}Request a Demo — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div style="max-width:560px; margin:0 auto; padding:48px 24px 80px;">
+
+  {% if submitted %}
+  <div style="text-align:center; padding:60px 24px;">
+    <div style="width:64px; height:64px; border-radius:50%; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.25); display:flex; align-items:center; justify-content:center; margin:0 auto 24px;">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <h1 style="font-family:var(--font-display); font-size:26px; font-weight:800; color:var(--color-text-primary); margin-bottom:10px;">We'll be in touch!</h1>
+    <p style="font-size:14px; color:var(--color-text-secondary); line-height:1.6; margin-bottom:28px;">
+      Thank you for your interest. A member of the Circle Core team will contact you within 24 hours to schedule your demo.
+    </p>
+    <a href="/" style="font-size:13px; color:var(--color-green-400); text-decoration:none;">← Back to home</a>
+  </div>
+
+  {% else %}
+  <div style="margin-bottom:32px;">
+    <div class="section-label" style="color:var(--color-green-400); margin-bottom:6px;">Book a Demo</div>
+    <h1 style="font-family:var(--font-display); font-size:32px; font-weight:800; color:var(--color-text-primary); letter-spacing:-0.02em; margin-bottom:8px;">See Circle Core in action</h1>
+    <p style="font-size:14px; color:var(--color-text-secondary);">We'll walk you through the system, answer your questions, and set up a free trial tailored to your property.</p>
+  </div>
+
+  {% if all_errors %}
+  <div style="margin-bottom:20px; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.22); border-radius:var(--radius-md); font-size:13px; color:#f87171;">
+    {{ all_errors }}
+  </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="card" style="padding:28px; margin-bottom:16px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Full Name</label>
+          <input type="text" name="full_name" class="form-input" placeholder="Your full name"
+            value="{{ form_data.full_name|default:'' }}" required>
+          {% if errors.full_name %}<div class="form-error">{{ errors.full_name }}</div>{% endif %}
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Business Name</label>
+          <input type="text" name="business_name" class="form-input" placeholder="Your guest house / lodge name"
+            value="{{ form_data.business_name|default:'' }}" required>
+          {% if errors.business_name %}<div class="form-error">{{ errors.business_name }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" name="email" class="form-input" placeholder="you@example.com"
+            value="{{ form_data.email|default:'' }}" required>
+          {% if errors.email %}<div class="form-error">{{ errors.email }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number</label>
+          <input type="tel" name="phone" class="form-input" placeholder="e.g. 082 123 4567"
+            value="{{ form_data.phone|default:'' }}" required>
+          {% if errors.phone %}<div class="form-error">{{ errors.phone }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Number of Rooms</label>
+          <input type="number" name="num_rooms" class="form-input" placeholder="e.g. 8" min="1"
+            value="{{ form_data.num_rooms|default:'' }}">
+        </div>
+        <div class="form-group" style="grid-column:1/-1; margin-bottom:0;">
+          <label class="form-label">Notes / Questions (optional)</label>
+          <textarea name="notes" class="form-input" rows="3"
+            placeholder="Anything specific you'd like to cover in the demo…">{{ form_data.notes|default:'' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-lg" style="width:100%;">
+      Request Demo
+    </button>
+    <p style="text-align:center; font-size:12px; color:var(--color-text-tertiary); margin-top:14px;">
+      We typically respond within 24 hours on business days.
+    </p>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -7,6 +7,7 @@ app_name = "core"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("api/notifications/", views.notifications_feed, name="notifications_feed"),
     path("search/", views.search, name="search"),
     path("availability/", views.availability, name="availability"),
     path("reports/", views.reports, name="reports"),
@@ -64,6 +65,7 @@ urlpatterns = [
     path("expenses/<int:pk>/delete/", views.expense_delete, name="expense_delete"),
     path("guests/", views.guest_list, name="guest_list"),
     path("guests/add/", views.guest_add, name="guest_add"),
+    path("guests/quick-create/", views.guest_quick_create, name="guest_quick_create"),
     path("guests/<int:pk>/", views.guest_detail, name="guest_detail"),
     path("guests/<int:pk>/edit/", views.guest_edit, name="guest_edit"),
     path("bookings/", views.booking_list, name="booking_list"),

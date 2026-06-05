@@ -8,7 +8,7 @@
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="3"/></svg>
     </div>
     <h1 style="font-family:var(--font-display); font-size:26px; font-weight:800; color:var(--color-text-primary); margin-bottom:10px;">Your subscription has expired</h1>
-    <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:28px;">To reactivate your subscription, please contact us.</p>
+    <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:28px;">Subscribe now to restore access to your data and features.</p>
 
     <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:20px; text-align:left; margin-bottom:24px; display:grid; grid-template-columns:1fr 1fr; gap:14px;">
       <div>
@@ -36,8 +36,13 @@
     </div>
     {% endif %}
 
+    <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:12px;">
+      <a href="{% url 'payfast_initiate' %}" class="btn btn-primary">
+        Subscribe Now — R {{ subscription.plan.monthly_price|floatformat:0 }}/mo
+      </a>
+    </div>
     <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-      <a href="mailto:sales@circlecoretech.co.za?subject=Reactivate Circle Core Subscription" class="btn btn-primary">Contact Circle Core</a>
+      <a href="mailto:support@circlecore.co.za?subject=Reactivate Circle Core Subscription" class="btn btn-ghost">Contact Us</a>
       <form method="post" action="{% url 'logout' %}">
         {% csrf_token %}
         <button type="submit" class="btn btn-ghost">Logout</button>

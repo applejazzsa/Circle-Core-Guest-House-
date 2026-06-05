@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>New Demo Request</title>
+</head>
+<body style="margin:0;padding:0;background:#0d0f12;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0d0f12;padding:48px 16px;">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+  <tr><td>{% include 'emails/_header.html' %}</td></tr>
+
+  <tr><td style="background:#13161b;border:1px solid #1e2433;border-radius:16px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#16a34a,#22c55e);height:4px;"></div>
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:36px;">
+      <tr><td>
+
+        <!-- Alert badge -->
+        <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;">
+          <tr><td style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:6px 16px;">
+            <span style="font-size:11px;font-weight:700;color:#22c55e;letter-spacing:1.5px;text-transform:uppercase;">🔔 New Demo Request</span>
+          </td></tr>
+        </table>
+
+        <h1 style="margin:0 0 6px;font-size:24px;font-weight:800;color:#f1f5f9;line-height:1.2;letter-spacing:-0.5px;">{{ lead.business_name }}</h1>
+        <p style="margin:0 0 24px;font-size:14px;color:#64748b;">Submitted {{ lead.created_at|date:"d F Y, H:i" }}</p>
+
+        <!-- Lead details -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1a1e26;border-radius:10px;margin-bottom:24px;">
+          <tr><td style="padding:20px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #252a35;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:600;width:35%;">Contact</td>
+                <td align="right" style="padding:8px 0;border-bottom:1px solid #252a35;font-size:14px;color:#f1f5f9;font-weight:600;">{{ lead.full_name }}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #252a35;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Email</td>
+                <td align="right" style="padding:8px 0;border-bottom:1px solid #252a35;">
+                  <a href="mailto:{{ lead.email }}" style="font-size:14px;color:#4ade80;text-decoration:none;">{{ lead.email }}</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #252a35;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Phone</td>
+                <td align="right" style="padding:8px 0;border-bottom:1px solid #252a35;">
+                  <a href="tel:{{ lead.phone }}" style="font-size:14px;color:#f1f5f9;text-decoration:none;">{{ lead.phone }}</a>
+                </td>
+              </tr>
+              {% if lead.num_rooms %}
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #252a35;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Rooms</td>
+                <td align="right" style="padding:8px 0;border-bottom:1px solid #252a35;font-size:14px;color:#f1f5f9;">{{ lead.num_rooms }}</td>
+              </tr>
+              {% endif %}
+              <tr>
+                <td style="padding:8px 0;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Source</td>
+                <td align="right" style="padding:8px 0;font-size:14px;color:#f1f5f9;">{{ lead.source|capfirst }}</td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        {% if lead.notes %}
+        <!-- Notes -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f1218;border:1px solid #2a3142;border-radius:10px;margin-bottom:24px;">
+          <tr><td style="padding:18px 22px;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Customer Notes</div>
+            <p style="margin:0;font-size:14px;color:#94a3b8;line-height:1.7;">{{ lead.notes }}</p>
+          </td></tr>
+        </table>
+        {% endif %}
+
+        <!-- Action buttons -->
+        <table cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="padding-right:10px;">
+              <a href="mailto:{{ lead.email }}?subject=Your Circle Core Demo — {{ lead.business_name }}" style="display:inline-block;background:#22c55e;color:#000;font-size:13px;font-weight:700;padding:11px 22px;border-radius:8px;text-decoration:none;">Reply to Lead</a>
+            </td>
+            <td>
+              <a href="tel:{{ lead.phone }}" style="display:inline-block;border:1px solid #2a3142;color:#94a3b8;font-size:13px;font-weight:600;padding:11px 22px;border-radius:8px;text-decoration:none;">Call {{ lead.phone }}</a>
+            </td>
+          </tr>
+        </table>
+
+      </td></tr>
+    </table>
+  </td></tr>
+
+  <!-- Footer (internal — no unsubscribe) -->
+  <tr><td style="padding-top:20px;text-align:center;">
+    <p style="margin:0;font-size:11px;color:#334155;font-family:Arial,sans-serif;line-height:1.8;">
+      Circle Core Command Center &middot; Internal notification<br>
+      Lead #{{ lead.pk }} &middot; {{ lead.created_at|date:"d M Y" }}
+    </p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

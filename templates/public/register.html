@@ -1,0 +1,96 @@
+{% extends "base_public.html" %}
+{% block title %}Register — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div style="max-width:560px; margin:0 auto; padding:48px 24px 80px;">
+
+  <div style="margin-bottom:32px;">
+    <div class="section-label" style="color:var(--color-green-400); margin-bottom:6px;">Get Started</div>
+    <h1 style="font-family:var(--font-display); font-size:32px; font-weight:800; color:var(--color-text-primary); letter-spacing:-0.02em; margin-bottom:8px;">Create your account</h1>
+    <p style="font-size:14px; color:var(--color-text-secondary);">30-day free trial — no credit card required. Your data is fully isolated in your own workspace.</p>
+  </div>
+
+  {% if all_errors %}
+  <div style="margin-bottom:20px; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.22); border-radius:var(--radius-md); font-size:13px; color:#f87171;">
+    {{ all_errors }}
+  </div>
+  {% endif %}
+
+  <form method="post" style="display:flex; flex-direction:column; gap:0;">
+    {% csrf_token %}
+
+    <!-- Property Info -->
+    <div class="card" style="padding:28px; margin-bottom:16px;">
+      <div style="font-family:var(--font-display); font-weight:700; font-size:15px; color:var(--color-text-primary); margin-bottom:20px;">Property Details</div>
+
+      <div class="form-group">
+        <label class="form-label">Guest House Name</label>
+        <input type="text" name="guest_house_name" class="form-input" placeholder="e.g. Madlanga B&B" value="{{ form_data.guest_house_name|default:'' }}" required>
+        {% if errors.guest_house_name %}<div class="form-error">{{ errors.guest_house_name }}</div>{% endif %}
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div class="form-group">
+          <label class="form-label">Your Name</label>
+          <input type="text" name="owner_name" class="form-input" placeholder="Full name" value="{{ form_data.owner_name|default:'' }}" required>
+          {% if errors.owner_name %}<div class="form-error">{{ errors.owner_name }}</div>{% endif %}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone (optional)</label>
+          <input type="tel" name="owner_phone" class="form-input" placeholder="e.g. 0679266207" value="{{ form_data.owner_phone|default:'' }}">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Email Address</label>
+        <input type="email" name="owner_email" class="form-input" placeholder="owner@example.com" value="{{ form_data.owner_email|default:'' }}" required>
+        {% if errors.owner_email %}<div class="form-error">{{ errors.owner_email }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- Login Credentials -->
+    <div class="card" style="padding:28px; margin-bottom:16px;">
+      <div style="font-family:var(--font-display); font-weight:700; font-size:15px; color:var(--color-text-primary); margin-bottom:20px;">Login Credentials</div>
+
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" name="username" class="form-input" placeholder="Choose a username" value="{{ form_data.username|default:'' }}" required autocomplete="username">
+        {% if errors.username %}<div class="form-error">{{ errors.username }}</div>{% endif %}
+      </div>
+
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Password</label>
+        <input type="password" name="password" class="form-input" placeholder="At least 6 characters" required autocomplete="new-password">
+        {% if errors.password %}<div class="form-error">{{ errors.password }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- Plan Selection -->
+    <div class="card" style="padding:28px; margin-bottom:24px;">
+      <div style="font-family:var(--font-display); font-weight:700; font-size:15px; color:var(--color-text-primary); margin-bottom:6px;">Choose your trial plan</div>
+      <p style="font-size:13px; color:var(--color-text-secondary); margin-bottom:20px;">You can upgrade at any time during or after your trial.</p>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        {% for plan in plans %}
+        <label style="cursor:pointer; position:relative; display:flex; align-items:center; gap:14px; padding:16px 18px; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); background:var(--color-bg-subtle); transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--color-border-bright)'" onmouseout="">
+          <input type="radio" name="plan" value="{{ plan.key }}" style="accent-color:var(--color-green-500); width:16px; height:16px; flex-shrink:0;" {% if forloop.first or form_data.plan == plan.key %}checked{% endif %}>
+          <div style="flex:1;">
+            <div style="font-weight:600; font-size:14px; color:var(--color-text-primary);">{{ plan.name }}</div>
+            <div style="font-size:12px; color:var(--color-text-secondary);">{{ plan.limit }}</div>
+          </div>
+          <div style="font-family:var(--font-display); font-weight:700; font-size:18px; color:var(--color-green-400);">R {{ plan.price }}<span style="font-size:11px; font-weight:500; color:var(--color-text-tertiary);">/mo</span></div>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-lg" style="width:100%;">
+      Start 30-Day Free Trial
+    </button>
+
+    <p style="text-align:center; font-size:12px; color:var(--color-text-tertiary); margin-top:16px;">
+      By registering you agree to our terms of service. No payment required for the trial period.
+    </p>
+  </form>
+</div>
+{% endblock %}

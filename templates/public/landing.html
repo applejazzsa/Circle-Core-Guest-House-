@@ -1,0 +1,85 @@
+{% extends "base_public.html" %}
+{% block title %}Circle Core Guest House — Property Management Software{% endblock %}
+
+{% block content %}
+<div style="max-width:1100px; margin:0 auto; padding:80px 24px;">
+
+  <!-- Hero -->
+  <div style="text-align:center; margin-bottom:72px;">
+    <div style="display:inline-block; background:var(--color-green-glow); border:1px solid var(--color-green-border); border-radius:var(--radius-full); padding:6px 16px; margin-bottom:24px;">
+      <span style="font-size:12px; font-weight:600; color:var(--color-green-400); letter-spacing:0.06em; text-transform:uppercase;">30-Day Free Trial · No Credit Card Required</span>
+    </div>
+    <h1 style="font-family:var(--font-display); font-size:clamp(36px,6vw,64px); font-weight:800; color:var(--color-text-primary); line-height:1.1; letter-spacing:-0.03em; margin-bottom:20px;">
+      Guest House Management<br>Made Simple
+    </h1>
+    <p style="font-size:18px; color:var(--color-text-secondary); max-width:560px; margin:0 auto 36px; line-height:1.6;">
+      Bookings, rooms, guests, housekeeping, POS, and reporting — all in one place. Built for South African guest houses.
+    </p>
+    <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
+      <a href="/register/" style="display:inline-block; background:var(--color-green-500); color:#000; font-weight:700; font-size:15px; padding:14px 32px; border-radius:var(--radius-md); text-decoration:none; transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+        Start Free Trial
+      </a>
+      <a href="/request-demo/" style="display:inline-block; background:var(--color-bg-elevated); color:var(--color-text-primary); font-weight:600; font-size:15px; padding:14px 32px; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); text-decoration:none; transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor='var(--color-border-bright)'">
+        Request Demo
+      </a>
+    </div>
+  </div>
+
+  <!-- Feature grid -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px; margin-bottom:80px;">
+    {% for feature in features %}
+    <div class="card" style="padding:24px;">
+      <div style="font-size:24px; margin-bottom:12px;">{{ feature.icon }}</div>
+      <div style="font-family:var(--font-display); font-weight:700; font-size:16px; color:var(--color-text-primary); margin-bottom:6px;">{{ feature.title }}</div>
+      <div style="font-size:14px; color:var(--color-text-secondary); line-height:1.5;">{{ feature.description }}</div>
+    </div>
+    {% empty %}
+    {% for feature in default_features %}
+    <div class="card" style="padding:24px;">
+      <div style="font-size:24px; margin-bottom:12px;">{{ feature.0 }}</div>
+      <div style="font-family:var(--font-display); font-weight:700; font-size:16px; color:var(--color-text-primary); margin-bottom:6px;">{{ feature.1 }}</div>
+      <div style="font-size:14px; color:var(--color-text-secondary); line-height:1.5;">{{ feature.2 }}</div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+  </div>
+
+  <!-- Plans -->
+  <div id="plans" style="text-align:center; margin-bottom:40px;">
+    <div class="section-label" style="color:var(--color-green-400); margin-bottom:8px;">Pricing</div>
+    <h2 style="font-family:var(--font-display); font-size:36px; font-weight:800; color:var(--color-text-primary); letter-spacing:-0.02em; margin-bottom:8px;">Simple, transparent pricing</h2>
+    <p style="font-size:15px; color:var(--color-text-secondary);">All plans include a 30-day free trial. No credit card required to start.</p>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; margin-bottom:80px;">
+    {% for plan in plans %}
+    <div class="card" style="padding:28px; {% if plan.key == 'professional' %}border-color:var(--color-green-500);{% endif %} position:relative;">
+      {% if plan.key == 'professional' %}
+      <div style="position:absolute; top:-12px; left:50%; transform:translateX(-50%); background:var(--color-green-500); color:#000; font-size:11px; font-weight:700; padding:4px 14px; border-radius:var(--radius-full); letter-spacing:0.06em; text-transform:uppercase; white-space:nowrap;">Most Popular</div>
+      {% endif %}
+      <div class="section-label" style="margin-bottom:8px;">{{ plan.name }}</div>
+      <div style="font-family:var(--font-display); font-size:36px; font-weight:800; color:var(--color-green-400); line-height:1; margin-bottom:4px;">
+        R {{ plan.price }}<span style="font-family:var(--font-body); font-size:14px; font-weight:500; color:var(--color-text-tertiary);">/mo</span>
+      </div>
+      <div style="font-size:13px; color:var(--color-text-secondary); margin-bottom:20px;">{{ plan.limit }}</div>
+      <a href="/register/?plan={{ plan.key }}" style="display:block; text-align:center; background:{% if plan.key == 'professional' %}var(--color-green-500){% else %}var(--color-bg-elevated){% endif %}; color:{% if plan.key == 'professional' %}#000{% else %}var(--color-text-primary){% endif %}; font-weight:600; font-size:14px; padding:11px; border-radius:var(--radius-md); border:1px solid {% if plan.key == 'professional' %}transparent{% else %}var(--color-border-bright){% endif %}; text-decoration:none;">
+        Start Free Trial
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<script>
+  // Pass default features if none in context
+  const features = [
+    ['🏠', 'Room Management', 'Track every room — status, cleaning, maintenance, and availability at a glance.'],
+    ['📅', 'Bookings & Calendar', 'Walk-ins, reservations, check-in/check-out with a visual calendar board.'],
+    ['👥', 'Guest Profiles', 'Full guest history, ID capture, communication logs, and notes.'],
+    ['💳', 'Payments & POS', 'Record payments, issue receipts, and run a full point-of-sale terminal.'],
+    ['🧹', 'Housekeeping', 'Assign cleaning tasks, upload photo proof, and track completion.'],
+    ['📊', 'Reports & Daily Close', 'Revenue reports, occupancy rates, expense tracking, and daily close audit.'],
+  ];
+</script>
+{% endblock %}

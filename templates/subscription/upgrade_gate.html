@@ -27,7 +27,7 @@
       <div style="padding:10px 14px; background:{% if professional_has_feature %}rgba(34,197,94,0.06){% else %}var(--color-bg-subtle){% endif %}; border:1px solid {% if professional_has_feature %}rgba(34,197,94,0.2){% else %}var(--color-border){% endif %}; border-radius:var(--radius-sm); font-size:13px; color:{% if professional_has_feature %}var(--color-green-400){% else %}var(--color-text-tertiary){% endif %}; margin-bottom:16px;">
         {% if professional_has_feature %}✓ Includes: {{ feature_display }}{% else %}✗ {{ feature_display }} not included{% endif %}
       </div>
-      <a href="mailto:sales@circlecoretech.co.za?subject=Upgrade to Professional" class="btn {% if professional_has_feature %}btn-primary{% else %}btn-ghost{% endif %}" style="width:100%; text-align:center; display:block;">Upgrade Now</a>
+      <a href="mailto:support@circlecore.co.za?subject=Upgrade to Professional" class="btn {% if professional_has_feature %}btn-primary{% else %}btn-ghost{% endif %}" style="width:100%; text-align:center; display:block;">Upgrade Now</a>
     </div>
     {% endif %}
 
@@ -40,7 +40,7 @@
       <div style="font-size:12.5px; color:var(--color-text-tertiary); margin-bottom:14px;">Unlimited rooms · Unlimited users</div>
       <div style="font-family:var(--font-body); font-size:30px; font-weight:800; color:var(--color-green-400); margin-bottom:16px; line-height:1;">R {{ enterprise.monthly_price|floatformat:0 }}<span style="font-family:var(--font-body); font-size:13px; font-weight:600; color:var(--color-text-tertiary);">/mo</span></div>
       <div style="padding:10px 14px; background:rgba(34,197,94,0.06); border:1px solid rgba(34,197,94,0.2); border-radius:var(--radius-sm); font-size:13px; color:var(--color-green-400); margin-bottom:16px;">✓ Includes: {{ feature_display }}</div>
-      <a href="mailto:sales@circlecoretech.co.za?subject=Upgrade to Enterprise" class="btn btn-primary" style="width:100%; text-align:center; display:block;">Upgrade Now</a>
+      <a href="mailto:support@circlecore.co.za?subject=Upgrade to Enterprise" class="btn btn-primary" style="width:100%; text-align:center; display:block;">Upgrade Now</a>
     </div>
     {% endif %}
   </div>

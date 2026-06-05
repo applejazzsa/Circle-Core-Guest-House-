@@ -8,6 +8,9 @@
     <h1 class="page-title">{{ title }}</h1>
   </div>
   <div class="page-header-actions">
+    {% if not is_category_form %}
+    <a href="{% url 'core:inventory_categories' %}" class="btn btn-ghost btn-sm">Manage Categories</a>
+    {% endif %}
     <a href="{% url 'core:inventory_dashboard' %}" class="btn btn-ghost">← Back</a>
   </div>
 </div>

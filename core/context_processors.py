@@ -1,21 +1,44 @@
-from django.db import models
+from django.db import connection, models
 from django.db.utils import OperationalError, ProgrammingError
 
 from .models import GuestHouseSettings, InventoryItem, MaintenanceRequest, Property, Room, Subscription
 from .roles import can_manage_business, can_manage_system, is_cleaner, is_operator, is_owner, primary_role
 
+_PUBLIC_EMPTY = {
+    "guest_house_settings": None,
+    "active_property": None,
+    "all_properties": [],
+    "subscription": None,
+    "plan": None,
+    "low_stock_inventory_count": 0,
+    "urgent_maintenance_count": 0,
+    "user_role": "",
+    "is_owner": False,
+    "is_operator": False,
+    "is_cleaner": False,
+    "can_manage_business": False,
+    "can_manage_system": False,
+    "cleaning_notification_count": 0,
+}
+
+
+def _is_public_schema():
+    return connection.schema_name == "public"
+
 
 def guest_house_settings(request):
+    if _is_public_schema():
+        return {"guest_house_settings": None}
     try:
         settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
     except (OperationalError, ProgrammingError):
         settings_obj = None
-    return {
-        "guest_house_settings": settings_obj,
-    }
+    return {"guest_house_settings": settings_obj}
 
 
 def active_property_context(request):
+    if _is_public_schema():
+        return {"active_property": None, "all_properties": []}
     try:
         if not getattr(request, "user", None) or not request.user.is_authenticated:
             return {"active_property": None, "all_properties": []}
@@ -33,6 +56,8 @@ def active_property_context(request):
 
 
 def subscription_context(request):
+    if _is_public_schema():
+        return {"subscription": None, "plan": None}
     try:
         subscription = Subscription.objects.select_related("plan").first()
     except (OperationalError, ProgrammingError):
@@ -43,17 +68,38 @@ def subscription_context(request):
     }
 
 
+def _active_property(request):
+    prop_id = request.session.get("active_property_id")
+    properties = list(Property.objects.filter(is_active=True).order_by("sort_order", "name"))
+    active = None
+    if prop_id:
+        active = next((p for p in properties if p.pk == prop_id), None)
+    if not active and properties:
+        active = properties[0]
+        request.session["active_property_id"] = active.pk
+    return active
+
+
 def inventory_context(request):
+    if _is_public_schema():
+        return {"low_stock_inventory_count": 0}
     try:
-        low_stock_count = InventoryItem.objects.filter(is_active=True, current_stock__lte=models.F("minimum_stock")).count()
+        active = _active_property(request)
+        low_stock_count = InventoryItem.objects.filter(
+            prop=active, is_active=True, current_stock__lte=models.F("minimum_stock")
+        ).count()
     except Exception:
         low_stock_count = 0
     return {"low_stock_inventory_count": low_stock_count}
 
 
 def maintenance_context(request):
+    if _is_public_schema():
+        return {"urgent_maintenance_count": 0}
     try:
+        active = _active_property(request)
         urgent_count = MaintenanceRequest.objects.filter(
+            room__prop=active,
             status__in=["open", "in_progress"],
             priority="urgent",
         ).count()
@@ -63,23 +109,25 @@ def maintenance_context(request):
 
 
 def staff_role_context(request):
+    _empty = {
+        "user_role": "",
+        "is_owner": False,
+        "is_operator": False,
+        "is_cleaner": False,
+        "can_manage_business": False,
+        "can_manage_system": False,
+        "cleaning_notification_count": 0,
+    }
+    if _is_public_schema():
+        return _empty
     user = getattr(request, "user", None)
     if not user or not user.is_authenticated:
-        return {
-            "user_role": "",
-            "is_owner": False,
-            "is_operator": False,
-            "is_cleaner": False,
-            "can_manage_business": False,
-            "can_manage_system": False,
-            "cleaning_notification_count": 0,
-        }
-
+        return _empty
     try:
-        cleaning_count = Room.objects.filter(status="Cleaning", cleaning_status="Needs Cleaning").count()
+        active = _active_property(request)
+        cleaning_count = Room.objects.filter(prop=active, status="Cleaning", cleaning_status="Needs Cleaning").count()
     except Exception:
         cleaning_count = 0
-
     return {
         "user_role": primary_role(user),
         "is_owner": is_owner(user),
