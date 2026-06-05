@@ -86,14 +86,19 @@ DB_PASSWORD=<your-db-password>
 DB_HOST=localhost
 DB_PORT=5432
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-EMAIL_HOST=smtp.gmail.com
-EMAIL_HOST_USER=your@email.com
-EMAIL_HOST_PASSWORD=your-app-password
-DEFAULT_FROM_EMAIL=Circle Core <noreply@circlecore.co.za>
+EMAIL_HOST=smtp.circlecore.co.za
+EMAIL_PORT=465
+EMAIL_USE_TLS=False
+EMAIL_USE_SSL=True
+EMAIL_HOST_USER=support@circlecore.co.za
+EMAIL_HOST_PASSWORD=<your-mailbox-password>
+DEFAULT_FROM_EMAIL=Circle Core <support@circlecore.co.za>
+CIRCLE_CORE_SALES_EMAIL=support@circlecore.co.za
 PAYFAST_MERCHANT_ID=<from payfast.co.za>
 PAYFAST_MERCHANT_KEY=<from payfast.co.za>
 PAYFAST_PASSPHRASE=<if set in payfast dashboard>
 PAYFAST_SANDBOX=False
+REDIS_URL=redis://127.0.0.1:6379/1
 ```
 
 ---
