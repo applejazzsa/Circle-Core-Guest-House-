@@ -401,22 +401,32 @@ class Booking(models.Model):
     def validate_room_available(self):
         if self.room_id and self.status not in self.INACTIVE_STATUSES:
             room = self.room
-            if room.status in ("Maintenance", "Blocked"):
-                # Allow editing an existing booking already on this room
-                if not self.pk or Booking.objects.filter(pk=self.pk, room_id=self.room_id).exclude(status__in=self.INACTIVE_STATUSES).exists():
-                    existing_room = Room.objects.get(pk=self.room_id)
-                    if existing_room.status in ("Maintenance", "Blocked"):
-                        raise ValidationError(
-                            f"{room.name} is currently {room.status.lower()} and cannot be booked."
-                        )
+            if room.status in ("Maintenance", "Blocked", "Cleaning"):
+                labels = {"Maintenance": "under maintenance", "Blocked": "blocked", "Cleaning": "currently being cleaned"}
+                raise ValidationError(
+                    f"{room.name} is {labels.get(room.status, room.status.lower())} and cannot be booked."
+                )
 
     def save(self, *args, **kwargs):
+        from django.db import transaction
         if not self.booking_reference:
             self.booking_reference = self._generate_reference()
         self.compute_totals()
         self.validate_room_available()
-        self.validate_room_conflict()
-        super().save(*args, **kwargs)
+        if self.room_id and self.status not in self.INACTIVE_STATUSES:
+            with transaction.atomic():
+                # Row-level lock on all active bookings for this room prevents
+                # concurrent double-booking that would slip past Python-level checks.
+                list(
+                    Booking.objects.filter(room_id=self.room_id)
+                    .exclude(status__in=self.INACTIVE_STATUSES)
+                    .select_for_update()
+                )
+                self.validate_room_conflict()
+                super().save(*args, **kwargs)
+        else:
+            self.validate_room_conflict()
+            super().save(*args, **kwargs)
 
 
 class Payment(models.Model):
@@ -1194,6 +1204,67 @@ class POSSaleItem(models.Model):
 
     def __str__(self):
         return f"{self.name} x{self.quantity}"
+
+
+class TrialEngagement(models.Model):
+    """
+    Singleton per tenant — tracks engagement activity during (and after) trial.
+    Used by Command Center to compute health scores and prioritise follow-up.
+    """
+    login_count = models.PositiveIntegerField(default=0)
+    rooms_added = models.PositiveIntegerField(default=0)
+    guests_added = models.PositiveIntegerField(default=0)
+    bookings_added = models.PositiveIntegerField(default=0)
+    reports_viewed = models.PositiveIntegerField(default=0)
+    last_login_at = models.DateTimeField(null=True, blank=True)
+    last_activity_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Trial Engagement"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    @property
+    def health_score(self):
+        score = 0
+        if self.login_count >= 10:
+            score += 3
+        elif self.login_count >= 5:
+            score += 2
+        elif self.login_count >= 2:
+            score += 1
+        if self.bookings_added >= 3:
+            score += 3
+        elif self.bookings_added >= 1:
+            score += 2
+        if self.rooms_added >= 1:
+            score += 1
+        if self.guests_added >= 1:
+            score += 1
+        if self.reports_viewed >= 2:
+            score += 2
+        elif self.reports_viewed >= 1:
+            score += 1
+        if score >= 8:
+            return "High"
+        if score >= 4:
+            return "Medium"
+        return "Low"
+
+    @property
+    def health_color(self):
+        return {"High": "#22c55e", "Medium": "#f59e0b", "Low": "#ef4444"}[self.health_score]
+
+    def __str__(self):
+        return f"Engagement — {self.health_score} (logins:{self.login_count} bookings:{self.bookings_added})"
 
 
 class POSShift(models.Model):

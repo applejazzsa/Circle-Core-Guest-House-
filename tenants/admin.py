@@ -11,6 +11,9 @@ class GuestHouseTenantAdmin(TenantAdminMixin, admin.ModelAdmin):
     search_fields = ('name', 'owner_email', 'schema_name')
     readonly_fields = ('schema_name', 'created_at')
 
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(Domain)
 class DomainAdmin(admin.ModelAdmin):

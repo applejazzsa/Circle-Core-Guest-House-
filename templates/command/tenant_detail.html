@@ -1,0 +1,210 @@
+{% extends "command/base.html" %}
+{% block title %}{{ tenant.name }}{% endblock %}
+{% block page_title %}{{ tenant.name }}{% endblock %}
+{% block nav_tenants %}active{% endblock %}
+
+{% block content %}
+
+<div style="margin-bottom:16px;">
+  <a href="/command/tenants/" class="btn btn-ghost btn-sm">← All Tenants</a>
+</div>
+
+<!-- Top row: tenant + subscription -->
+<div class="grid-2" style="gap:16px;margin-bottom:16px;">
+
+  <!-- Tenant Info -->
+  <div class="cc-card">
+    <div class="cc-card-title">Tenant</div>
+    <div style="font-size:22px;font-weight:800;color:#f1f5f9;margin-bottom:4px;">{{ tenant.name }}</div>
+    <div class="text-muted mb-4">Schema: <code style="color:#94a3b8;">{{ tenant.schema_name }}</code></div>
+
+    <table style="width:100%;font-size:13px;">
+      <tr><td style="color:#64748b;padding:5px 0;width:40%;">Owner</td><td style="color:#f1f5f9;font-weight:600;">{{ tenant.owner_name }}</td></tr>
+      <tr><td style="color:#64748b;padding:5px 0;">Email</td><td style="color:#f1f5f9;">{{ tenant.owner_email }}</td></tr>
+      {% if tenant.owner_phone %}<tr><td style="color:#64748b;padding:5px 0;">Phone</td><td style="color:#f1f5f9;">{{ tenant.owner_phone }}</td></tr>{% endif %}
+      <tr><td style="color:#64748b;padding:5px 0;">Domain</td>
+        <td>
+          {% if domain %}
+          <a href="https://{{ domain }}" style="color:#a78bfa;" target="_blank">{{ domain }}</a>
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+      </tr>
+      <tr><td style="color:#64748b;padding:5px 0;">Verified</td><td>{% if tenant.is_verified %}<span style="color:#4ade80;">Yes</span>{% else %}<span style="color:#f87171;">No</span>{% endif %}</td></tr>
+      <tr><td style="color:#64748b;padding:5px 0;">Active</td><td>{% if tenant.is_active %}<span style="color:#4ade80;">Yes</span>{% else %}<span style="color:#f87171;">No</span>{% endif %}</td></tr>
+      <tr><td style="color:#64748b;padding:5px 0;">Created</td><td style="color:#94a3b8;">{{ tenant.created_at|date:"d M Y H:i" }}</td></tr>
+    </table>
+
+    <div class="mt-4" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="/command/tenants/{{ tenant.schema_name }}/impersonate/" class="btn btn-primary btn-sm">Login as Tenant</a>
+    </div>
+  </div>
+
+  <!-- Subscription -->
+  <div class="cc-card">
+    <div class="cc-card-title">Subscription</div>
+    {% if subscription %}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <span class="badge badge-{{ subscription.status }}" style="font-size:13px;padding:4px 14px;">{{ subscription.status|title }}</span>
+      <span style="color:#f1f5f9;font-weight:700;font-size:18px;">{{ subscription.plan.display_name }}</span>
+    </div>
+
+    <table style="width:100%;font-size:13px;">
+      <tr><td style="color:#64748b;padding:5px 0;width:45%;">Billing</td><td style="color:#f1f5f9;">{{ subscription.billing_cycle|title }}</td></tr>
+      <tr><td style="color:#64748b;padding:5px 0;">Monthly price</td><td style="color:#4ade80;font-weight:700;">R {{ subscription.plan.monthly_price }}</td></tr>
+      <tr><td style="color:#64748b;padding:5px 0;">Annual price</td><td style="color:#64748b;">R {{ subscription.plan.annual_price }}</td></tr>
+      <tr><td style="color:#64748b;padding:5px 0;">Started</td><td style="color:#94a3b8;">{{ subscription.started_at|date:"d M Y" }}</td></tr>
+      <tr><td style="color:#64748b;padding:5px 0;">Expires</td><td style="color:{% if subscription.days_remaining <= 5 %}#f59e0b{% else %}#94a3b8{% endif %};">{{ subscription.expires_at|date:"d M Y" }}</td></tr>
+      <tr><td style="color:#64748b;padding:5px 0;">Days remaining</td>
+        <td style="font-weight:700;color:{% if subscription.days_remaining == 0 %}#ef4444{% elif subscription.days_remaining <= 5 %}#f59e0b{% else %}#22c55e{% endif %};">
+          {{ subscription.days_remaining }}
+        </td>
+      </tr>
+      {% if subscription.last_payment_date %}
+      <tr><td style="color:#64748b;padding:5px 0;">Last payment</td><td style="color:#4ade80;">R {{ subscription.last_payment_amount }} on {{ subscription.last_payment_date|date:"d M Y" }}</td></tr>
+      {% endif %}
+    </table>
+
+    {% else %}
+    <div style="color:#475569;font-size:13px;padding:16px 0;">No subscription found for this tenant.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Second row: health + usage -->
+<div class="grid-2" style="gap:16px;margin-bottom:16px;">
+
+  <!-- Trial Health -->
+  <div class="cc-card">
+    <div class="cc-card-title">Trial Engagement</div>
+    {% if engagement %}
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+      <div style="font-size:36px;font-weight:900;color:{{ engagement.health_color }};">{{ engagement.health_score }}</div>
+      <div>
+        <div style="font-size:13px;color:#64748b;">Health Score</div>
+        <div class="badge badge-{{ engagement.health_score|lower }}" style="margin-top:4px;">{{ engagement.health_score }} Engagement</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      {% with items=engagement.login_count|stringformat:"s" %}
+      <div style="background:#1a1e26;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Logins</div>
+        <div style="font-size:22px;font-weight:800;color:#f1f5f9;">{{ engagement.login_count }}</div>
+      </div>
+      {% endwith %}
+      <div style="background:#1a1e26;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Bookings Added</div>
+        <div style="font-size:22px;font-weight:800;color:#f1f5f9;">{{ engagement.bookings_added }}</div>
+      </div>
+      <div style="background:#1a1e26;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Guests Added</div>
+        <div style="font-size:22px;font-weight:800;color:#f1f5f9;">{{ engagement.guests_added }}</div>
+      </div>
+      <div style="background:#1a1e26;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Reports Viewed</div>
+        <div style="font-size:22px;font-weight:800;color:#f1f5f9;">{{ engagement.reports_viewed }}</div>
+      </div>
+    </div>
+
+    {% if engagement.last_login_at %}
+    <div class="text-muted mt-4">Last login: {{ engagement.last_login_at|date:"d M Y H:i" }}</div>
+    {% endif %}
+
+    {% else %}
+    <div style="color:#475569;font-size:13px;padding:16px 0;">No engagement data yet — tenant has not logged in.</div>
+    {% endif %}
+  </div>
+
+  <!-- Usage stats -->
+  <div class="cc-card">
+    <div class="cc-card-title">Account Usage</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
+      <div style="background:#1a1e26;border-radius:8px;padding:14px;">
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Rooms</div>
+        <div style="font-size:26px;font-weight:800;color:#f1f5f9;">{{ room_count }}</div>
+      </div>
+      <div style="background:#1a1e26;border-radius:8px;padding:14px;">
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Guests</div>
+        <div style="font-size:26px;font-weight:800;color:#f1f5f9;">{{ guest_count }}</div>
+      </div>
+      <div style="background:#1a1e26;border-radius:8px;padding:14px;">
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Total Bookings</div>
+        <div style="font-size:26px;font-weight:800;color:#f1f5f9;">{{ booking_count }}</div>
+      </div>
+      <div style="background:#1a1e26;border-radius:8px;padding:14px;">
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Active Now</div>
+        <div style="font-size:26px;font-weight:800;color:#4ade80;">{{ active_bookings }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Action panels -->
+<div class="grid-3" style="gap:16px;">
+
+  <!-- Extend Trial -->
+  {% if subscription and subscription.status == 'trial' %}
+  <div class="cc-card">
+    <div class="cc-card-title">Extend Trial</div>
+    <form method="post" action="/command/tenants/{{ tenant.schema_name }}/extend-trial/">
+      {% csrf_token %}
+      <label class="cc-label">Extra days</label>
+      <input type="number" name="days" value="7" min="1" max="90" class="cc-input mb-4">
+      <button type="submit" class="btn btn-ghost" style="width:100%;margin-top:10px;">Extend Trial →</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <!-- Record Payment -->
+  <div class="cc-card">
+    <div class="cc-card-title">Record Manual Payment (EFT)</div>
+    <form method="post" action="/command/tenants/{{ tenant.schema_name }}/record-payment/">
+      {% csrf_token %}
+      <div class="mb-4">
+        <label class="cc-label">Amount (R)</label>
+        <input type="number" name="amount" step="0.01" min="0" class="cc-input" placeholder="799.00">
+      </div>
+      <div class="mb-4">
+        <label class="cc-label">Reference</label>
+        <input type="text" name="reference" class="cc-input" placeholder="EFT reference number">
+      </div>
+      <div class="mb-4">
+        <label class="cc-label">Billing Cycle</label>
+        <select name="billing_cycle" class="cc-input cc-select">
+          <option value="monthly">Monthly</option>
+          <option value="annual">Annual</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-green" style="width:100%;">Activate Subscription →</button>
+    </form>
+  </div>
+
+  <!-- Suspend / Activate -->
+  <div class="cc-card">
+    <div class="cc-card-title">Account Control</div>
+    {% if tenant.is_active %}
+    <p style="font-size:13px;color:#94a3b8;margin-bottom:14px;">
+      Suspending will lock this tenant out immediately and set their subscription to suspended.
+    </p>
+    <form method="post" action="/command/tenants/{{ tenant.schema_name }}/suspend/">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-red" style="width:100%;" onclick="return confirm('Suspend {{ tenant.name }}?')">
+        Suspend Tenant
+      </button>
+    </form>
+    {% else %}
+    <p style="font-size:13px;color:#94a3b8;margin-bottom:14px;">
+      This tenant is currently suspended. Activating will restore full access and apply a paid renewal.
+    </p>
+    <form method="post" action="/command/tenants/{{ tenant.schema_name }}/activate/">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-green" style="width:100%;">
+        Activate Tenant
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+</div>
+
+{% endblock %}

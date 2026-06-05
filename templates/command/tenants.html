@@ -1,0 +1,94 @@
+{% extends "command/base.html" %}
+{% block title %}Tenants{% endblock %}
+{% block page_title %}Tenants{% endblock %}
+{% block nav_tenants %}active{% endblock %}
+
+{% block content %}
+
+<!-- Filters -->
+<div class="flex items-center gap-3 mb-4">
+  <form method="get" class="flex items-center gap-3" style="flex:1;">
+    <input type="text" name="q" value="{{ search }}" placeholder="Search name or email…" class="cc-input" style="max-width:260px;">
+    <select name="status" class="cc-input cc-select" style="max-width:160px;">
+      <option value="">All statuses</option>
+      <option value="trial" {% if status_filter == 'trial' %}selected{% endif %}>Trial</option>
+      <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+      <option value="expired" {% if status_filter == 'expired' %}selected{% endif %}>Expired</option>
+      <option value="suspended" {% if status_filter == 'suspended' %}selected{% endif %}>Suspended</option>
+      <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+    </select>
+    <button type="submit" class="btn btn-ghost">Filter</button>
+    {% if search or status_filter %}
+    <a href="/command/tenants/" class="btn btn-ghost" style="color:#ef4444;">Clear</a>
+    {% endif %}
+  </form>
+  <div class="text-muted ml-auto">{{ rows|length }} result{{ rows|length|pluralize }}</div>
+</div>
+
+<div class="cc-card" style="padding:0;">
+  <div class="cc-table-wrap">
+    <table class="cc-table">
+      <thead>
+        <tr>
+          <th>Business</th>
+          <th>Plan</th>
+          <th>Status</th>
+          <th>Health</th>
+          <th>Days Left</th>
+          <th>Logins</th>
+          <th>Bookings</th>
+          <th>Joined</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>
+            <div style="font-weight:600;color:#f1f5f9;">{{ row.tenant.name }}</div>
+            <div class="text-muted">{{ row.tenant.owner_email }}</div>
+          </td>
+          <td>
+            {% if row.subscription %}{{ row.subscription.plan.display_name }}{% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td>
+            {% if row.subscription %}
+              <span class="badge badge-{{ row.subscription.status }}">{{ row.subscription.status|title }}</span>
+            {% else %}
+              <span class="badge badge-lost">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.engagement %}
+              <span class="badge badge-{{ row.engagement.health_score|lower }}">{{ row.engagement.health_score }}</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.subscription %}
+              {% if row.subscription.days_remaining == 0 %}
+                <span style="color:#ef4444;">Expired</span>
+              {% else %}
+                <span style="color:{% if row.subscription.days_remaining <= 5 %}#f59e0b{% else %}#94a3b8{% endif %};">
+                  {{ row.subscription.days_remaining }}d
+                </span>
+              {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ row.engagement.login_count|default:"0" }}</td>
+          <td>{{ row.engagement.bookings_added|default:"0" }}</td>
+          <td class="text-muted">{{ row.tenant.created_at|date:"d M Y" }}</td>
+          <td>
+            <a href="/command/tenants/{{ row.tenant.schema_name }}/" class="btn btn-ghost btn-sm">View →</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" style="text-align:center;padding:32px;color:#475569;">No tenants found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

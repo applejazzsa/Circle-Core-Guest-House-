@@ -65,7 +65,7 @@ def build_payment_data(subscription, schema_name: str) -> dict:
         'name_first': name_first,
         'name_last': name_last,
         'email_address': subscription.owner_email,
-        'm_payment_id': f'SUB-{subscription.pk}',
+        'm_payment_id': f'SUB-{schema_name}-{subscription.pk}',
         'amount': f'{amount:.2f}',
         'item_name': f'Circle Core {plan.display_name}',
         'item_description': f'{subscription.get_billing_cycle_display()} subscription - {plan.display_name} plan',

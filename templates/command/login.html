@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Command Center Login — Circle Core</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #0d0f12; color: #f1f5f9; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .card { background: #13161b; border: 1px solid #1e2433; border-radius: 16px; width: 100%; max-width: 400px; padding: 40px 36px; }
+    .logo-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; justify-content: center; }
+    .logo-icon { width: 36px; height: 36px; border-radius: 8px; background: #7c3aed; display: flex; align-items: center; justify-content: center; }
+    .logo-text { font-size: 15px; font-weight: 700; color: #f1f5f9; }
+    .logo-sub { font-size: 9.5px; color: #64748b; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 1px; }
+    h1 { font-size: 20px; font-weight: 800; color: #f1f5f9; margin-bottom: 6px; }
+    .subtitle { font-size: 13px; color: #64748b; margin-bottom: 28px; }
+    label { display: block; font-size: 11.5px; font-weight: 600; color: #64748b; margin-bottom: 5px; }
+    input { width: 100%; background: #1a1e26; border: 1px solid #2a3142; border-radius: 8px; color: #f1f5f9; font-size: 14px; padding: 10px 14px; outline: none; }
+    input:focus { border-color: #7c3aed; }
+    .field { margin-bottom: 16px; }
+    .error { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: #f87171; border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 18px; }
+    button { width: 100%; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; padding: 12px; cursor: pointer; margin-top: 6px; }
+    button:hover { background: #6d28d9; }
+    .footer { text-align: center; font-size: 11px; color: #334155; margin-top: 24px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo-wrap">
+    <div class="logo-icon">
+      <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
+        <rect x="1" y="1" width="5" height="5" rx="1" fill="#fff" opacity="0.9"/>
+        <rect x="8" y="1" width="5" height="5" rx="1" fill="#fff" opacity="0.5"/>
+        <rect x="1" y="8" width="5" height="5" rx="1" fill="#fff" opacity="0.5"/>
+        <rect x="8" y="8" width="5" height="5" rx="1" fill="#fff" opacity="0.9"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">Command Center</div>
+      <div class="logo-sub">Circle Core Technologies</div>
+    </div>
+  </div>
+
+  <h1>Sign in</h1>
+  <p class="subtitle">Internal access only. Authorised Circle Core staff.</p>
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">
+      <label>Username</label>
+      <input type="text" name="username" autofocus autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" name="password" autocomplete="current-password" required>
+    </div>
+    <button type="submit">Sign in to Command Center</button>
+  </form>
+
+  <div class="footer">Circle Core Technologies (Pty) Ltd &mdash; Restricted access</div>
+</div>
+</body>
+</html>

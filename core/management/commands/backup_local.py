@@ -53,7 +53,7 @@ class Command(BaseCommand):
         ]
         env = {'PGPASSWORD': db.get('PASSWORD', '')}
 
-        self.stdout.write(f'Running pg_dump → {dump_path} …')
+        self.stdout.write(f'Running pg_dump -> {dump_path} ...')
         try:
             result = subprocess.run(pg_cmd, env={**__import__("os").environ, **env},
                                     capture_output=True, text=True)
@@ -68,14 +68,14 @@ class Command(BaseCommand):
         media_root = Path(settings.MEDIA_ROOT)
         if media_root.exists() and any(media_root.rglob('*')):
             media_zip = output_dir / f'circlecore-media-{timestamp}.zip'
-            self.stdout.write(f'Zipping media → {media_zip} …')
+            self.stdout.write(f'Zipping media -> {media_zip} ...')
             with zipfile.ZipFile(media_zip, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
                 for path in media_root.rglob('*'):
                     if path.is_file():
                         archive.write(path, Path('media') / path.relative_to(media_root))
             self.stdout.write(self.style.SUCCESS(f'Media backup saved: {media_zip}'))
         else:
-            self.stdout.write('No media files found — skipping media zip.')
+            self.stdout.write('No media files found - skipping media zip.')
 
         self.stdout.write(self.style.SUCCESS(
             f'\nBackup complete. Files are in: {output_dir}\n'

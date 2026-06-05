@@ -1,6 +1,9 @@
 import datetime
+from decimal import Decimal
 
 from django import forms
+from django.core.exceptions import ValidationError
+from PIL import Image, UnidentifiedImageError
 
 from .models import Booking, BookingRefund, Expense, Guest, GuestHouseSettings, Payment, Room
 
@@ -14,6 +17,25 @@ PREMIUM_FILE_CLASSES = (
     "file:mr-4 file:rounded-lg file:border-0 file:bg-[#1a1a2e] file:px-4 file:py-2 "
     "file:text-sm file:font-semibold file:text-white hover:file:bg-[#2a2a4e]"
 )
+MAX_IMAGE_UPLOAD_SIZE = 5 * 1024 * 1024
+ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+
+def validate_image_upload(upload):
+    if not upload:
+        return
+    if upload.size > MAX_IMAGE_UPLOAD_SIZE:
+        raise ValidationError("Image uploads must be 5MB or smaller.")
+    content_type = getattr(upload, "content_type", "")
+    if content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+        raise ValidationError("Upload a JPG, PNG, or WebP image.")
+    try:
+        image = Image.open(upload)
+        image.verify()
+    except (UnidentifiedImageError, OSError):
+        raise ValidationError("Upload a valid image file.")
+    finally:
+        upload.seek(0)
 
 
 class GuestHouseSettingsForm(forms.ModelForm):
@@ -91,6 +113,11 @@ class GuestHouseSettingsForm(forms.ModelForm):
                 continue
             field.widget.attrs.update({"class": PREMIUM_FIELD_CLASSES})
 
+    def clean_logo(self):
+        logo = self.cleaned_data.get("logo")
+        validate_image_upload(logo)
+        return logo
+
 
 class RoomForm(forms.ModelForm):
     booking_types_allowed = forms.MultipleChoiceField(
@@ -136,6 +163,27 @@ class RoomForm(forms.ModelForm):
     def clean_booking_types_allowed(self):
         value = self.cleaned_data.get("booking_types_allowed") or ["Daily"]
         return ",".join(value)
+
+    def clean_name(self):
+        name = self.cleaned_data["name"].strip()
+        qs = Room.objects.filter(name__iexact=name)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("A room with this name already exists.")
+        return name
+
+    def clean_max_guests(self):
+        max_guests = self.cleaned_data["max_guests"]
+        if max_guests < 1:
+            raise forms.ValidationError("Room capacity must be at least 1.")
+        return max_guests
+
+    def clean_price_per_night(self):
+        price = self.cleaned_data["price_per_night"]
+        if price <= 0:
+            raise forms.ValidationError("Nightly rate must be greater than zero.")
+        return price
 
 
 class GuestForm(forms.ModelForm):
@@ -209,12 +257,23 @@ class BookingForm(forms.ModelForm):
         room = cleaned_data.get("room")
         duration_type = cleaned_data.get("booking_duration_type") or "daily"
         start_time = cleaned_data.get("booking_start_time")
+        num_guests = cleaned_data.get("num_guests")
+        discount = cleaned_data.get("discount") or 0
+        deposit_required = cleaned_data.get("deposit_required") or 0
 
-        if room and room.status in ["Maintenance", "Blocked"]:
+        if num_guests is not None and num_guests < 1:
+            raise forms.ValidationError("Number of guests must be at least 1.")
+        if discount < 0:
+            raise forms.ValidationError("Discount cannot be negative.")
+        if deposit_required < 0:
+            raise forms.ValidationError("Deposit required cannot be negative.")
+
+        if room and room.status in ["Maintenance", "Blocked", "Cleaning"]:
             editing_same_room = self.instance.pk and self.instance.room_id == room.pk
             if not editing_same_room:
-                status_label = "under maintenance" if room.status == "Maintenance" else "blocked"
-                raise forms.ValidationError(f"{room.name} cannot be booked because it is currently {status_label}.")
+                status_labels = {"Maintenance": "under maintenance", "Blocked": "blocked", "Cleaning": "currently being cleaned"}
+                status_label = status_labels.get(room.status, room.status.lower())
+                raise forms.ValidationError(f"{room.name} cannot be booked because it is {status_label}.")
 
         if check_in and check_out:
             if duration_type not in ["1_hour", "2_hours", "3_hours", "5_hours"] and check_out <= check_in:
@@ -244,6 +303,22 @@ class BookingForm(forms.ModelForm):
                 candidate.booking_start_time = start_time
                 candidate.booking_end_time = cleaned_data.get("booking_end_time")
                 candidate.status = cleaned_data.get("status") or "Pending"
+                candidate.rate_per_night = cleaned_data.get("rate_per_night") or configured_rate
+                candidate.discount = discount
+                candidate.deposit_required = deposit_required
+                if duration_type in ["1_hour", "2_hours", "3_hours", "5_hours"]:
+                    subtotal = configured_rate
+                else:
+                    nights = max((candidate.check_out_date - candidate.check_in_date).days, 0)
+                    if duration_type == "weekly":
+                        subtotal = configured_rate * (Decimal(nights) / Decimal("7"))
+                    else:
+                        subtotal = configured_rate * nights
+                candidate.compute_totals()
+                if discount > subtotal:
+                    raise forms.ValidationError("Discount cannot be bigger than the booking subtotal.")
+                if deposit_required > candidate.total_amount:
+                    raise forms.ValidationError("Deposit required cannot be bigger than the booking total.")
                 conflict = candidate.overlapping_bookings().select_related("guest").first()
                 if conflict:
                     raise forms.ValidationError(
@@ -282,6 +357,12 @@ class PaymentForm(forms.ModelForm):
         if commit:
             payment.save()
         return payment
+
+    def clean_amount(self):
+        amount = self.cleaned_data["amount"]
+        if amount <= 0:
+            raise forms.ValidationError("Payment amount must be greater than zero.")
+        return amount
 
 
 class BookingRefundForm(forms.ModelForm):

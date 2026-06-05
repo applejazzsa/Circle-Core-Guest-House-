@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import connection
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -23,6 +24,10 @@ _SUBSCRIPTION_EXEMPT = [
 ]
 
 
+def _admin_path():
+    return "/" + getattr(settings, "ADMIN_URL", "admin/").lstrip("/")
+
+
 class SubscriptionMiddleware:
 
     def __init__(self, get_response):
@@ -35,7 +40,7 @@ class SubscriptionMiddleware:
         if not request.user.is_authenticated:
             return self.get_response(request)
 
-        if any(request.path.startswith(p) for p in _ALWAYS_EXEMPT):
+        if any(request.path.startswith(p) for p in [*_ALWAYS_EXEMPT, _admin_path()]):
             return self.get_response(request)
 
         if any(request.path.startswith(p) for p in _SUBSCRIPTION_EXEMPT):
@@ -148,7 +153,7 @@ class RoleAccessMiddleware:
         if not request.user.is_authenticated:
             return self.get_response(request)
 
-        if any(request.path.startswith(path) for path in self.EXEMPT_PATHS):
+        if any(request.path.startswith(path) for path in [*self.EXEMPT_PATHS, _admin_path()]):
             return self.get_response(request)
 
         if is_cleaner(request.user):

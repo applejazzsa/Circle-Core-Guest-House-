@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>{% block title %}Command Center{% endblock %} — Circle Core</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #0d0f12; color: #f1f5f9; min-height: 100vh; display: flex; }
+    a { color: inherit; text-decoration: none; }
+
+    /* Sidebar */
+    .cc-sidebar {
+      width: 220px; min-width: 220px; background: #0f1218; border-right: 1px solid #1e2433;
+      display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    }
+    .cc-sidebar-logo {
+      padding: 20px 18px 16px; border-bottom: 1px solid #1e2433;
+    }
+    .cc-logo-mark {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .cc-logo-icon {
+      width: 30px; height: 30px; border-radius: 7px; background: #7c3aed;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .cc-logo-text { font-size: 13.5px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.02em; }
+    .cc-logo-sub { font-size: 9px; color: #64748b; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 1px; }
+    .cc-nav { padding: 12px 10px; flex: 1; }
+    .cc-nav-label {
+      font-size: 9.5px; font-weight: 700; color: #475569; letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 10px 8px 6px;
+    }
+    .cc-nav-item {
+      display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px;
+      font-size: 13px; font-weight: 500; color: #94a3b8; cursor: pointer; margin-bottom: 2px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .cc-nav-item:hover { background: #1a1e26; color: #f1f5f9; }
+    .cc-nav-item.active { background: rgba(124,58,237,0.15); color: #a78bfa; font-weight: 600; }
+    .cc-nav-item svg { flex-shrink: 0; }
+    .cc-nav-badge {
+      margin-left: auto; background: #7c3aed; color: #fff; font-size: 10px;
+      font-weight: 700; padding: 1px 7px; border-radius: 100px;
+    }
+    .cc-sidebar-footer {
+      padding: 14px 18px; border-top: 1px solid #1e2433; font-size: 12px; color: #475569;
+    }
+
+    /* Main */
+    .cc-main { flex: 1; display: flex; flex-direction: column; min-height: 100vh; overflow: auto; }
+    .cc-topbar {
+      height: 52px; background: #0f1218; border-bottom: 1px solid #1e2433;
+      display: flex; align-items: center; padding: 0 28px; gap: 16px; flex-shrink: 0;
+    }
+    .cc-topbar-title { font-size: 14px; font-weight: 600; color: #f1f5f9; flex: 1; }
+    .cc-topbar-user { font-size: 12px; color: #64748b; }
+    .cc-topbar-logout {
+      font-size: 12px; color: #ef4444; font-weight: 600; padding: 5px 12px;
+      border: 1px solid rgba(239,68,68,0.25); border-radius: 6px;
+    }
+    .cc-topbar-logout:hover { background: rgba(239,68,68,0.08); }
+    .cc-content { padding: 28px; flex: 1; }
+
+    /* Cards */
+    .cc-card {
+      background: #13161b; border: 1px solid #1e2433; border-radius: 12px; padding: 20px 24px;
+    }
+    .cc-card-title {
+      font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;
+      letter-spacing: 0.08em; margin-bottom: 14px;
+    }
+
+    /* Stat cards */
+    .cc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .cc-stat {
+      background: #13161b; border: 1px solid #1e2433; border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .cc-stat-label { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .cc-stat-value { font-size: 28px; font-weight: 800; color: #f1f5f9; line-height: 1; }
+    .cc-stat-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+    /* Table */
+    .cc-table-wrap { overflow-x: auto; }
+    table.cc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.cc-table th {
+      text-align: left; padding: 8px 14px; font-size: 10.5px; font-weight: 700;
+      color: #475569; text-transform: uppercase; letter-spacing: 0.06em;
+      border-bottom: 1px solid #1e2433; white-space: nowrap;
+    }
+    table.cc-table td {
+      padding: 11px 14px; border-bottom: 1px solid #13161b; vertical-align: middle;
+      color: #cbd5e1;
+    }
+    table.cc-table tr:hover td { background: #13161b; }
+    table.cc-table tr:last-child td { border-bottom: none; }
+
+    /* Badges */
+    .badge {
+      display: inline-block; padding: 2px 9px; border-radius: 100px;
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .badge-trial { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+    .badge-active { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+    .badge-expired { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+    .badge-suspended { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+    .badge-cancelled { background: rgba(100,116,139,0.12); color: #94a3b8; border: 1px solid rgba(100,116,139,0.25); }
+    .badge-high { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+    .badge-medium { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+    .badge-low { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+    .badge-new { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+    .badge-converted { background: rgba(124,58,237,0.12); color: #a78bfa; border: 1px solid rgba(124,58,237,0.25); }
+    .badge-lost { background: rgba(100,116,139,0.12); color: #64748b; border: 1px solid rgba(100,116,139,0.2); }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; font-size: 12.5px; font-weight: 600; border: none; cursor: pointer; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #7c3aed; color: #fff; }
+    .btn-green { background: #16a34a; color: #fff; }
+    .btn-red { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+    .btn-ghost { background: #1a1e26; color: #94a3b8; border: 1px solid #2a3142; }
+    .btn-sm { padding: 5px 10px; font-size: 11.5px; }
+
+    /* Forms */
+    .cc-input {
+      background: #1a1e26; border: 1px solid #2a3142; border-radius: 7px; color: #f1f5f9;
+      font-size: 13px; padding: 8px 12px; width: 100%;
+    }
+    .cc-input:focus { outline: 2px solid #7c3aed; border-color: transparent; }
+    .cc-select { appearance: none; }
+    .cc-label { font-size: 11.5px; font-weight: 600; color: #64748b; display: block; margin-bottom: 5px; }
+
+    /* Alerts */
+    .cc-alert { padding: 10px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+    .cc-alert-success { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); color: #4ade80; }
+    .cc-alert-error { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: #f87171; }
+
+    /* Grid helpers */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .mt-4 { margin-top: 16px; }
+    .mt-6 { margin-top: 24px; }
+    .mb-4 { margin-bottom: 16px; }
+    .text-muted { color: #64748b; font-size: 12px; }
+    .text-sm { font-size: 12px; }
+    .fw-700 { font-weight: 700; }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .gap-2 { gap: 8px; }
+    .gap-3 { gap: 12px; }
+    .ml-auto { margin-left: auto; }
+  </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="cc-sidebar">
+  <div class="cc-sidebar-logo">
+    <div class="cc-logo-mark">
+      <div class="cc-logo-icon">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1" y="1" width="5" height="5" rx="1" fill="#fff" opacity="0.9"/>
+          <rect x="8" y="1" width="5" height="5" rx="1" fill="#fff" opacity="0.5"/>
+          <rect x="1" y="8" width="5" height="5" rx="1" fill="#fff" opacity="0.5"/>
+          <rect x="8" y="8" width="5" height="5" rx="1" fill="#fff" opacity="0.9"/>
+        </svg>
+      </div>
+      <div>
+        <div class="cc-logo-text">Command Center</div>
+        <div class="cc-logo-sub">Circle Core</div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="cc-nav">
+    <div class="cc-nav-label">Overview</div>
+    <a href="/command/" class="cc-nav-item {% block nav_dashboard %}{% endblock %}">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+
+    <div class="cc-nav-label" style="margin-top:8px;">Customers</div>
+    <a href="/command/tenants/" class="cc-nav-item {% block nav_tenants %}{% endblock %}">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Tenants
+    </a>
+    <a href="/command/leads/" class="cc-nav-item {% block nav_leads %}{% endblock %}">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      Leads
+    </a>
+  </nav>
+
+  <div class="cc-sidebar-footer">
+    Logged in as <strong style="color:#94a3b8;">{{ username }}</strong><br>
+    <a href="/command/logout/" style="color:#ef4444;font-size:11px;">Sign out</a>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="cc-main">
+  <div class="cc-topbar">
+    <div class="cc-topbar-title">{% block page_title %}Command Center{% endblock %}</div>
+    {% if messages %}
+      {% for msg in messages %}
+        <div class="cc-alert {% if msg.tags == 'error' %}cc-alert-error{% else %}cc-alert-success{% endif %}" style="margin:0;padding:6px 14px;font-size:12px;">
+          {{ msg }}
+        </div>
+      {% endfor %}
+    {% endif %}
+    <span class="cc-topbar-user">{{ username }}</span>
+    <a href="/command/logout/" class="cc-topbar-logout">Sign out</a>
+  </div>
+
+  <div class="cc-content">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+</body>
+</html>

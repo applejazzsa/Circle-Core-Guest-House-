@@ -1,0 +1,84 @@
+{% extends "command/base.html" %}
+{% block title %}Leads{% endblock %}
+{% block page_title %}Leads{% endblock %}
+{% block nav_leads %}active{% endblock %}
+
+{% block content %}
+
+<!-- Filters -->
+<div class="flex items-center gap-3 mb-4">
+  <form method="get" class="flex items-center gap-3">
+    <select name="status" class="cc-input cc-select" style="max-width:200px;">
+      <option value="">All statuses</option>
+      {% for val, label in status_choices %}
+      <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-ghost">Filter</button>
+    {% if status_filter %}<a href="/command/leads/" class="btn btn-ghost" style="color:#ef4444;">Clear</a>{% endif %}
+  </form>
+  <div class="text-muted ml-auto">{{ leads|length }} lead{{ leads|length|pluralize }}</div>
+</div>
+
+<div class="cc-card" style="padding:0;">
+  <div class="cc-table-wrap">
+    <table class="cc-table">
+      <thead>
+        <tr>
+          <th>Contact</th>
+          <th>Business</th>
+          <th>Rooms</th>
+          <th>Status</th>
+          <th>Source</th>
+          <th>Received</th>
+          <th>Update</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lead in leads %}
+        <tr>
+          <td>
+            <div style="font-weight:600;color:#f1f5f9;">{{ lead.full_name }}</div>
+            <div class="text-muted">{{ lead.email }}</div>
+            {% if lead.phone %}<div class="text-muted">{{ lead.phone }}</div>{% endif %}
+          </td>
+          <td style="color:#f1f5f9;">{{ lead.business_name }}</td>
+          <td>{{ lead.num_rooms|default:"—" }}</td>
+          <td>
+            <span class="badge
+              {% if lead.status == 'new' %}badge-new
+              {% elif lead.status == 'converted' %}badge-converted
+              {% elif lead.status == 'lost' %}badge-lost
+              {% else %}badge-trial{% endif %}
+            ">{{ lead.get_status_display }}</span>
+          </td>
+          <td class="text-muted">{{ lead.source|default:"—" }}</td>
+          <td class="text-muted">{{ lead.created_at|date:"d M Y" }}</td>
+          <td>
+            <form method="post" action="/command/leads/{{ lead.pk }}/status/" style="display:flex;gap:6px;align-items:center;">
+              {% csrf_token %}
+              <select name="status" class="cc-input cc-select" style="max-width:150px;padding:5px 8px;font-size:12px;">
+                {% for val, label in status_choices %}
+                <option value="{{ val }}" {% if lead.status == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-ghost btn-sm">Save</button>
+            </form>
+          </td>
+        </tr>
+        {% if lead.notes %}
+        <tr>
+          <td colspan="7" style="padding:4px 14px 10px;color:#64748b;font-size:12px;font-style:italic;">
+            {{ lead.notes }}
+          </td>
+        </tr>
+        {% endif %}
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center;padding:32px;color:#475569;">No leads found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

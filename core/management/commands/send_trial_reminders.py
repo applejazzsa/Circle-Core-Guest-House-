@@ -25,6 +25,7 @@ TRIAL_REMINDER_SCHEDULE = {
     5: ("emails/trial_day5.html", "5 days left on your Circle Core trial"),
     2: ("emails/trial_day2.html", "48 hours to secure your Circle Core account"),
     1: ("emails/trial_day1.html", "Your Circle Core trial expires today"),
+    0: ("emails/trial_day0.html", "Your Circle Core trial has expired — here's what happens next"),
 }
 
 RENEWAL_REMINDER_DAYS = {5, 2, 1}
@@ -103,6 +104,11 @@ class Command(BaseCommand):
         days = subscription.days_remaining
         if days not in TRIAL_REMINDER_SCHEDULE:
             return "", ""
+        # Day-0 email: only fire on the actual expiry date to avoid re-sending for old expired trials
+        if days == 0:
+            today = timezone.localdate()
+            if subscription.expires_at.date() != today:
+                return "", ""
         template, subject = TRIAL_REMINDER_SCHEDULE[days]
         html = render_to_string(
             template,

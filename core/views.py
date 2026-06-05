@@ -13,17 +13,21 @@ from django.contrib import messages
 from django.contrib.auth import authenticate
 from django.contrib.auth.decorators import login_required
 from django import forms
+from django.core.cache import cache
 from django.core.paginator import Paginator
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
+from django.core.exceptions import ValidationError
+from django.db import connection, transaction
 from django.db.models import Count, DecimalField, F, OuterRef, Q, Subquery, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models.deletion import ProtectedError
+from django.db.models.functions import Coalesce, ExtractHour
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt
 
-from .forms import BookingForm, BookingRefundForm, ExpenseForm, GuestForm, GuestHouseSettingsForm, PaymentForm, RoomForm
+from .forms import BookingForm, BookingRefundForm, ExpenseForm, GuestForm, GuestHouseSettingsForm, PaymentForm, RoomForm, validate_image_upload
 from .models import (
     AuditLog,
     Booking,
@@ -49,6 +53,7 @@ from .models import (
     Room,
     Subscription,
     SubscriptionPlan,
+    TrialEngagement,
     TrialLicense,
 )
 from .email_utils import (
@@ -68,6 +73,8 @@ from .roles import is_cleaner, is_owner, STAFF_ROLES
 SENSITIVE_DISCOUNT_AMOUNT = Decimal("50.00")
 SENSITIVE_DISCOUNT_PERCENT = Decimal("5.00")
 SHIFT_VARIANCE_APPROVAL_AMOUNT = Decimal("0.00")
+MAX_CLEANING_PROOF_SIZE = 5 * 1024 * 1024
+ALLOWED_CLEANING_PROOF_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
 
 def _client_ip(request):
@@ -214,6 +221,43 @@ def _limit_reached_response(request, message, feature):
     return redirect(f"{reverse('core:subscription_upgrade')}?feature={feature}")
 
 
+def _validate_cleaning_photo(upload):
+    try:
+        validate_image_upload(upload)
+    except ValidationError as exc:
+        return " ".join(exc.messages)
+    return ""
+
+
+def _guest_queryset_for_active_property(request):
+    active_prop = get_active_property(request)
+    if not active_prop:
+        return Guest.objects.none()
+    return (
+        Guest.objects.filter(Q(bookings__room__prop=active_prop) | Q(bookings__isnull=True))
+        .distinct()
+    )
+
+
+def _api_property_from_request(request, payload=None):
+    payload = payload or {}
+    prop_id = (
+        request.headers.get("X-Circle-Property-ID")
+        or request.headers.get("X-Property-ID")
+        or payload.get("property_id")
+    )
+    if prop_id:
+        try:
+            return GuestHouseProperty.objects.get(pk=prop_id, is_active=True)
+        except (GuestHouseProperty.DoesNotExist, ValueError, TypeError):
+            return None
+
+    active_properties = GuestHouseProperty.objects.filter(is_active=True).order_by("sort_order", "pk")
+    if active_properties.count() == 1:
+        return active_properties.first()
+    return None
+
+
 @login_required
 def notifications_feed(request):
     today = timezone.localdate()
@@ -260,9 +304,15 @@ def notifications_feed(request):
             "icon": "🧹",
         })
 
-    # Rooms just marked clean (status changed to Clean today — approximated via recent check)
-    clean_rooms = Room.objects.filter(prop=active_prop, cleaning_status="Clean", status="Available")
-    for r in clean_rooms:
+    # Rooms cleaned in the last 2 hours (proof uploaded recently)
+    two_hours_ago = now - datetime.timedelta(hours=2)
+    recently_cleaned_room_ids = set(
+        CleaningProof.objects.filter(
+            room__prop=active_prop,
+            created_at__gte=two_hours_ago,
+        ).values_list("room_id", flat=True)
+    )
+    for r in Room.objects.filter(prop=active_prop, pk__in=recently_cleaned_room_ids, cleaning_status="Clean"):
         alerts.append({
             "id": f"cleaned-{r.pk}-{today}",
             "type": "cleaned",
@@ -964,7 +1014,11 @@ def room_delete(request, pk):
             return redirect("core:room_detail", pk=room.pk)
         before = _model_snapshot(room, ["name", "room_type", "status", "cleaning_status"])
         name = room.name
-        room.delete()
+        try:
+            room.delete()
+        except ProtectedError:
+            messages.error(request, f'"{name}" cannot be deleted because it has bookings or related records. Mark it blocked or inactive instead.')
+            return redirect("core:room_detail", pk=pk)
         _audit(request, "delete", room, before=before, reason="Room deleted", approved_by=approver)
         messages.success(request, f'"{name}" deleted successfully.')
         return redirect("core:room_list")
@@ -1028,6 +1082,10 @@ def cleaning_set_status(request, pk):
         if cleaning_status == "Clean":
             _sync_room_status(room)
             if request.FILES.get("cleaning_photo"):
+                validation_error = _validate_cleaning_photo(request.FILES["cleaning_photo"])
+                if validation_error:
+                    messages.error(request, validation_error)
+                    return redirect("core:cleaning")
                 proof = CleaningProof.objects.create(
                     room=room,
                     uploaded_by=request.user,
@@ -1084,6 +1142,16 @@ def cleaning_proof_review(request):
             "proof_count": proofs.count(),
         },
     )
+
+
+@login_required
+def cleaning_proof_photo(request, pk):
+    active_prop = get_active_property(request)
+    proof = get_object_or_404(CleaningProof.objects.select_related("room"), pk=pk, room__prop=active_prop)
+    if not proof.photo:
+        return HttpResponse(status=404)
+    content_type, _ = mimetypes.guess_type(proof.photo.name)
+    return FileResponse(proof.photo.open("rb"), content_type=content_type or "application/octet-stream")
 
 
 @login_required
@@ -1201,6 +1269,11 @@ def reports(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
+    try:
+        from django.db.models import F
+        TrialEngagement.objects.filter(pk=1).update(reports_viewed=F("reports_viewed") + 1)
+    except Exception:
+        pass
     today = timezone.localdate()
     try:
         selected_month = int(request.GET.get("month", today.month))
@@ -1218,11 +1291,21 @@ def reports(request):
     _, property_payments = _property_payments(request)
     property_expenses = Expense.objects.filter(prop=active_prop)
 
-    total_revenue = (
+    gross_revenue = (
         property_payments.filter(payment_date__gte=month_start, payment_date__lte=month_end)
         .aggregate(total=Sum("amount"))["total"]
         or Decimal("0.00")
     )
+    total_refunds = (
+        BookingRefund.objects.filter(
+            booking__room__prop=active_prop,
+            refund_date__gte=month_start,
+            refund_date__lte=month_end,
+        )
+        .aggregate(total=Sum("amount"))["total"]
+        or Decimal("0.00")
+    )
+    total_revenue = max(gross_revenue - total_refunds, Decimal("0.00"))
     total_expenses = (
         property_expenses.filter(date__gte=month_start, date__lte=month_end)
         .aggregate(total=Sum("amount"))["total"]
@@ -1471,14 +1554,19 @@ def reports(request):
 def guest_list(request):
     query = request.GET.get("q", "").strip()
     active_prop = get_active_property(request)
-    guests = Guest.objects.filter(Q(bookings__room__prop=active_prop) | Q(bookings__isnull=True)).distinct()
+    guests = Guest.objects.filter(Q(bookings__room__prop=active_prop) | Q(bookings__isnull=True)).distinct().order_by("last_name", "first_name")
     if query:
         guests = guests.filter(
             Q(first_name__icontains=query)
             | Q(last_name__icontains=query)
             | Q(phone__icontains=query)
         )
-    return render(request, "core/guest_list.html", {"guests": guests, "query": query})
+    paginator = Paginator(guests, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    filter_params = request.GET.copy()
+    filter_params.pop("page", None)
+    filter_query = filter_params.urlencode()
+    return render(request, "core/guest_list.html", {"guests": page_obj, "page_obj": page_obj, "query": query, "filter_query": filter_query})
 
 
 @login_required
@@ -1523,12 +1611,9 @@ def guest_quick_create(request):
 
 @login_required
 def guest_detail(request, pk):
-    guest = get_object_or_404(Guest, pk=pk)
     active_prop = get_active_property(request)
-    try:
-        bookings = guest.bookings.select_related("room").filter(room__prop=active_prop).order_by("-check_in_date")
-    except AttributeError:
-        bookings = []
+    guest = get_object_or_404(_guest_queryset_for_active_property(request), pk=pk)
+    bookings = guest.bookings.select_related("room").filter(room__prop=active_prop).order_by("-check_in_date")
     booking_list = list(bookings)
     first_stay = booking_list[-1].check_in_date if booking_list else None
     last_stay = booking_list[0].check_in_date if booking_list else None
@@ -1547,7 +1632,7 @@ def guest_detail(request, pk):
 
 @login_required
 def guest_edit(request, pk):
-    guest = get_object_or_404(Guest, pk=pk)
+    guest = get_object_or_404(_guest_queryset_for_active_property(request), pk=pk)
     if request.method == "POST":
         form = GuestForm(request.POST, instance=guest)
         if form.is_valid():
@@ -1589,18 +1674,31 @@ def _booking_end_datetime(booking, settings_obj):
         end_time = booking.booking_end_time or booking.compute_hourly_end_time()
         if not end_time:
             return None
-        end_date = booking.check_out_date or booking.check_in_date
+        start_time = booking.booking_start_time
+        end_date = booking.check_in_date
+        end_dt = datetime.datetime.combine(end_date, end_time)
+        # If end_time is before start_time the booking crosses midnight — add 1 day
+        if start_time and end_time <= start_time:
+            end_dt += datetime.timedelta(days=1)
     else:
         end_date = booking.check_out_date
         end_time = settings_obj.check_out_time
+        end_dt = datetime.datetime.combine(end_date, end_time)
 
-    end_dt = datetime.datetime.combine(end_date, end_time)
     if timezone.is_naive(end_dt):
         end_dt = timezone.make_aware(end_dt, timezone.get_current_timezone())
     return end_dt
 
 
 def _expire_elapsed_bookings(room=None):
+    # Throttle the global (no-room) pass to once per 5 minutes to avoid hammering
+    # the DB on every page load across 8+ views.
+    if room is None:
+        cache_key = f"expire_bookings:{connection.schema_name}"
+        if cache.get(cache_key):
+            return
+        cache.set(cache_key, True, 300)
+
     settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
     now = timezone.now()
     bookings = Booking.objects.select_related("room").filter(
@@ -1804,11 +1902,19 @@ def booking_list(request):
                 }
             )
 
+    paginator = Paginator(bookings, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    filter_params = request.GET.copy()
+    filter_params.pop("page", None)
+    filter_query = filter_params.urlencode()
+
     return render(
         request,
         "core/booking_list.html",
         {
-            "bookings": bookings,
+            "bookings": page_obj,
+            "page_obj": page_obj,
+            "filter_query": filter_query,
             "status_filter": status_filter,
             "source_filter": source_filter,
             "month_filter": month_filter,
@@ -1872,19 +1978,27 @@ def booking_add(request):
                 if not approver:
                     messages.error(request, "Owner approval is required for backdated bookings or large discounts.")
                     return redirect("core:booking_add")
-            booking = form.save()
-            _audit(
-                request,
-                "create",
-                booking,
-                after=_model_snapshot(booking, ["check_in_date", "check_out_date", "booking_duration_type", "rate_per_night", "discount", "total_amount", "status"]),
-                approved_by=approver,
-            )
-            _sync_room_status(booking.room)
-            settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
-            notify_booking_created(booking, settings_obj)
-            messages.success(request, f"Booking {booking.booking_reference} created.")
-            return redirect("core:booking_detail", pk=booking.pk)
+            try:
+                with transaction.atomic():
+                    Room.objects.select_for_update().get(pk=candidate.room_id)
+                    candidate.validate_room_available()
+                    candidate.validate_room_conflict()
+                    booking = form.save()
+            except ValidationError as exc:
+                form.add_error(None, exc)
+            else:
+                _audit(
+                    request,
+                    "create",
+                    booking,
+                    after=_model_snapshot(booking, ["check_in_date", "check_out_date", "booking_duration_type", "rate_per_night", "discount", "total_amount", "status"]),
+                    approved_by=approver,
+                )
+                _sync_room_status(booking.room)
+                settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+                notify_booking_created(booking, settings_obj)
+                messages.success(request, f"Booking {booking.booking_reference} created.")
+                return redirect("core:booking_detail", pk=booking.pk)
     else:
         form = BookingForm(initial=initial)
         form.fields["room"].queryset = property_rooms
@@ -2019,44 +2133,32 @@ def payment_add(request, booking_id):
             tendered = payment.amount
             settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
 
-            is_deposit_payment = (
-                total_paid_so_far == Decimal("0.00")
-                and booking.deposit_required > 0
-                and tendered == booking.deposit_required
-            )
+            if tendered <= 0:
+                form.add_error("amount", "Payment amount must be greater than zero.")
+            elif balance_due <= 0:
+                form.add_error("amount", "This booking has no outstanding balance.")
+            else:
+                recorded_amount = tendered
+                change = Decimal("0.00")
+                if tendered > balance_due:
+                    recorded_amount = balance_due
+                    change = tendered - balance_due
 
-            if tendered > balance_due > 0:
-                # Overpayment — cap to balance and give change
-                payment.amount = balance_due
-                change = tendered - balance_due
+                payment.amount = recorded_amount
+                if total_paid_so_far == Decimal("0.00") and booking.deposit_required > 0 and recorded_amount <= booking.deposit_required:
+                    payment.payment_type = "Deposit"
                 payment.save()
-                _audit(request, "create", payment, after=_model_snapshot(payment, ["amount", "payment_method", "reference"]))
+                _audit(request, "create", payment, after=_model_snapshot(payment, ["amount", "payment_method", "payment_type", "reference"]))
                 booking.recalculate_balance()
                 notify_payment_received(booking, payment, settings_obj)
-                messages.success(request, f"Payment of R {balance_due:.2f} recorded. Change to give: R {change:.2f}")
-                return redirect("core:booking_detail", pk=booking.pk)
-            elif tendered == balance_due or is_deposit_payment:
-                payment.save()
-                _audit(request, "create", payment, after=_model_snapshot(payment, ["amount", "payment_method", "reference"]))
-                booking.recalculate_balance()
-                notify_payment_received(booking, payment, settings_obj)
-                if is_deposit_payment and tendered < balance_due:
-                    messages.success(request, f"Deposit of R {tendered:.2f} recorded. Remaining balance: R {balance_due - tendered:.2f}")
+
+                if change > 0:
+                    messages.success(request, f"Payment of R {recorded_amount:.2f} recorded. Change to give: R {change:.2f}.")
+                elif recorded_amount < balance_due:
+                    messages.success(request, f"Partial payment of R {recorded_amount:.2f} recorded. Remaining balance: R {balance_due - recorded_amount:.2f}.")
                 else:
                     messages.success(request, "Payment recorded successfully.")
                 return redirect("core:booking_detail", pk=booking.pk)
-            else:
-                # Partial amount that is neither the full balance nor the deposit
-                if total_paid_so_far == Decimal("0.00") and booking.deposit_required > 0:
-                    form.add_error(
-                        "amount",
-                        f"Amount must be the full balance (R {balance_due:.2f}) or the deposit (R {booking.deposit_required:.2f}).",
-                    )
-                else:
-                    form.add_error(
-                        "amount",
-                        f"Amount must equal the full balance due: R {balance_due:.2f}.",
-                    )
     else:
         form = PaymentForm(
             initial={
@@ -2103,19 +2205,26 @@ def payment_list(request):
 
     payments = list(payments.order_by("-payment_date", "-recorded_at"))
     total_received = sum((payment.amount for payment in payments), Decimal("0.00"))
-    method_counts = {}
+
+    # Pre-compute cumulative paid per booking up to each payment's recorded_at to avoid N+1.
+    from collections import defaultdict
+    booking_ids = {p.booking_id for p in payments}
+    all_booking_payments = (
+        Payment.objects.filter(booking_id__in=booking_ids)
+        .order_by("booking_id", "payment_date", "recorded_at", "pk")
+        .values("pk", "booking_id", "amount", "payment_date", "recorded_at")
+    )
+    cumulative: dict = defaultdict(Decimal)
+    payment_running: dict = {}
+    for row in all_booking_payments:
+        cumulative[row["booking_id"]] += row["amount"]
+        payment_running[row["pk"]] = cumulative[row["booking_id"]]
+
+    method_counts: dict = {}
     for payment in payments:
         method_counts[payment.payment_method] = method_counts.get(payment.payment_method, 0) + 1
-        paid_before_or_at_payment = (
-            Payment.objects.filter(
-                booking=payment.booking,
-                payment_date__lte=payment.payment_date,
-            )
-            .exclude(payment_date=payment.payment_date, recorded_at__gt=payment.recorded_at)
-            .aggregate(total=Sum("amount"))["total"]
-            or Decimal("0.00")
-        )
-        payment.balance_after = payment.booking.total_amount - paid_before_or_at_payment
+        paid_cumulative = payment_running.get(payment.pk, payment.amount)
+        payment.balance_after = payment.booking.total_amount - paid_cumulative
     most_used_method = max(method_counts, key=method_counts.get) if method_counts else "None"
 
     return render(
@@ -2642,12 +2751,19 @@ def booking_checkin(request, pk):
         if booking.status not in ("Confirmed", "Pending"):
             messages.error(request, "Only pending or confirmed bookings can be checked in.")
             return redirect("core:booking_detail", pk=pk)
+        from django.db import transaction as db_transaction
+        from django.core.exceptions import ValidationError as DjangoValidationError
         before = _model_snapshot(booking, ["status", "check_in_time"])
-        booking.status = "Checked In"
-        booking.check_in_time = timezone.now()
-        booking.save()
-        booking.room.status = "Occupied"
-        booking.room.save()
+        try:
+            with db_transaction.atomic():
+                booking.status = "Checked In"
+                booking.check_in_time = timezone.now()
+                booking.save()
+                booking.room.status = "Occupied"
+                booking.room.save()
+        except DjangoValidationError as exc:
+            messages.error(request, f"Check-in failed: {'; '.join(exc.messages)}")
+            return redirect("core:booking_detail", pk=pk)
         _audit(request, "update", booking, before=before, after=_model_snapshot(booking, ["status", "check_in_time"]))
         settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
         notify_booking_checkin(booking, settings_obj)
@@ -2668,14 +2784,21 @@ def booking_checkout(request, pk):
         if booking.status != "Checked In":
             messages.error(request, "Only checked-in bookings can be checked out.")
             return redirect("core:booking_detail", pk=pk)
+        from django.db import transaction as db_transaction
+        from django.core.exceptions import ValidationError as DjangoValidationError
         before = _model_snapshot(booking, ["status", "check_out_time", "balance_due"])
-        booking.status = "Checked Out"
-        booking.check_out_time = timezone.now()
-        booking.save()
-        room = booking.room
-        room.status = "Cleaning"
-        room.cleaning_status = "Needs Cleaning"
-        room.save()
+        try:
+            with db_transaction.atomic():
+                booking.status = "Checked Out"
+                booking.check_out_time = timezone.now()
+                booking.save()
+                room = booking.room
+                room.status = "Cleaning"
+                room.cleaning_status = "Needs Cleaning"
+                room.save()
+        except DjangoValidationError as exc:
+            messages.error(request, f"Check-out failed: {'; '.join(exc.messages)}")
+            return redirect("core:booking_detail", pk=pk)
         _audit(request, "update", booking, before=before, after=_model_snapshot(booking, ["status", "check_out_time", "balance_due"]), reason="Checkout forced room to cleaning workflow")
         settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
         notify_booking_checkout(booking, settings_obj)
@@ -2728,15 +2851,28 @@ def booking_cancel(request, pk):
         if not approver:
             messages.error(request, "Owner approval is required to cancel bookings.")
             return redirect("core:booking_cancel", pk=pk)
+        from django.core.exceptions import ValidationError as DjangoValidationError
         room = booking.room
         before = _model_snapshot(booking, ["status", "balance_due", "deposit_paid"])
-        booking.status = "Cancelled"
-        booking.save()
+        try:
+            booking.status = "Cancelled"
+            booking.save()
+        except DjangoValidationError as exc:
+            messages.error(request, f"Cancellation failed: {'; '.join(exc.messages)}")
+            return redirect("core:booking_detail", pk=pk)
         _sync_room_status(room)
         _audit(request, "update", booking, before=before, after=_model_snapshot(booking, ["status", "balance_due", "deposit_paid"]), reason="Booking cancelled", approved_by=approver)
         settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
         notify_booking_cancelled(booking, settings_obj)
-        messages.success(request, f"Booking {booking.booking_reference} has been cancelled.")
+        deposit_paid = booking.payment_totals()["net_paid"]
+        if deposit_paid > 0:
+            messages.warning(
+                request,
+                f"Booking {booking.booking_reference} cancelled. "
+                f"Guest has paid R{deposit_paid:.2f} — process a refund if required.",
+            )
+        else:
+            messages.success(request, f"Booking {booking.booking_reference} has been cancelled.")
         return redirect("core:booking_detail", pk=pk)
     return render(request, "bookings/booking_cancel.html", {"booking": booking})
 
@@ -2776,21 +2912,31 @@ def booking_edit(request, pk):
                 if not approver:
                     messages.error(request, "Owner approval is required for completed/backdated bookings or large discounts.")
                     return redirect("core:booking_edit", pk=pk)
-            updated = form.save()
-            _sync_room_status(updated.room)
-            if old_room.pk != updated.room.pk:
-                _sync_room_status(old_room)
-            _audit(
-                request,
-                "update",
-                updated,
-                before=before,
-                after=_model_snapshot(updated, ["room_id", "check_in_date", "check_out_date", "booking_duration_type", "rate_per_night", "discount", "total_amount", "status"]),
-                reason="Booking edited",
-                approved_by=approver,
-            )
-            messages.success(request, "Booking updated successfully.")
-            return redirect("core:booking_detail", pk=booking.pk)
+            try:
+                with transaction.atomic():
+                    Room.objects.select_for_update().get(pk=candidate.room_id)
+                    if old_room.pk != candidate.room_id:
+                        Room.objects.select_for_update().get(pk=old_room.pk)
+                    candidate.validate_room_available()
+                    candidate.validate_room_conflict()
+                    updated = form.save()
+            except ValidationError as exc:
+                form.add_error(None, exc)
+            else:
+                _sync_room_status(updated.room)
+                if old_room.pk != updated.room.pk:
+                    _sync_room_status(old_room)
+                _audit(
+                    request,
+                    "update",
+                    updated,
+                    before=before,
+                    after=_model_snapshot(updated, ["room_id", "check_in_date", "check_out_date", "booking_duration_type", "rate_per_night", "discount", "total_amount", "status"]),
+                    reason="Booking edited",
+                    approved_by=approver,
+                )
+                messages.success(request, "Booking updated successfully.")
+                return redirect("core:booking_detail", pk=booking.pk)
     else:
         form = BookingForm(instance=booking)
         form.fields["room"].queryset = property_rooms
@@ -2829,9 +2975,15 @@ def pos_payment_api(request):
         return JsonResponse({"error": f"Missing fields: {', '.join(missing)}"}, status=400)
 
     booking = None
+    active_prop = _api_property_from_request(request, payload)
     booking_reference = payload.get("booking_reference", "")
     if booking_reference:
-        booking = Booking.objects.filter(booking_reference=booking_reference).first()
+        if not active_prop:
+            return JsonResponse(
+                {"error": "Property is required for POS booking payments. Send X-Circle-Property-ID or property_id."},
+                status=400,
+            )
+        booking = Booking.objects.filter(booking_reference=booking_reference, room__prop=active_prop).first()
 
     try:
         amount = Decimal(str(payload["amount"]))
@@ -2892,7 +3044,17 @@ def pos_booking_lookup_api(request, reference):
     if request.headers.get("X-POS-API-Key") != settings_obj.pos_api_key:
         return JsonResponse({"error": "Unauthorized"}, status=401)
 
-    booking = get_object_or_404(Booking.objects.select_related("guest", "room"), booking_reference=reference)
+    active_prop = _api_property_from_request(request, request.GET)
+    if not active_prop:
+        return JsonResponse(
+            {"error": "Property is required for POS booking lookup. Send X-Circle-Property-ID or property_id."},
+            status=400,
+        )
+    booking = get_object_or_404(
+        Booking.objects.select_related("guest", "room"),
+        booking_reference=reference,
+        room__prop=active_prop,
+    )
     totals = booking.payment_totals()
     return JsonResponse(
         {
@@ -3139,7 +3301,15 @@ def subscription_expired(request):
     )
 
 
+@login_required
 def subscription_setup(request):
+    if not is_owner(request.user):
+        messages.error(request, "Only the account owner can configure the subscription.")
+        return redirect("core:home")
+    existing = Subscription.objects.filter(status__in=["active", "trial"]).first()
+    if existing and request.method == "POST":
+        messages.error(request, "An active subscription already exists. Contact support to change your plan.")
+        return redirect("core:subscription_status")
     plans = SubscriptionPlan.objects.order_by("monthly_price")
     form = SubscriptionSetupForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
@@ -4472,7 +4642,7 @@ def pos_reports(request):
     )
 
     sales_by_hour = list(
-        sales.extra(select={'hour': "CAST(strftime('%%H', created_at) AS INTEGER)"})
+        sales.annotate(hour=ExtractHour('created_at'))
         .values('hour')
         .annotate(count=Count('id'), revenue=Sum('total'))
         .order_by('hour')
@@ -4511,3 +4681,40 @@ def pos_reports(request):
         ]),
         'room_charges': room_charges,
     })
+
+
+# ── Command Center impersonation entry point ──────────────────────────────────
+
+def command_enter(request):
+    """
+    Receives a short-lived signed token from the Command Center and logs in
+    the tenant's first superuser so admins can operate as the tenant.
+    Token expires after 60 seconds.
+    """
+    from django.core import signing
+    from django.contrib.auth import get_user_model, login as auth_login
+
+    token = request.GET.get("token", "")
+    try:
+        data = signing.loads(token, salt="command-impersonation", max_age=60)
+    except (signing.BadSignature, signing.SignatureExpired):
+        return render(request, "core/command_enter_invalid.html", status=400)
+
+    if data.get("schema") != connection.schema_name:
+        return render(request, "core/command_enter_invalid.html", status=403)
+
+    User = get_user_model()
+    user = User.objects.filter(is_superuser=True).order_by("pk").first()
+    if not user:
+        return render(request, "core/command_enter_invalid.html", status=403)
+
+    auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+    AuditLog.objects.create(
+        actor=user,
+        action="login_override",
+        object_type="CommandCenter",
+        object_repr=f"Command Center impersonation for {connection.schema_name}",
+        reason=f"Command user: {data.get('command_username', 'unknown')}",
+        ip_address=_client_ip(request),
+    )
+    return redirect("/")

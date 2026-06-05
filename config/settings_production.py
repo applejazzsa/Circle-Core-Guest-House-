@@ -1,5 +1,4 @@
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
 
 from decouple import Csv, config
 
@@ -11,6 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = False
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv())
+BASE_DOMAIN = config('BASE_DOMAIN', default='guesthouse.circlecore.co.za')
 
 # django-tenants requires the postgresql backend — not the standard one
 DATABASES = {
@@ -36,15 +36,22 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
 SECURE_HSTS_SECONDS = 31536000        # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
+SECURE_REFERRER_POLICY = 'same-origin'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 # Required for Django 4.x CSRF checks across wildcard subdomains
 CSRF_TRUSTED_ORIGINS = [
-    'https://circlecore.co.za',
-    'https://www.circlecore.co.za',
-    'https://*.circlecore.co.za',
+    f'https://{BASE_DOMAIN}',
+    f'https://*.{BASE_DOMAIN}',
 ]
 
 # Redis cache for rate limiting (shared across Gunicorn workers)
@@ -54,4 +61,47 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
         'LOCATION': REDIS_URL,
     }
+}
+
+LOG_LEVEL = config('LOG_LEVEL', default='INFO')
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '%(asctime)s %(levelname)s [%(name)s] %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': LOG_LEVEL,
+    },
+    'loggers': {
+        'django.security': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'core': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'tenants': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+    },
 }

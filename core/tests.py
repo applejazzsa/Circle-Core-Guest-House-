@@ -8,18 +8,44 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.test import Client, TestCase
+from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
+from django_tenants.test.cases import TenantTestCase
 
 from .models import (
     Booking,
     Guest,
     GuestHouseSettings,
+    Payment,
+    Property,
     Room,
     Subscription,
     SubscriptionPlan,
 )
+
+
+class TenantClient(Client):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("HTTP_HOST", "tenant.test.com")
+        super().__init__(*args, **kwargs)
+
+
+class CircleCoreTenantTestCase(TenantTestCase):
+    client_class = TenantClient
+
+    @classmethod
+    def setup_tenant(cls, tenant):
+        tenant.name = "Test Guest House"
+        tenant.owner_name = "Test Owner"
+        tenant.owner_email = f"{cls.get_test_schema_name()}@example.com"
+        tenant.owner_phone = "0810000000"
+        tenant.is_active = True
+        tenant.is_verified = True
+
+    @classmethod
+    def setup_domain(cls, domain):
+        domain.is_primary = True
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -31,9 +57,13 @@ def make_owner(username="owner", password="testpass123"):
 
 
 def make_room(name="Room 1", price=500):
+    prop = Property.objects.filter(is_active=True).order_by("pk").first()
+    if not prop:
+        prop = Property.objects.create(name="Test Property", is_active=True)
     return Room.objects.create(
+        prop=prop,
         name=name,
-        room_type="Standard",
+        room_type="Double",
         max_guests=2,
         status="Available",
         cleaning_status="Clean",
@@ -85,7 +115,7 @@ def activate_trial(owner):
 # ── Model tests ───────────────────────────────────────────────────────────────
 
 
-class RoomModelTest(TestCase):
+class RoomModelTest(CircleCoreTenantTestCase):
     def test_room_str(self):
         room = make_room("Deluxe Suite")
         self.assertIn("Deluxe Suite", str(room))
@@ -99,7 +129,7 @@ class RoomModelTest(TestCase):
         self.assertEqual(room.price_per_night, Decimal("750"))
 
 
-class GuestModelTest(TestCase):
+class GuestModelTest(CircleCoreTenantTestCase):
     def test_full_name(self):
         guest = make_guest("John", "Doe")
         self.assertEqual(guest.full_name, "John Doe")
@@ -109,7 +139,7 @@ class GuestModelTest(TestCase):
         self.assertIn("Jane", str(guest))
 
 
-class BookingModelTest(TestCase):
+class BookingModelTest(CircleCoreTenantTestCase):
     def setUp(self):
         self.room = make_room()
         self.guest = make_guest()
@@ -127,11 +157,27 @@ class BookingModelTest(TestCase):
         expected = self.room.price_per_night * 2
         self.assertEqual(booking.balance_due, expected)
 
+    def test_back_to_back_booking_allowed(self):
+        booking = make_booking(self.room, self.guest, days_ahead=5, nights=2)
+        next_guest = make_guest("Back", "ToBack", "0810000099")
+        next_booking = Booking.objects.create(
+            room=self.room,
+            guest=next_guest,
+            check_in_date=booking.check_out_date,
+            check_out_date=booking.check_out_date + datetime.timedelta(days=1),
+            booking_duration_type="daily",
+            num_guests=1,
+            rate_per_night=self.room.price_per_night,
+            status="Confirmed",
+            booking_source="Walk-in",
+        )
+        self.assertEqual(next_booking.check_in_date, booking.check_out_date)
+
 
 # ── View tests ────────────────────────────────────────────────────────────────
 
 
-class AuthViewTest(TestCase):
+class AuthViewTest(CircleCoreTenantTestCase):
     def test_login_page_loads(self):
         response = self.client.get(reverse("login"))
         self.assertEqual(response.status_code, 200)
@@ -151,7 +197,7 @@ class AuthViewTest(TestCase):
         self.assertRedirects(response, reverse("core:home"))
 
 
-class DashboardViewTest(TestCase):
+class DashboardViewTest(CircleCoreTenantTestCase):
     def setUp(self):
         self.owner = make_owner()
         activate_trial(self.owner)
@@ -187,7 +233,7 @@ class DashboardViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
 
 
-class BookingFlowTest(TestCase):
+class BookingFlowTest(CircleCoreTenantTestCase):
     def setUp(self):
         self.owner = make_owner()
         activate_trial(self.owner)
@@ -299,8 +345,19 @@ class BookingFlowTest(TestCase):
                 booking_source="Walk-in",
             )
 
+    def test_partial_payment_recalculates_balance(self):
+        booking = make_booking(self.room, self.guest, days_ahead=6, nights=2)
+        Payment.objects.create(
+            booking=booking,
+            amount=Decimal("250.00"),
+            payment_method="EFT",
+            payment_type="Payment",
+        )
+        booking.refresh_from_db()
+        self.assertEqual(booking.balance_due, booking.total_amount - Decimal("250.00"))
 
-class SearchViewTest(TestCase):
+
+class SearchViewTest(CircleCoreTenantTestCase):
     def setUp(self):
         self.owner = make_owner()
         activate_trial(self.owner)
@@ -317,7 +374,7 @@ class SearchViewTest(TestCase):
         self.assertContains(response, "Alice")
 
 
-class POSViewTest(TestCase):
+class POSViewTest(CircleCoreTenantTestCase):
     def setUp(self):
         self.owner = make_owner()
         activate_trial(self.owner)

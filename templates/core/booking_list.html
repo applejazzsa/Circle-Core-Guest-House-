@@ -101,6 +101,17 @@
   </table>
   </div>
 </div>
+{% if page_obj.has_other_pages %}
+<div class="pagination-bar">
+  {% if page_obj.has_previous %}
+    <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">&laquo; Prev</a>
+  {% endif %}
+  <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+    <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next &raquo;</a>
+  {% endif %}
+</div>
+{% endif %}
 {% else %}
 <div class="card empty-state">
   <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>

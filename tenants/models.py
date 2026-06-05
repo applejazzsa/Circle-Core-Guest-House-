@@ -20,6 +20,15 @@ class GuestHouseTenant(TenantMixin):
     def __str__(self):
         return self.name
 
+    def delete(self, *args, allow_hard_delete=False, **kwargs):
+        if kwargs.get("force_drop"):
+            allow_hard_delete = True
+        if not allow_hard_delete:
+            raise RuntimeError(
+                "Tenant hard delete is disabled. Suspend/deactivate tenants instead."
+            )
+        return super().delete(*args, **kwargs)
+
 
 class Domain(DomainMixin):
     pass

@@ -80,6 +80,17 @@
     </tbody>
   </table>
 </div>
+{% if page_obj.has_other_pages %}
+<div class="pagination-bar">
+  {% if page_obj.has_previous %}
+    <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">&laquo; Prev</a>
+  {% endif %}
+  <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+    <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next &raquo;</a>
+  {% endif %}
+</div>
+{% endif %}
 {% elif query %}
 <div class="card empty-state">
   <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>

@@ -45,6 +45,7 @@ urlpatterns = [
     path("rooms/<int:pk>/delete/", views.room_delete, name="room_delete"),
     path("cleaning/", views.cleaning_board, name="cleaning"),
     path("cleaning/proofs/", views.cleaning_proof_review, name="cleaning_proof_review"),
+    path("cleaning/proofs/<int:pk>/photo/", views.cleaning_proof_photo, name="cleaning_proof_photo"),
     path("cleaning/room/<int:pk>/set-status/", views.cleaning_set_status, name="cleaning_set_status"),
     path("maintenance/", views.maintenance_board, name="maintenance_board"),
     path("maintenance/add/", views.maintenance_add, name="maintenance_add"),
@@ -113,4 +114,6 @@ urlpatterns = [
     path("pos/shifts/<int:pk>/close/", views.pos_close_shift, name="pos_close_shift"),
     # POS Reports
     path("pos/reports/", views.pos_reports, name="pos_reports"),
+    # Command Center impersonation entry
+    path("command-enter/", views.command_enter, name="command_enter"),
 ]

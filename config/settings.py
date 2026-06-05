@@ -1,12 +1,25 @@
 import os
+import importlib.util
 from pathlib import Path
 
 from decouple import Csv, config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def _cast_bool(value):
+    value = str(value).strip().lower()
+    truthy = {"1", "true", "t", "yes", "y", "on", "debug", "development", "dev"}
+    falsy = {"0", "false", "f", "no", "n", "off", "release", "production", "prod"}
+    if value in truthy:
+        return True
+    if value in falsy:
+        return False
+    raise ValueError(f"Invalid boolean value: {value}")
+
+
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-circle-core-guest-house-dev-key')
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = config('DEBUG', default=True, cast=_cast_bool)
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
     default='localhost,127.0.0.1,.localhost,.circlecore.co.za',
@@ -14,6 +27,7 @@ ALLOWED_HOSTS = config(
 )
 
 BASE_DOMAIN = config('BASE_DOMAIN', default='circlecore.co.za')
+ADMIN_URL = config('ADMIN_URL', default='admin/')
 
 # ── PayFast ──
 PAYFAST_MERCHANT_ID = config('PAYFAST_MERCHANT_ID', default='10000100')
@@ -27,6 +41,7 @@ PAYFAST_SANDBOX = config('PAYFAST_SANDBOX', default=True, cast=bool)
 SHARED_APPS = [
     'django_tenants',
     'tenants',
+    'command',                    # Command Center — public schema only
     'django.contrib.contenttypes',
     'django.contrib.sessions',    # public schema needs sessions for CSRF on landing/register
     'django.contrib.messages',
@@ -56,6 +71,8 @@ MIDDLEWARE = [
     'core.middleware.RoleAccessMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+if importlib.util.find_spec("whitenoise"):
+    MIDDLEWARE.insert(2, 'whitenoise.middleware.WhiteNoiseMiddleware')
 
 # Tenant schemas use ROOT_URLCONF; public schema uses PUBLIC_SCHEMA_URLCONF
 ROOT_URLCONF = 'config.urls'
@@ -120,7 +137,9 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-MEDIA_URL = 'media/'
+if importlib.util.find_spec("whitenoise"):
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

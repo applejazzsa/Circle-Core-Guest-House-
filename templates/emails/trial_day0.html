@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Your trial has expired</title>
+</head>
+<body style="margin:0;padding:0;background:#0d0f12;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0d0f12;padding:48px 16px;">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+  <tr><td>{% include 'emails/_header.html' %}</td></tr>
+
+  <tr><td style="background:#13161b;border:1px solid rgba(239,68,68,0.2);border-radius:16px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#7f1d1d,#ef4444);height:4px;"></div>
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:40px 36px;">
+      <tr><td>
+
+        <!-- Badge -->
+        <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
+          <tr><td align="center" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:100px;padding:7px 22px;">
+            <span style="font-size:11px;font-weight:700;color:#f87171;letter-spacing:2px;text-transform:uppercase;">Trial Expired</span>
+          </td></tr>
+        </table>
+
+        <h1 style="margin:0 0 14px;font-size:26px;font-weight:900;color:#f1f5f9;line-height:1.2;text-align:center;letter-spacing:-0.5px;">
+          Your 30-day trial has ended
+        </h1>
+        <p style="margin:0 0 28px;font-size:15px;color:#94a3b8;line-height:1.7;text-align:center;">
+          Hi {{ tenant.owner_name }}, your free trial for <strong style="color:#f1f5f9;">{{ tenant.name }}</strong> expired today.
+          Your data is safe — here's exactly what happens next.
+        </p>
+
+        <!-- What happens now timeline -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f1218;border:1px solid #2a3142;border-radius:12px;margin-bottom:24px;">
+          <tr><td style="padding:22px 24px;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:18px;">What happens now</div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td valign="top" width="32" style="padding:0 0 16px;">
+                  <div style="width:26px;height:26px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:50%;text-align:center;line-height:26px;font-size:11px;color:#22c55e;font-weight:800;">1</div>
+                </td>
+                <td style="padding:0 0 16px 12px;">
+                  <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:3px;">5-Day Grace Period</div>
+                  <div style="font-size:13px;color:#64748b;line-height:1.5;">Full access continues for 5 more days. Use this time to subscribe and avoid any interruption.</div>
+                </td>
+              </tr>
+              <tr>
+                <td valign="top" width="32" style="padding:0 0 16px;">
+                  <div style="width:26px;height:26px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:50%;text-align:center;line-height:26px;font-size:11px;color:#f59e0b;font-weight:800;">2</div>
+                </td>
+                <td style="padding:0 0 16px 12px;">
+                  <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:3px;">Read-Only Mode (if not subscribed)</div>
+                  <div style="font-size:13px;color:#64748b;line-height:1.5;">After grace: you can still view all your rooms, bookings, guests, and reports. No data is ever deleted.</div>
+                </td>
+              </tr>
+              <tr>
+                <td valign="top" width="32">
+                  <div style="width:26px;height:26px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:50%;text-align:center;line-height:26px;font-size:11px;color:#22c55e;font-weight:800;">3</div>
+                </td>
+                <td style="padding-left:12px;">
+                  <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:3px;">Full Access Restored on Payment</div>
+                  <div style="font-size:13px;color:#64748b;line-height:1.5;">Subscribe via EFT — we activate your account within 1 hour of receiving payment.</div>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <!-- EFT subscribe box -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#13161b;border:1px solid rgba(34,197,94,0.2);border-radius:12px;margin-bottom:24px;">
+          <tr><td style="padding:20px 24px;">
+            <div style="font-size:11px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">Subscribe via EFT</div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="font-size:13px;color:#94a3b8;padding-bottom:6px;">Your plan</td>
+                <td align="right" style="font-size:16px;font-weight:800;color:#4ade80;padding-bottom:6px;">
+                  R {{ subscription.plan.monthly_price|floatformat:0 }}<span style="font-size:11px;font-weight:500;color:#64748b;">/month</span>
+                </td>
+              </tr>
+              <tr>
+                <td colspan="2" style="border-top:1px solid #1e2433;padding-top:12px;font-size:13px;color:#64748b;line-height:1.6;">
+                  Email <a href="mailto:support@circlecore.co.za?subject=Subscribe%20-%20{{ tenant.name }}" style="color:#4ade80;text-decoration:none;">support@circlecore.co.za</a> with your business name. We'll send an invoice and activate your account within 1 hour of payment.
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <!-- CTA -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;">
+          <tr><td align="center">
+            <a href="mailto:support@circlecore.co.za?subject=Subscribe%20-%20{{ tenant.name }}" style="display:inline-block;background:#22c55e;color:#000;font-size:15px;font-weight:700;padding:14px 38px;border-radius:10px;text-decoration:none;">
+              Subscribe Now — Email Us
+            </a>
+          </td></tr>
+        </table>
+
+        <!-- Reassurance -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #1e2433;padding-top:20px;text-align:center;">
+          <p style="margin:0;font-size:13px;color:#475569;line-height:1.7;">
+            Your data is <strong style="color:#f1f5f9;">safe and intact</strong>. Nothing is deleted during grace or read-only mode.<br>
+            Questions? Reply to this email — we respond within the hour.
+          </p>
+        </td></tr></table>
+
+      </td></tr>
+    </table>
+  </td></tr>
+
+  <tr><td>{% include 'emails/_footer.html' with recipient_email=subscription.owner_email %}</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

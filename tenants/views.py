@@ -4,7 +4,9 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group
+from django.contrib.auth.password_validation import validate_password
 from django.core import signing
+from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.core.mail import send_mail
 from django.db import connection, transaction
@@ -40,7 +42,9 @@ def _is_rate_limited(ip: str, limit: int = 5, window: int = 3600) -> bool:
 def _cleanup_failed_tenant(schema_name: str) -> None:
     """Remove orphaned tenant + schema left by a failed registration."""
     try:
-        GuestHouseTenant.objects.filter(schema_name=schema_name).delete()
+        tenant = GuestHouseTenant.objects.filter(schema_name=schema_name).first()
+        if tenant:
+            tenant.delete(allow_hard_delete=True)
         logger.info('Cleaned up failed tenant schema: %s', schema_name)
     except Exception as exc:
         logger.error('Could not clean up tenant schema %s: %s', schema_name, exc)
@@ -171,8 +175,31 @@ self.addEventListener('fetch', event => {
     return response
 
 
+def healthz(request):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+            cursor.fetchone()
+        return JsonResponse({'status': 'ok', 'schema': connection.schema_name})
+    except Exception as exc:
+        logger.error('Health check failed: %s', exc)
+        return JsonResponse({'status': 'error'}, status=503)
+
+
 def landing(request):
     return render(request, 'public/landing.html', {'plans': PLANS})
+
+
+def privacy_policy(request):
+    return render(request, 'public/privacy.html')
+
+
+def terms(request):
+    return render(request, 'public/terms.html')
+
+
+def data_requests(request):
+    return render(request, 'public/data_requests.html')
 
 
 def public_login(request):
@@ -181,33 +208,27 @@ def public_login(request):
         login_url = _create_local_demo_workspace(request)
         return redirect(login_url)
 
-    tenants = (
-        GuestHouseTenant.objects
-        .filter(is_active=True)
-        .exclude(schema_name='public')
-        .prefetch_related('domains')
-        .order_by('name')
-    )
     tenant_links = []
     scheme = 'http' if settings.DEBUG else 'https'
     port = request.get_port()
     port_suffix = f':{port}' if settings.DEBUG and port not in ('80', '443') else ''
 
-    for tenant in tenants:
-        if settings.DEBUG:
+    if settings.DEBUG:
+        tenants = (
+            GuestHouseTenant.objects
+            .filter(is_active=True)
+            .exclude(schema_name='public')
+            .prefetch_related('domains')
+            .order_by('name')
+        )
+        for tenant in tenants:
             domain_name = f'{tenant.schema_name}.localhost'
             Domain.objects.get_or_create(domain=domain_name, defaults={'tenant': tenant, 'is_primary': False})
-        else:
-            domain = tenant.domains.filter(is_primary=True).first()
-            if not domain:
-                continue
-            domain_name = domain.domain
-
-        tenant_links.append({
-            'name': tenant.name,
-            'domain': domain_name,
-            'login_url': f'{scheme}://{domain_name}{port_suffix}/login/',
-        })
+            tenant_links.append({
+                'name': tenant.name,
+                'domain': domain_name,
+                'login_url': f'{scheme}://{domain_name}{port_suffix}/login/',
+            })
 
     return render(request, 'public/login_help.html', {
         'tenant_links': tenant_links,
@@ -249,8 +270,13 @@ def register(request):
             errors['username'] = 'Username is required.'
         elif len(username) < 3:
             errors['username'] = 'Username must be at least 3 characters.'
-        if not password or len(password) < 6:
-            errors['password'] = 'Password must be at least 6 characters.'
+        if not password:
+            errors['password'] = 'Password is required.'
+        else:
+            try:
+                validate_password(password)
+            except ValidationError as exc:
+                errors['password'] = ' '.join(exc.messages)
 
         if not errors and GuestHouseTenant.objects.filter(owner_email=owner_email).exists():
             errors['owner_email'] = 'An account with this email already exists.'
@@ -396,6 +422,15 @@ def payfast_itn(request):
 
     payment_status = post_data.get('payment_status', '')
     token = post_data.get('token', '')
+    payment_id = post_data.get('m_payment_id', '')
+    expected_prefix = f'SUB-{connection.schema_name}-'
+    if not payment_id.startswith(expected_prefix):
+        logger.warning(
+            'PayFast ITN schema mismatch. schema=%s m_payment_id=%s',
+            connection.schema_name,
+            payment_id,
+        )
+        return HttpResponse('Schema mismatch', status=400)
 
     if payment_status == 'COMPLETE':
         subscription = Subscription.objects.first()

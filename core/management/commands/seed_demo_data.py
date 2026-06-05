@@ -45,6 +45,15 @@ class Command(BaseCommand):
             self.stdout.write(f'[{schema_name}] Demo data already present — skipping. Use --force to re-seed.')
             return
 
+        if force and Room.objects.exists():
+            self.stdout.write(f'[{schema_name}] --force: removing existing demo data before re-seeding...')
+            Payment.objects.all().delete()
+            Booking.objects.all().delete()
+            Expense.objects.all().delete()
+            Guest.objects.all().delete()
+            Room.objects.all().delete()
+            Property.objects.all().delete()
+
         today = timezone.localdate()
 
         # ── Settings ───────────────────────────────────────────────────────
@@ -285,6 +294,18 @@ class Command(BaseCommand):
                     'payment_method': 'EFT',
                 },
             )
+
+        # Reset engagement so demo rooms/guests/bookings don't inflate health score
+        try:
+            from core.models import TrialEngagement
+            TrialEngagement.objects.filter(pk=1).update(
+                rooms_added=0,
+                guests_added=0,
+                bookings_added=0,
+                reports_viewed=0,
+            )
+        except Exception:
+            pass
 
         self.stdout.write(self.style.SUCCESS(
             f'[{schema_name}] Demo data seeded: {len(rooms)} rooms, {len(guests)} guests, '
