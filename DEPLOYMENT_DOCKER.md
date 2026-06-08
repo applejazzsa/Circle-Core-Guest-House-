@@ -52,81 +52,69 @@ ALLOWED_HOSTS=circlecore.co.za,.circlecore.co.za
 BASE_DOMAIN=circlecore.co.za
 ```
 
-## Build And Start
+## Shared Docker Network (one-time setup)
+
+nginx runs as `circlecore-nginx` in its own container. Both nginx and the app must share a
+Docker network so nginx can resolve `guesthouse-web` by name:
 
 ```bash
-docker compose build
-docker compose up -d
-docker compose logs -f web
+docker network create circlecore_net
 ```
 
-The web container runs:
-
-- `migrate_schemas --noinput`
-- `collectstatic --noinput`
-- Gunicorn on `127.0.0.1:8000`
+If the network already exists this command returns an error — that is safe to ignore.
 
 ## Nginx Reverse Proxy
 
-Point Nginx to the local Docker-bound port:
+The nginx config file is checked into the repo at
+`docker/nginx/guesthouse.circlecore.co.za.conf`.
 
-```nginx
-server {
-    listen 80;
-    server_name guesthouse.circlecore.co.za *.guesthouse.circlecore.co.za;
-    return 301 https://$host$request_uri;
-}
+Copy it to your nginx config directory (adjust the path to match your nginx container's
+volume mount):
 
-server {
-    listen 443 ssl http2;
-    server_name guesthouse.circlecore.co.za *.guesthouse.circlecore.co.za;
-
-    ssl_certificate /etc/letsencrypt/live/guesthouse.circlecore.co.za/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/guesthouse.circlecore.co.za/privkey.pem;
-
-    client_max_body_size 10M;
-
-    location /media/cleaning_proofs/ {
-        return 403;
-    }
-
-    location /media/ {
-        alias /var/lib/docker/volumes/circle-core-guest-house_media/_data/;
-        expires 7d;
-        add_header Cache-Control "private";
-    }
-
-    location /static/ {
-        alias /var/lib/docker/volumes/circle-core-guest-house_staticfiles/_data/;
-        expires 30d;
-        add_header Cache-Control "public";
-    }
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_read_timeout 90s;
-    }
-}
+```bash
+cp docker/nginx/guesthouse.circlecore.co.za.conf /etc/nginx/conf.d/
 ```
 
-Adjust Docker volume paths if your Compose project name differs.
+The config proxies to the `guesthouse-web` container over the shared `circlecore_net`
+network. Key headers required for CSRF and HTTPS detection:
+
+```
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-Proto https;
+proxy_set_header X-Forwarded-Host $host;
+```
+
+Adjust Docker volume alias paths if your Compose project name differs from
+`circle-core-guest-house`.
+
+## Build And Start
+
+```bash
+git pull
+docker compose -f docker-compose.production.yml build --no-cache guesthouse-web
+docker compose -f docker-compose.production.yml up -d
+docker exec -it circlecore-nginx nginx -t
+docker restart circlecore-nginx
+```
+
+Check logs:
+
+```bash
+docker compose -f docker-compose.production.yml logs -f guesthouse-web
+```
 
 ## Create Platform Admin
 
 ```bash
-docker compose exec web python manage.py createsuperuser --settings=config.settings_production
+docker compose -f docker-compose.production.yml exec guesthouse-web python manage.py createsuperuser --settings=config.settings_production
 ```
 
 ## Verify
 
 ```bash
-docker compose exec web python manage.py check --deploy --settings=config.settings_production
-docker compose exec web python manage.py showmigrations --settings=config.settings_production
-docker compose exec web python manage.py test_email support@circlecore.co.za --settings=config.settings_production
+docker compose -f docker-compose.production.yml exec guesthouse-web python manage.py check --deploy --settings=config.settings_production
+docker compose -f docker-compose.production.yml exec guesthouse-web python manage.py showmigrations --settings=config.settings_production
+docker compose -f docker-compose.production.yml exec guesthouse-web python manage.py test_email support@circlecore.co.za --settings=config.settings_production
 ```
 
 Then verify in the browser:
@@ -146,7 +134,7 @@ Then verify in the browser:
 Run daily from cron or host scheduler:
 
 ```bash
-docker compose exec -T web python manage.py backup_local --output /app/backups --settings=config.settings_production
+docker compose -f docker-compose.production.yml exec -T guesthouse-web python manage.py backup_local --output /app/backups --settings=config.settings_production
 ```
 
 Copy `/app/backups` off-server daily.
@@ -156,13 +144,13 @@ Copy `/app/backups` off-server daily.
 Test restore monthly on a staging VPS:
 
 ```bash
-docker compose down
+docker compose -f docker-compose.production.yml down
 docker volume rm circle-core-guest-house_postgres_data
-docker compose up -d db redis
-docker compose cp backups/circlecore-db-YYYYMMDD-HHMMSS.dump db:/tmp/restore.dump
-docker compose exec db pg_restore --clean --if-exists --no-owner --dbname "$DB_NAME" --username "$DB_USER" /tmp/restore.dump
-docker compose up -d web
-docker compose exec web python manage.py migrate_schemas --noinput --settings=config.settings_production
+docker compose -f docker-compose.production.yml up -d db redis
+docker compose -f docker-compose.production.yml cp backups/circlecore-db-YYYYMMDD-HHMMSS.dump db:/tmp/restore.dump
+docker compose -f docker-compose.production.yml exec db pg_restore --clean --if-exists --no-owner --dbname "$DB_NAME" --username "$DB_USER" /tmp/restore.dump
+docker compose -f docker-compose.production.yml up -d guesthouse-web
+docker compose -f docker-compose.production.yml exec guesthouse-web python manage.py migrate_schemas --noinput --settings=config.settings_production
 ```
 
 Restore media by extracting the matching media zip into the `media` Docker volume.

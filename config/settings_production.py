@@ -30,12 +30,14 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = False
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
@@ -48,10 +50,10 @@ PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
-# Required for Django 4.x CSRF checks across wildcard subdomains
 CSRF_TRUSTED_ORIGINS = [
-    f'https://{BASE_DOMAIN}',
-    f'https://*.{BASE_DOMAIN}',
+    'https://guesthouse.circlecore.co.za',
+    'https://*.guesthouse.circlecore.co.za',
+    'https://*.circlecore.co.za',
 ]
 
 # Redis cache for rate limiting (shared across Gunicorn workers)
