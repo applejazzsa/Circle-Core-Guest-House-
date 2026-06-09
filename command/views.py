@@ -6,6 +6,8 @@ Tenant data is read by switching schemas via schema_context().
 """
 
 import logging
+import random
+import string
 
 from django.conf import settings
 from django.contrib import messages
@@ -371,7 +373,7 @@ def activate_tenant(request, schema_name):
 @require_POST
 def record_payment(request, schema_name):
     amount = request.POST.get("amount", "").strip()
-    reference = request.POST.get("reference", "").strip()
+    reference = request.POST.get("reference", "").strip() or _generate_ref()
     billing_cycle = request.POST.get("billing_cycle", "monthly")
     try:
         sub = None
@@ -486,6 +488,62 @@ def set_tenant_password(request, schema_name):
     except Exception as exc:
         messages.error(request, f"Failed to set password: {exc}")
     return redirect(f"/command/tenants/{schema_name}/")
+
+
+def _generate_ref():
+    suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
+    return f"CCG-{timezone.now().strftime('%Y%m')}-{suffix}"
+
+
+# ── Revenue ───────────────────────────────────────────────────────────────────
+
+@command_required
+def revenue_dashboard(request):
+    from decimal import Decimal
+    tenants = GuestHouseTenant.objects.exclude(schema_name="public").order_by("name")
+
+    rows = []
+    total_collected = Decimal("0.00")
+    mrr = Decimal("0.00")
+
+    for tenant in tenants:
+        domain = tenant.domains.filter(is_primary=True).first()
+        try:
+            with schema_context(tenant.schema_name):
+                from core.models import Subscription
+                sub = Subscription.objects.select_related("plan").first()
+        except Exception:
+            sub = None
+
+        if sub:
+            if sub.status == "active":
+                if sub.billing_cycle == "annual":
+                    mrr += (sub.plan.annual_price / 12).quantize(Decimal("0.01"))
+                else:
+                    mrr += sub.plan.monthly_price
+            if sub.last_payment_amount:
+                total_collected += sub.last_payment_amount
+
+        rows.append({
+            "tenant": tenant,
+            "domain": domain.domain if domain else None,
+            "subscription": sub,
+        })
+
+    arr = (mrr * 12).quantize(Decimal("0.01"))
+
+    active_count = sum(1 for r in rows if r["subscription"] and r["subscription"].status == "active")
+    trial_count = sum(1 for r in rows if r["subscription"] and r["subscription"].status == "trial")
+
+    return render(request, "command/revenue.html", {
+        "rows": rows,
+        "total_collected": total_collected,
+        "mrr": mrr,
+        "arr": arr,
+        "active_count": active_count,
+        "trial_count": trial_count,
+        "username": request.session.get("command_username"),
+    })
 
 
 # ── Leads ─────────────────────────────────────────────────────────────────────

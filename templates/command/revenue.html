@@ -1,0 +1,134 @@
+{% extends "command/base.html" %}
+{% block title %}Revenue{% endblock %}
+{% block page_title %}Revenue{% endblock %}
+{% block nav_revenue %}active{% endblock %}
+
+{% block content %}
+
+<!-- KPI stats -->
+<div class="cc-stats" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:28px;">
+  <div class="cc-stat">
+    <div class="cc-stat-label">MRR</div>
+    <div class="cc-stat-value" style="color:#4ade80;">R {{ mrr }}</div>
+    <div class="cc-stat-sub">Monthly recurring revenue</div>
+  </div>
+  <div class="cc-stat">
+    <div class="cc-stat-label">ARR</div>
+    <div class="cc-stat-value" style="color:#a78bfa;">R {{ arr }}</div>
+    <div class="cc-stat-sub">Annual recurring revenue</div>
+  </div>
+  <div class="cc-stat">
+    <div class="cc-stat-label">Total Collected</div>
+    <div class="cc-stat-value" style="color:#f1f5f9;">R {{ total_collected }}</div>
+    <div class="cc-stat-sub">Sum of recorded payments</div>
+  </div>
+  <div class="cc-stat">
+    <div class="cc-stat-label">Paying Customers</div>
+    <div class="cc-stat-value">{{ active_count }}</div>
+    <div class="cc-stat-sub">Active subscriptions</div>
+  </div>
+  <div class="cc-stat">
+    <div class="cc-stat-label">Active Trials</div>
+    <div class="cc-stat-value" style="color:#60a5fa;">{{ trial_count }}</div>
+    <div class="cc-stat-sub">Potential conversions</div>
+  </div>
+</div>
+
+<!-- Payment table -->
+<div class="cc-card">
+  <div class="cc-card-title">Subscription Payments</div>
+  <div class="cc-table-wrap">
+    <table class="cc-table">
+      <thead>
+        <tr>
+          <th>Business</th>
+          <th>Plan</th>
+          <th>Billing</th>
+          <th>Status</th>
+          <th>Last Payment</th>
+          <th>Reference</th>
+          <th>Payment Date</th>
+          <th>Renews / Expires</th>
+          <th>Days Left</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        {% with t=row.tenant s=row.subscription %}
+        <tr>
+          <td>
+            <a href="/command/tenants/{{ t.schema_name }}/" style="color:#a78bfa;font-weight:600;">{{ t.name }}</a>
+            {% if row.domain %}
+            <div style="font-size:11px;color:#475569;margin-top:2px;">{{ row.domain }}</div>
+            {% endif %}
+          </td>
+          {% if s %}
+          <td style="color:#f1f5f9;">{{ s.plan.display_name }}</td>
+          <td>
+            {% if s.billing_cycle == "annual" %}
+            <span class="badge" style="background:rgba(124,58,237,0.12);color:#a78bfa;border:1px solid rgba(124,58,237,0.25);">Annual</span>
+            {% else %}
+            <span class="badge" style="background:rgba(100,116,139,0.12);color:#94a3b8;border:1px solid rgba(100,116,139,0.2);">Monthly</span>
+            {% endif %}
+          </td>
+          <td><span class="badge badge-{{ s.status }}">{{ s.status|title }}</span></td>
+          <td style="color:#4ade80;font-weight:700;">
+            {% if s.last_payment_amount %}R {{ s.last_payment_amount }}{% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td>
+            {% if s.last_payment_reference %}
+            <code style="font-size:11px;color:#94a3b8;">{{ s.last_payment_reference }}</code>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td style="color:#94a3b8;">
+            {% if s.last_payment_date %}{{ s.last_payment_date|date:"d M Y" }}{% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td style="color:{% if s.days_remaining <= 5 %}#f59e0b{% else %}#94a3b8{% endif %};">
+            {{ s.expires_at|date:"d M Y" }}
+          </td>
+          <td style="font-weight:700;color:{% if s.days_remaining == 0 %}#ef4444{% elif s.days_remaining <= 7 %}#f59e0b{% else %}#22c55e{% endif %};">
+            {{ s.days_remaining }}d
+          </td>
+          {% else %}
+          <td colspan="8" style="color:#475569;font-style:italic;">No subscription</td>
+          {% endif %}
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr><td colspan="9" style="text-align:center;color:#475569;padding:32px;">No tenants found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Upcoming renewals notice -->
+{% with renewing=rows %}
+{% for row in renewing %}
+{% if row.subscription and row.subscription.status == "active" and row.subscription.days_remaining <= 14 %}
+{% if forloop.first %}
+<div class="cc-card" style="margin-top:20px;border-color:rgba(245,158,11,0.3);">
+  <div class="cc-card-title" style="color:#f59e0b;">Renewals Within 14 Days</div>
+  <table class="cc-table">
+    <thead><tr><th>Business</th><th>Expires</th><th>Days Left</th><th>Plan Price</th><th></th></tr></thead>
+    <tbody>
+{% endif %}
+      <tr>
+        <td><a href="/command/tenants/{{ row.tenant.schema_name }}/" style="color:#a78bfa;">{{ row.tenant.name }}</a></td>
+        <td style="color:#f59e0b;">{{ row.subscription.expires_at|date:"d M Y" }}</td>
+        <td style="font-weight:700;color:#f59e0b;">{{ row.subscription.days_remaining }}d</td>
+        <td style="color:#4ade80;">
+          {% if row.subscription.billing_cycle == "annual" %}R {{ row.subscription.plan.annual_price }}{% else %}R {{ row.subscription.plan.monthly_price }}{% endif %}
+        </td>
+        <td><a href="/command/tenants/{{ row.tenant.schema_name }}/" class="btn btn-ghost btn-sm">Record Payment →</a></td>
+      </tr>
+{% if forloop.last %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endwith %}
+
+{% endblock %}

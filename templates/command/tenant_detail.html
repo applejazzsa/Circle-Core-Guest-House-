@@ -171,7 +171,10 @@
       </div>
       <div class="mb-4">
         <label class="cc-label">Reference</label>
-        <input type="text" name="reference" class="cc-input" placeholder="EFT reference number">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" name="reference" id="eft-ref" class="cc-input" placeholder="Auto-generated if blank">
+          <button type="button" onclick="genRef()" class="btn btn-ghost btn-sm" style="white-space:nowrap;flex-shrink:0;">Generate</button>
+        </div>
       </div>
       <div class="mb-4">
         <label class="cc-label">Billing Cycle</label>
@@ -231,4 +234,17 @@
 
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function genRef() {
+  var now = new Date();
+  var ym = now.getFullYear().toString() + String(now.getMonth()+1).padStart(2,'0');
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var suffix = '';
+  for (var i = 0; i < 5; i++) suffix += chars[Math.floor(Math.random()*chars.length)];
+  document.getElementById('eft-ref').value = 'CCG-' + ym + '-' + suffix;
+}
+</script>
 {% endblock %}

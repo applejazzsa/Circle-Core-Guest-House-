@@ -187,6 +187,12 @@
       Dashboard
     </a>
 
+    <div class="cc-nav-label" style="margin-top:8px;">Finance</div>
+    <a href="/command/revenue/" class="cc-nav-item {% block nav_revenue %}{% endblock %}">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Revenue
+    </a>
+
     <div class="cc-nav-label" style="margin-top:8px;">Customers</div>
     <a href="/command/tenants/" class="cc-nav-item {% block nav_tenants %}{% endblock %}">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -224,5 +230,6 @@
   </div>
 </div>
 
+{% block extra_js %}{% endblock %}
 </body>
 </html>
