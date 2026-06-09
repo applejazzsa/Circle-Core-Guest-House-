@@ -6,6 +6,28 @@ from django.utils import timezone
 from .roles import is_cleaner, is_operator, is_owner
 from .subscriptions import grace_ends_at
 
+
+class ImpersonationMiddleware:
+    """
+    When a Command Center admin impersonates a tenant from the public domain,
+    the session holds 'impersonated_schema'. This middleware switches the DB
+    connection and URL conf to the tenant schema so the full dashboard works.
+    Must run after SessionMiddleware and before AuthenticationMiddleware.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        schema = request.session.get("impersonated_schema") if hasattr(request, "session") else None
+        if schema and connection.schema_name == "public":
+            try:
+                connection.set_schema_to(schema)
+                request.urlconf = settings.ROOT_URLCONF
+            except Exception:
+                request.session.pop("impersonated_schema", None)
+        return self.get_response(request)
+
 # Paths that are always accessible regardless of subscription state
 _ALWAYS_EXEMPT = [
     "/login/",

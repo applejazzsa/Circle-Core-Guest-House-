@@ -2,6 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
 
+from core import views as core_views
 from tenants import views as tenant_views
 
 urlpatterns = [
@@ -16,6 +17,7 @@ urlpatterns = [
     path('terms/', tenant_views.terms, name='terms'),
     path('data-requests/', tenant_views.data_requests, name='data_requests'),
     path('command/', include('command.urls')),
+    path('command-enter/', core_views.command_enter, name='command_enter'),
     path('', tenant_views.landing, name='landing'),
 ]
 

@@ -4729,9 +4729,11 @@ def command_enter(request):
     Receives a short-lived signed token from the Command Center and logs in
     the tenant's first superuser so admins can operate as the tenant.
     Token expires after 60 seconds.
+    Works from both tenant schema URLs and the public schema (main domain).
     """
     from django.core import signing
     from django.contrib.auth import get_user_model, login as auth_login
+    from django_tenants.utils import schema_context
 
     token = request.GET.get("token", "")
     try:
@@ -4739,21 +4741,31 @@ def command_enter(request):
     except (signing.BadSignature, signing.SignatureExpired):
         return render(request, "core/command_enter_invalid.html", status=400)
 
-    if data.get("schema") != connection.schema_name:
+    target_schema = data.get("schema", "")
+    # Accept if already in the right schema OR in public schema (main domain case)
+    if target_schema != connection.schema_name and connection.schema_name != "public":
         return render(request, "core/command_enter_invalid.html", status=403)
 
-    User = get_user_model()
-    user = User.objects.filter(is_superuser=True).order_by("pk").first()
-    if not user:
-        return render(request, "core/command_enter_invalid.html", status=403)
+    # All DB ops run inside the target tenant schema
+    with schema_context(target_schema):
+        User = get_user_model()
+        user = User.objects.filter(is_superuser=True).order_by("pk").first()
+        if not user:
+            return render(request, "core/command_enter_invalid.html", status=403)
 
-    auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-    AuditLog.objects.create(
-        actor=user,
-        action="login_override",
-        object_type="CommandCenter",
-        object_repr=f"Command Center impersonation for {connection.schema_name}",
-        reason=f"Command user: {data.get('command_username', 'unknown')}",
-        ip_address=_client_ip(request),
-    )
+        auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        # Store schema so ImpersonationMiddleware restores it on subsequent requests
+        request.session["impersonated_schema"] = target_schema
+        try:
+            AuditLog.objects.create(
+                actor=user,
+                action="login_override",
+                object_type="CommandCenter",
+                object_repr=f"Command Center impersonation for {target_schema}",
+                reason=f"Command user: {data.get('command_username', 'unknown')}",
+                ip_address=_client_ip(request),
+            )
+        except Exception:
+            pass  # audit failure must not block impersonation
+
     return redirect("/")
