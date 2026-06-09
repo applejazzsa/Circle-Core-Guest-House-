@@ -26,6 +26,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 from .forms import BookingForm, BookingRefundForm, ExpenseForm, GuestForm, GuestHouseSettingsForm, PaymentForm, RoomForm, validate_image_upload
 from .models import (
@@ -351,12 +352,35 @@ def onboarding(request):
     if request.method == "POST":
         GuestHouseSettings.objects.filter(pk=1).update(onboarding_complete=True)
         return redirect("core:home")
-    # Always render when visited directly (allows re-opening from Settings)
     settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+    from core.models import Room
+    has_demo_data = Room.objects.exists()
     return render(request, "core/onboarding.html", {
         "gh_settings": settings_obj,
         "features": _ONBOARDING_FEATURES,
+        "has_demo_data": has_demo_data,
     })
+
+
+@login_required
+@require_POST
+def onboarding_clear_demo(request):
+    if not is_owner(request.user):
+        return redirect("core:home")
+    try:
+        from core.models import Booking, Expense, Guest, GuestHouseSettings, Payment, Property, Room
+        Payment.objects.all().delete()
+        Booking.objects.all().delete()
+        Expense.objects.all().delete()
+        Guest.objects.all().delete()
+        Room.objects.all().delete()
+        Property.objects.all().delete()
+        GuestHouseSettings.objects.filter(pk=1).update(
+            phone='', address='', banking_details='', email='',
+        )
+    except Exception:
+        pass
+    return redirect("core:onboarding")
 
 
 @login_required

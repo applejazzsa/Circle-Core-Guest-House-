@@ -490,6 +490,10 @@ def set_tenant_password(request, schema_name):
     return redirect(f"/command/tenants/{schema_name}/")
 
 
+import csv as csv_module
+from django.http import HttpResponse
+
+
 def _generate_ref():
     suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
     return f"CCG-{timezone.now().strftime('%Y%m')}-{suffix}"
@@ -544,6 +548,78 @@ def revenue_dashboard(request):
         "trial_count": trial_count,
         "username": request.session.get("command_username"),
     })
+
+
+@command_required
+@require_POST
+def toggle_verified(request, schema_name):
+    try:
+        tenant = GuestHouseTenant.objects.get(schema_name=schema_name)
+        tenant.is_verified = not tenant.is_verified
+        tenant.save(update_fields=["is_verified"])
+        _audit_command(request, "toggle_verified", schema_name,
+            object_repr=tenant.name,
+            reason=f"Verified set to {tenant.is_verified} by Command Center admin")
+        status = "verified" if tenant.is_verified else "unverified"
+        messages.success(request, f"{tenant.name} is now {status}.")
+    except Exception as exc:
+        messages.error(request, f"Failed: {exc}")
+    return redirect(f"/command/tenants/{schema_name}/")
+
+
+@command_required
+@require_POST
+def update_tenant_notes(request, schema_name):
+    try:
+        tenant = GuestHouseTenant.objects.get(schema_name=schema_name)
+        tenant.notes_internal = request.POST.get("notes_internal", "").strip()
+        tenant.save(update_fields=["notes_internal"])
+        messages.success(request, "Notes saved.")
+    except Exception as exc:
+        messages.error(request, f"Failed: {exc}")
+    return redirect(f"/command/tenants/{schema_name}/")
+
+
+@command_required
+def export_subscriptions_csv(request):
+    from decimal import Decimal
+    tenants = GuestHouseTenant.objects.exclude(schema_name="public").order_by("name")
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = (
+        f'attachment; filename="subscriptions_{timezone.now().strftime("%Y%m%d")}.csv"'
+    )
+    writer = csv_module.writer(response)
+    writer.writerow([
+        "Business", "Schema", "Owner", "Email", "Phone",
+        "Plan", "Billing Cycle", "Status",
+        "Last Payment Amount", "Last Payment Date", "Last Payment Reference",
+        "Expires At", "Days Remaining", "Active", "Verified",
+    ])
+    for tenant in tenants:
+        try:
+            with schema_context(tenant.schema_name):
+                from core.models import Subscription
+                sub = Subscription.objects.select_related("plan").first()
+        except Exception:
+            sub = None
+        writer.writerow([
+            tenant.name,
+            tenant.schema_name,
+            tenant.owner_name,
+            tenant.owner_email,
+            tenant.owner_phone,
+            sub.plan.display_name if sub else "",
+            sub.billing_cycle if sub else "",
+            sub.status if sub else "",
+            sub.last_payment_amount or "" if sub else "",
+            sub.last_payment_date or "" if sub else "",
+            sub.last_payment_reference if sub else "",
+            sub.expires_at.strftime("%Y-%m-%d") if sub and sub.expires_at else "",
+            sub.days_remaining if sub else "",
+            "Yes" if tenant.is_active else "No",
+            "Yes" if tenant.is_verified else "No",
+        ])
+    return response
 
 
 # ── Leads ─────────────────────────────────────────────────────────────────────

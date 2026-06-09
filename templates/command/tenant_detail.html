@@ -34,13 +34,23 @@
           {% else %}<span class="text-muted">—</span>{% endif %}
         </td>
       </tr>
-      <tr><td style="color:#64748b;padding:5px 0;">Verified</td><td>{% if tenant.is_verified %}<span style="color:#4ade80;">Yes</span>{% else %}<span style="color:#f87171;">No</span>{% endif %}</td></tr>
+      <tr><td style="color:#64748b;padding:5px 0;">Verified</td>
+        <td>
+          <form method="post" action="/command/tenants/{{ tenant.schema_name }}/toggle-verified/" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:13px;">
+              {% if tenant.is_verified %}<span style="color:#4ade80;">Yes ✓</span>{% else %}<span style="color:#f87171;">No — click to verify</span>{% endif %}
+            </button>
+          </form>
+        </td>
+      </tr>
       <tr><td style="color:#64748b;padding:5px 0;">Active</td><td>{% if tenant.is_active %}<span style="color:#4ade80;">Yes</span>{% else %}<span style="color:#f87171;">No</span>{% endif %}</td></tr>
       <tr><td style="color:#64748b;padding:5px 0;">Created</td><td style="color:#94a3b8;">{{ tenant.created_at|date:"d M Y H:i" }}</td></tr>
     </table>
 
     <div class="mt-4" style="display:flex;gap:8px;flex-wrap:wrap;">
       <a href="/command/tenants/{{ tenant.schema_name }}/impersonate/" class="btn btn-primary btn-sm">Login as Tenant</a>
+      <a href="mailto:{{ tenant.owner_email }}?subject=Your Circle Core subscription&body=Hi {{ tenant.owner_name }}," class="btn btn-ghost btn-sm">Email Tenant</a>
     </div>
   </div>
 
@@ -230,6 +240,18 @@
       </button>
     </form>
     {% endif %}
+  </div>
+
+  <!-- Internal Notes -->
+  <div class="cc-card" style="grid-column:1/-1;">
+    <div class="cc-card-title">Internal Notes</div>
+    <form method="post" action="/command/tenants/{{ tenant.schema_name }}/notes/">
+      {% csrf_token %}
+      <textarea name="notes_internal" class="cc-input" rows="4"
+        style="resize:vertical;font-size:13px;line-height:1.6;"
+        placeholder="Sales notes, onboarding comments, support history…">{{ tenant.notes_internal }}</textarea>
+      <button type="submit" class="btn btn-ghost" style="margin-top:10px;">Save Notes</button>
+    </form>
   </div>
 
 </div>

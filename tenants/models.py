@@ -9,6 +9,7 @@ class GuestHouseTenant(TenantMixin):
     owner_phone = models.CharField(max_length=20, blank=True)
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
+    notes_internal = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     auto_create_schema = True
