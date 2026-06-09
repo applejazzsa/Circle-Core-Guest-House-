@@ -324,10 +324,49 @@ def notifications_feed(request):
     return JsonResponse({"alerts": alerts})
 
 
+_ONBOARDING_FEATURES = [
+    "Booking & reservation management",
+    "Room status board",
+    "Guest profiles & history",
+    "Invoice & receipt PDF generation",
+    "WhatsApp message templates",
+    "Housekeeping & cleaning board",
+    "Maintenance request tracker",
+    "Expense tracking",
+    "Point of Sale (POS) terminal",
+    "Inventory management",
+    "Daily close & cash shift",
+    "Occupancy & revenue reports",
+    "Staff roles & access control",
+    "Multi-property support",
+    "Availability calendar",
+    "Subscription & billing management",
+]
+
+
+@login_required
+def onboarding(request):
+    if not is_owner(request.user):
+        return redirect("core:home")
+    if request.method == "POST":
+        GuestHouseSettings.objects.filter(pk=1).update(onboarding_complete=True)
+        return redirect("core:home")
+    # Always render when visited directly (allows re-opening from Settings)
+    settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+    return render(request, "core/onboarding.html", {
+        "gh_settings": settings_obj,
+        "features": _ONBOARDING_FEATURES,
+    })
+
+
 @login_required
 def home(request):
     if is_cleaner(request.user):
         return redirect("core:cleaning")
+    if is_owner(request.user):
+        _s = GuestHouseSettings.objects.filter(pk=1).only("onboarding_complete").first()
+        if _s and not _s.onboarding_complete:
+            return redirect("core:onboarding")
     _expire_elapsed_bookings()
     today = timezone.localdate()
     month_start = today.replace(day=1)

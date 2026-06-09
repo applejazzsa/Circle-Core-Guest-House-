@@ -690,6 +690,7 @@ class GuestHouseSettings(models.Model):
     )
     seasonal_note = models.TextField(blank=True, help_text="Note shown on availability page")
     pos_api_key = models.CharField(max_length=100, blank=True, help_text="Secret key for POS integration")
+    onboarding_complete = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = "Guest House Settings"

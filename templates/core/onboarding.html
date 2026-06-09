@@ -1,0 +1,164 @@
+{% extends "base_auth.html" %}
+{% block title %}Welcome to Circle Core — Get Started{% endblock %}
+
+{% block content %}
+<div style="min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:40px 24px 80px; background:var(--color-bg-base);">
+  <div style="width:100%; max-width:680px;">
+
+    <!-- Header -->
+    <div style="text-align:center; margin-bottom:40px;">
+      <div style="width:64px; height:64px; border-radius:16px; background:var(--color-green-500); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; box-shadow:var(--shadow-green);">
+        <svg width="30" height="30" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
+          <rect x="9" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
+          <rect x="2" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
+          <rect x="9" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
+        </svg>
+      </div>
+      <h1 style="font-family:var(--font-display); font-size:28px; font-weight:800; color:var(--color-text-primary); letter-spacing:-0.03em; margin-bottom:10px;">
+        Welcome to Circle Core{% if gh_settings %}, {{ gh_settings.guest_house_name }}{% endif %}!
+      </h1>
+      <p style="font-size:15px; color:var(--color-text-secondary); max-width:480px; margin:0 auto; line-height:1.6;">
+        Your workspace is ready. We've loaded sample data so you can explore every feature right now — no setup required to start.
+      </p>
+    </div>
+
+    <!-- Demo data notice -->
+    <div style="padding:16px 20px; background:rgba(34,197,94,0.07); border:1px solid rgba(34,197,94,0.2); border-radius:var(--radius-md); margin-bottom:28px; display:flex; gap:14px; align-items:flex-start;">
+      <div style="font-size:22px; margin-top:1px;">🎉</div>
+      <div>
+        <div style="font-weight:700; font-size:14px; color:var(--color-text-primary); margin-bottom:4px;">Your demo workspace is live</div>
+        <div style="font-size:13px; color:var(--color-text-secondary); line-height:1.6;">
+          We've pre-loaded <strong style="color:var(--color-text-primary);">5 rooms</strong>, <strong style="color:var(--color-text-primary);">8 guests</strong>, and <strong style="color:var(--color-text-primary);">12 bookings</strong> (including active check-ins, arrivals today, and past revenue). Your dashboard and reports are already populated. Replace this data with your own whenever you're ready.
+        </div>
+      </div>
+    </div>
+
+    <!-- Steps -->
+    <div style="margin-bottom:32px;">
+      <div style="font-size:11px; font-weight:700; color:var(--color-text-tertiary); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:16px;">Your setup checklist</div>
+
+      <!-- Step 1 — already done -->
+      <div class="card" style="padding:18px 20px; margin-bottom:10px; display:flex; gap:16px; align-items:flex-start; opacity:0.7;">
+        <div style="width:28px; height:28px; border-radius:50%; background:var(--color-green-500); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div style="font-weight:700; font-size:14px; color:var(--color-text-primary); margin-bottom:3px;">Account created</div>
+          <div style="font-size:13px; color:var(--color-text-secondary);">Your workspace and login are ready. Your 30-day trial is running.</div>
+        </div>
+      </div>
+
+      <!-- Step 2 — already done -->
+      <div class="card" style="padding:18px 20px; margin-bottom:10px; display:flex; gap:16px; align-items:flex-start; opacity:0.7;">
+        <div style="width:28px; height:28px; border-radius:50%; background:var(--color-green-500); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div style="font-weight:700; font-size:14px; color:var(--color-text-primary); margin-bottom:3px;">Demo data loaded</div>
+          <div style="font-size:13px; color:var(--color-text-secondary);">Rooms, guests, bookings, and expenses are in place so every screen looks real.</div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <a href="/settings/" style="text-decoration:none; display:block; margin-bottom:10px;">
+        <div class="card" style="padding:18px 20px; display:flex; gap:16px; align-items:flex-start; border-color:var(--color-border-bright); transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor='var(--color-border-bright)'">
+          <div style="width:28px; height:28px; border-radius:50%; background:var(--color-bg-elevated); border:2px solid var(--color-border-bright); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+            <span style="font-size:13px; font-weight:700; color:var(--color-text-secondary);">3</span>
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:700; font-size:14px; color:var(--color-text-primary); margin-bottom:3px;">
+              Personalise your settings
+              <span style="font-size:11px; font-weight:600; color:var(--color-green-400); background:rgba(34,197,94,0.1); padding:2px 8px; border-radius:var(--radius-full); margin-left:8px;">Recommended first</span>
+            </div>
+            <div style="font-size:13px; color:var(--color-text-secondary); line-height:1.5;">Add your guest house name, phone, address, banking details, and logo. This appears on all invoices and PDFs.</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:4px;"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </a>
+
+      <!-- Step 4 -->
+      <a href="/rooms/" style="text-decoration:none; display:block; margin-bottom:10px;">
+        <div class="card" style="padding:18px 20px; display:flex; gap:16px; align-items:flex-start; border-color:var(--color-border-bright); transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor='var(--color-border-bright)'">
+          <div style="width:28px; height:28px; border-radius:50%; background:var(--color-bg-elevated); border:2px solid var(--color-border-bright); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+            <span style="font-size:13px; font-weight:700; color:var(--color-text-secondary);">4</span>
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:700; font-size:14px; color:var(--color-text-primary); margin-bottom:3px;">Set up your real rooms</div>
+            <div style="font-size:13px; color:var(--color-text-secondary); line-height:1.5;">Delete the demo rooms and add your actual rooms with correct names, types, and prices. Each room tracks bookings, cleaning status, and maintenance.</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:4px;"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </a>
+
+      <!-- Step 5 -->
+      <a href="/bookings/add/" style="text-decoration:none; display:block; margin-bottom:10px;">
+        <div class="card" style="padding:18px 20px; display:flex; gap:16px; align-items:flex-start; border-color:var(--color-border-bright); transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor='var(--color-border-bright)'">
+          <div style="width:28px; height:28px; border-radius:50%; background:var(--color-bg-elevated); border:2px solid var(--color-border-bright); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+            <span style="font-size:13px; font-weight:700; color:var(--color-text-secondary);">5</span>
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:700; font-size:14px; color:var(--color-text-primary); margin-bottom:3px;">Make your first real booking</div>
+            <div style="font-size:13px; color:var(--color-text-secondary); line-height:1.5;">Create a booking, record a payment, generate an invoice PDF, and send a WhatsApp confirmation — the full workflow in under 2 minutes.</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:4px;"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </a>
+
+      <!-- Step 6 -->
+      <a href="/staff/add/" style="text-decoration:none; display:block; margin-bottom:10px;">
+        <div class="card" style="padding:18px 20px; display:flex; gap:16px; align-items:flex-start; border-color:var(--color-border-bright); transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor='var(--color-border-bright)'">
+          <div style="width:28px; height:28px; border-radius:50%; background:var(--color-bg-elevated); border:2px solid var(--color-border-bright); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+            <span style="font-size:13px; font-weight:700; color:var(--color-text-secondary);">6</span>
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:700; font-size:14px; color:var(--color-text-primary); margin-bottom:3px;">Add your staff</div>
+            <div style="font-size:13px; color:var(--color-text-secondary); line-height:1.5;">Create logins for receptionists, housekeepers, and managers. Each role sees only what they need — cleaners get a mobile cleaning board, receptionists get bookings.</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:4px;"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </a>
+
+      <!-- Step 7 -->
+      <a href="/reports/" style="text-decoration:none; display:block;">
+        <div class="card" style="padding:18px 20px; display:flex; gap:16px; align-items:flex-start; border-color:var(--color-border-bright); transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor='var(--color-border-bright)'">
+          <div style="width:28px; height:28px; border-radius:50%; background:var(--color-bg-elevated); border:2px solid var(--color-border-bright); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+            <span style="font-size:13px; font-weight:700; color:var(--color-text-secondary);">7</span>
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:700; font-size:14px; color:var(--color-text-primary); margin-bottom:3px;">Explore reports</div>
+            <div style="font-size:13px; color:var(--color-text-secondary); line-height:1.5;">Revenue, occupancy, expenses, and payment summaries. The demo data means the reports are already populated with realistic numbers.</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:4px;"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </a>
+    </div>
+
+    <!-- What's included section -->
+    <div class="card" style="padding:20px 24px; margin-bottom:28px;">
+      <div style="font-size:13px; font-weight:700; color:var(--color-text-primary); margin-bottom:14px;">Everything in your workspace</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 24px;">
+        {% for feature in features %}
+        <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--color-text-secondary);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-green-400)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="20 6 9 17 4 12"/></svg>
+          {{ feature }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary" style="width:100%; padding:14px; font-size:15px; font-weight:700; margin-bottom:12px;">
+        Open my dashboard
+      </button>
+    </form>
+
+    <p style="text-align:center; font-size:12px; color:var(--color-text-tertiary);">
+      You can return to this guide any time from <strong style="color:var(--color-text-secondary);">Settings → Getting Started</strong>.
+    </p>
+
+  </div>
+</div>
+{% endblock %}

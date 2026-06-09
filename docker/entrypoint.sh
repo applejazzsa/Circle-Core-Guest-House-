@@ -10,5 +10,6 @@ fi
 
 python manage.py migrate_schemas --noinput --settings="${DJANGO_SETTINGS_MODULE:-config.settings_production}"
 python manage.py collectstatic --noinput --settings="${DJANGO_SETTINGS_MODULE:-config.settings_production}"
+python manage.py setup_platform --settings="${DJANGO_SETTINGS_MODULE:-config.settings_production}"
 
 exec "$@"
