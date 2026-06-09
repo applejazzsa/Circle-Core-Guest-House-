@@ -13,6 +13,7 @@ _ALWAYS_EXEMPT = [
     "/static/",
     "/media/",
     "/admin/",
+    "/command/",
 ]
 
 # Paths exempt from subscription checks but not from read-only blocking
@@ -111,6 +112,7 @@ class RoleAccessMiddleware:
         "/admin/",
         "/subscription/",
         "/payfast/",
+        "/command/",
     ]
 
     CLEANER_ALLOWED_PREFIXES = [
