@@ -52,6 +52,8 @@ urlpatterns = [
     path("payfast/itn/", tenant_views.payfast_itn, name="payfast_itn"),
     path("payfast/initiate/", tenant_views.payfast_initiate, name="payfast_initiate"),
     path("subscription/payment/success/", tenant_views.payment_success, name="payment_success"),
+    # Command Center — SHARED_APPS model, @command_required protects every view
+    path("command/", include("command.urls")),
     path("", include("core.urls")),
 ]
 
