@@ -424,14 +424,14 @@ def impersonate_tenant(request, schema_name):
         },
         salt="command-impersonation",
     )
-    domain = tenant.domains.filter(is_primary=True).first()
+    domain = tenant.domains.filter(is_primary=True).first() or tenant.domains.first()
     scheme = "http" if settings.DEBUG else "https"
     port = request.get_port()
     port_suffix = f":{port}" if settings.DEBUG and port not in ("80", "443") else ""
     if settings.DEBUG:
         host = f"{schema_name}.localhost{port_suffix}"
     else:
-        host = domain.domain if domain else f"{schema_name}.{settings.BASE_DOMAIN}"
+        host = domain.domain if domain else settings.BASE_DOMAIN
     logger.warning(
         "Command Center impersonation token issued by %s for tenant %s from %s",
         request.session.get("command_username"),
