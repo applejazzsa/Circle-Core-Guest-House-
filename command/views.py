@@ -448,6 +448,37 @@ def impersonate_tenant(request, schema_name):
     return redirect(f"{scheme}://{host}/command-enter/?token={token}")
 
 
+@command_required
+@require_POST
+def set_tenant_password(request, schema_name):
+    new_password = request.POST.get("new_password", "").strip()
+    if len(new_password) < 6:
+        messages.error(request, "Password must be at least 6 characters.")
+        return redirect(f"/command/tenants/{schema_name}/")
+    try:
+        with schema_context(schema_name):
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = User.objects.filter(is_superuser=True).order_by("pk").first()
+            if not user:
+                user = User.objects.order_by("pk").first()
+            if not user:
+                raise ValueError("No user found in this tenant schema.")
+            user.set_password(new_password)
+            user.save(update_fields=["password"])
+            _audit_command(
+                request,
+                "set_tenant_password",
+                schema_name,
+                object_repr=user.username,
+                reason=f"Password reset by Command Center admin",
+            )
+        messages.success(request, f"Password updated for {schema_name} owner ({user.username}).")
+    except Exception as exc:
+        messages.error(request, f"Failed to set password: {exc}")
+    return redirect(f"/command/tenants/{schema_name}/")
+
+
 # ── Leads ─────────────────────────────────────────────────────────────────────
 
 @command_required

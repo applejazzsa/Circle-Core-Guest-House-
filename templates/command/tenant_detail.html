@@ -179,6 +179,23 @@
     </form>
   </div>
 
+  <!-- Set Password -->
+  <div class="cc-card">
+    <div class="cc-card-title">Reset Owner Password</div>
+    <p style="font-size:13px;color:#94a3b8;margin-bottom:14px;">
+      Sets a new password for this tenant's owner account directly.
+    </p>
+    <form method="post" action="/command/tenants/{{ tenant.schema_name }}/set-password/">
+      {% csrf_token %}
+      <label class="cc-label">New Password</label>
+      <input type="text" name="new_password" class="cc-input mb-4" placeholder="Min 6 characters" autocomplete="off">
+      <button type="submit" class="btn btn-ghost" style="width:100%;margin-top:10px;"
+        onclick="return confirm('Set new password for {{ tenant.name }}?')">
+        Set Password →
+      </button>
+    </form>
+  </div>
+
   <!-- Suspend / Activate -->
   <div class="cc-card">
     <div class="cc-card-title">Account Control</div>
