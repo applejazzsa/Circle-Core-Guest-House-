@@ -21,6 +21,11 @@
     <table style="width:100%;font-size:13px;">
       <tr><td style="color:#64748b;padding:5px 0;width:40%;">Owner</td><td style="color:#f1f5f9;font-weight:600;">{{ tenant.owner_name }}</td></tr>
       <tr><td style="color:#64748b;padding:5px 0;">Email</td><td style="color:#f1f5f9;">{{ tenant.owner_email }}</td></tr>
+      {% if owner_username %}
+      <tr><td style="color:#64748b;padding:5px 0;">Login username</td>
+        <td><code style="color:#a78bfa;font-size:12px;word-break:break-all;">{{ owner_username }}</code></td>
+      </tr>
+      {% endif %}
       {% if tenant.owner_phone %}<tr><td style="color:#64748b;padding:5px 0;">Phone</td><td style="color:#f1f5f9;">{{ tenant.owner_phone }}</td></tr>{% endif %}
       <tr><td style="color:#64748b;padding:5px 0;">Domain</td>
         <td>
@@ -182,9 +187,11 @@
   <!-- Set Password -->
   <div class="cc-card">
     <div class="cc-card-title">Reset Owner Password</div>
-    <p style="font-size:13px;color:#94a3b8;margin-bottom:14px;">
-      Sets a new password for this tenant's owner account directly.
-    </p>
+    {% if owner_username %}
+    <div style="font-size:12px;color:#64748b;margin-bottom:10px;">
+      Login username: <code style="color:#a78bfa;">{{ owner_username }}</code>
+    </div>
+    {% endif %}
     <form method="post" action="/command/tenants/{{ tenant.schema_name }}/set-password/">
       {% csrf_token %}
       <label class="cc-label">New Password</label>

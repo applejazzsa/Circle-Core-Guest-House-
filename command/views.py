@@ -220,8 +220,10 @@ def tenant_detail(request, schema_name):
     tenant = get_object_or_404(GuestHouseTenant, schema_name=schema_name)
     domain = tenant.domains.filter(is_primary=True).first()
 
+    owner_username = None
     try:
         with schema_context(schema_name):
+            from django.contrib.auth import get_user_model
             from core.models import (
                 Booking, Guest, Room, Subscription, TrialEngagement,
             )
@@ -233,6 +235,12 @@ def tenant_detail(request, schema_name):
             active_bookings = Booking.objects.filter(
                 status__in=["Confirmed", "Checked In"]
             ).count()
+            _User = get_user_model()
+            _owner = _User.objects.filter(is_superuser=True).order_by("pk").first()
+            if not _owner:
+                _owner = _User.objects.order_by("pk").first()
+            if _owner:
+                owner_username = _owner.username
     except Exception as exc:
         logger.error("tenant_detail error for %s: %s", schema_name, exc)
         sub = engagement = None
@@ -251,6 +259,7 @@ def tenant_detail(request, schema_name):
         "active_bookings": active_bookings,
         "grace_days": GRACE_DAYS,
         "trial_days": TRIAL_DAYS,
+        "owner_username": owner_username,
         "username": request.session.get("command_username"),
     })
 
