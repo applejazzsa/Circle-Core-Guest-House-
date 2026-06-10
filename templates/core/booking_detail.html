@@ -1,12 +1,25 @@
 {% extends "base.html" %}
 {% block title %}{{ booking.booking_reference }} — Circle Core Guest House{% endblock %}
 
+{% block extra_css %}
+<style>
+@media (max-width: 1024px) {
+  .booking-sidebar { order: -1; position: static !important; }
+}
+@media (max-width: 640px) {
+  .booking-ref { font-size: 0.9375rem !important; }
+  .booking-title { flex-wrap: wrap !important; font-size: 1.125rem !important; gap: 8px !important; }
+  .booking-actions-wrap .btn { flex: 1 1 auto; justify-content: center; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
-  <div>
+  <div style="min-width:0; flex:1;">
     <div class="section-label">Bookings</div>
-    <h1 class="page-title" style="font-size:1.5rem; display:flex; align-items:center; gap:12px;">
-      <span style="font-family:var(--font-mono); font-size:1.25rem; color:var(--color-green-400);">{{ booking.booking_reference }}</span>
+    <h1 class="page-title booking-title" style="font-size:1.375rem; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <span class="booking-ref" style="font-family:var(--font-mono); font-size:1.0625rem; color:var(--color-green-400);">{{ booking.booking_reference }}</span>
       <span class="badge
         {% if booking.status == 'Confirmed' %}badge-blue
         {% elif booking.status == 'Checked In' %}badge-green
@@ -15,13 +28,13 @@
         {% elif booking.status == 'No Show' %}badge-purple
         {% else %}badge-amber{% endif %}">{{ booking.status }}</span>
     </h1>
-    <p class="page-subtitle">{{ booking.guest.full_name }} · {{ booking.room.name }}</p>
+    <p class="page-subtitle" style="font-size:0.875rem; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ booking.guest.full_name }} · {{ booking.room.name }}</p>
   </div>
   <div class="page-header-actions">
     {% if not payments %}
-    <a href="{% url 'core:booking_edit' booking.pk %}" class="btn btn-secondary btn-sm">Edit Booking</a>
+    <a href="{% url 'core:booking_edit' booking.pk %}" class="btn btn-secondary btn-sm">Edit</a>
     {% endif %}
-    <a href="{% url 'core:booking_list' %}" class="btn btn-ghost btn-sm">← Bookings</a>
+    <a href="{% url 'core:booking_list' %}" class="btn btn-ghost btn-sm">← Back</a>
   </div>
 </div>
 
@@ -31,7 +44,7 @@
   <div style="display:flex; flex-direction:column; gap:16px;">
 
     <!-- Stay details -->
-    <div class="card" style="padding:24px;">
+    <div class="card">
       <div class="section-label" style="margin-bottom:16px;">Stay Details</div>
 
       <div class="grid-2" style="row-gap:0; column-gap:24px;">
@@ -96,7 +109,7 @@
     </div>
 
     <!-- Payment history -->
-    <div class="card" style="padding:24px;">
+    <div class="card">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
         <div class="section-label">Payment History</div>
         {% if latest_payment %}
@@ -147,7 +160,7 @@
     </div>
 
     {% if refunds %}
-    <div class="card" style="padding:24px;">
+    <div class="card">
       <div class="section-label" style="margin-bottom:16px;">Refund History</div>
       <div class="table-scroll">
       <table class="data-table">
@@ -169,7 +182,7 @@
     {% endif %}
 
     <!-- Actions row -->
-    <div class="card" style="padding:20px;">
+    <div class="card">
       <div class="section-label" style="margin-bottom:14px;">Actions</div>
       {% if booking.status in 'Confirmed,Pending' and payment_totals.balance_due <= 0 %}
       <form method="post" action="{% url 'core:booking_checkin' booking.pk %}" style="margin-bottom:12px;">
@@ -177,7 +190,7 @@
         <button type="submit" class="btn btn-primary" style="width:100%; padding:14px 20px; font-size:15px; font-weight:700; letter-spacing:0.03em; justify-content:center;">Check In Guest</button>
       </form>
       {% endif %}
-      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      <div class="booking-actions-wrap" style="display:flex; flex-wrap:wrap; gap:8px;">
         {% if not payments and booking.status == 'Pending' or not payments and booking.status == 'Confirmed' %}
         <a href="{% url 'core:booking_edit' booking.pk %}" class="btn btn-secondary">Back to Edit Booking</a>
         {% endif %}
@@ -218,11 +231,11 @@
     </div>
   </div>
 
-  <!-- Right: financial summary -->
-  <div style="display:flex; flex-direction:column; gap:16px; position:sticky; top:88px;">
+  <!-- Right: financial summary (moves to top on mobile via CSS order) -->
+  <div class="booking-sidebar" style="display:flex; flex-direction:column; gap:16px; position:sticky; top:88px;">
 
     <!-- Financial summary -->
-    <div class="card" style="padding:24px;">
+    <div class="card">
       <div class="section-label" style="margin-bottom:16px;">Financial Summary</div>
 
       <div class="detail-row">
@@ -299,7 +312,7 @@
     </div>
 
     <!-- Guest quick info -->
-    <div class="card" style="padding:20px;">
+    <div class="card">
       <div class="section-label" style="margin-bottom:12px;">Guest</div>
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
         <div class="avatar avatar-md avatar-green">{{ booking.guest.first_name|first }}{{ booking.guest.last_name|first }}</div>
