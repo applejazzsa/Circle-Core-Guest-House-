@@ -17,6 +17,7 @@ urlpatterns = [
     path("tenants/<str:schema_name>/toggle-verified/", views.toggle_verified, name="command_toggle_verified"),
     path("tenants/<str:schema_name>/notes/", views.update_tenant_notes, name="command_update_notes"),
     path("export/subscriptions.csv", views.export_subscriptions_csv, name="command_export_csv"),
+    path("export/payments.csv", views.export_payment_history_csv, name="command_export_payments_csv"),
     path("revenue/", views.revenue_dashboard, name="command_revenue"),
     path("leads/", views.lead_list, name="command_leads"),
     path("leads/<int:pk>/status/", views.lead_update_status, name="command_lead_status"),

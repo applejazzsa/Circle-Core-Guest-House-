@@ -134,4 +134,45 @@
 {% endfor %}
 {% endwith %}
 
+<!-- Recent payments log -->
+<div class="cc-card" style="margin-top:20px;">
+  <div style="display:flex;align-items:center;margin-bottom:14px;">
+    <div class="cc-card-title" style="margin-bottom:0;flex:1;">Recent Payment Activity</div>
+    <a href="/command/export/payments.csv" class="btn btn-ghost btn-sm" style="margin-right:8px;">↓ Export CSV</a>
+    <span style="font-size:11px;color:#475569;">Last 30 recorded</span>
+  </div>
+  {% if recent_payments %}
+  <div class="cc-table-wrap">
+    <table class="cc-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Business</th>
+          <th>Amount</th>
+          <th>Reference</th>
+          <th>Plan</th>
+          <th>Billing</th>
+          <th>Recorded by</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in recent_payments %}
+        <tr>
+          <td style="color:#94a3b8;white-space:nowrap;">{{ p.recorded_at|date:"d M Y H:i" }}</td>
+          <td><a href="/command/tenants/{{ p.schema_name }}/" style="color:#a78bfa;">{{ p.tenant_name }}</a></td>
+          <td style="color:#4ade80;font-weight:700;">R {{ p.amount }}</td>
+          <td><code style="font-size:11px;color:#94a3b8;">{{ p.reference|default:"—" }}</code></td>
+          <td style="color:#f1f5f9;">{{ p.plan_name|default:"—" }}</td>
+          <td>{{ p.billing_cycle|title }}</td>
+          <td style="color:#64748b;">{{ p.recorded_by|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="color:#475569;font-size:13px;padding:16px 0;">No payments recorded yet. Go to a tenant and use "Record Manual Payment" to log your first EFT.</div>
+  {% endif %}
+</div>
+
 {% endblock %}

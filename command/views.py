@@ -21,7 +21,7 @@ from django_tenants.utils import schema_context
 from tenants.models import Domain, GuestHouseTenant, Lead
 
 from .decorators import command_required
-from .models import CommandAuditLog, CommandUser
+from .models import CommandAuditLog, CommandUser, TenantPaymentRecord
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +250,8 @@ def tenant_detail(request, schema_name):
 
     from core.subscriptions import GRACE_DAYS, TRIAL_DAYS
 
+    payment_history = TenantPaymentRecord.objects.filter(schema_name=schema_name)[:20]
+
     return render(request, "command/tenant_detail.html", {
         "tenant": tenant,
         "domain": domain.domain if domain else None,
@@ -262,6 +264,7 @@ def tenant_detail(request, schema_name):
         "grace_days": GRACE_DAYS,
         "trial_days": TRIAL_DAYS,
         "owner_username": owner_username,
+        "payment_history": payment_history,
         "username": request.session.get("command_username"),
     })
 
@@ -412,6 +415,16 @@ def record_payment(request, schema_name):
                 )
         if not sub:
             raise ValueError("No subscription found.")
+        tenant = GuestHouseTenant.objects.filter(schema_name=schema_name).first()
+        TenantPaymentRecord.objects.create(
+            schema_name=schema_name,
+            tenant_name=tenant.name if tenant else schema_name,
+            amount=amount or 0,
+            reference=reference,
+            billing_cycle=billing_cycle,
+            plan_name=sub.plan.display_name if sub else "",
+            recorded_by=request.session.get("command_username", ""),
+        )
         messages.success(
             request,
             f"Payment recorded for {schema_name}. Subscription activated until "
@@ -539,6 +552,8 @@ def revenue_dashboard(request):
     active_count = sum(1 for r in rows if r["subscription"] and r["subscription"].status == "active")
     trial_count = sum(1 for r in rows if r["subscription"] and r["subscription"].status == "trial")
 
+    recent_payments = TenantPaymentRecord.objects.all()[:30]
+
     return render(request, "command/revenue.html", {
         "rows": rows,
         "total_collected": total_collected,
@@ -546,6 +561,7 @@ def revenue_dashboard(request):
         "arr": arr,
         "active_count": active_count,
         "trial_count": trial_count,
+        "recent_payments": recent_payments,
         "username": request.session.get("command_username"),
     })
 
@@ -578,6 +594,28 @@ def update_tenant_notes(request, schema_name):
     except Exception as exc:
         messages.error(request, f"Failed: {exc}")
     return redirect(f"/command/tenants/{schema_name}/")
+
+
+@command_required
+def export_payment_history_csv(request):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = (
+        f'attachment; filename="payment_history_{timezone.now().strftime("%Y%m%d")}.csv"'
+    )
+    writer = csv_module.writer(response)
+    writer.writerow(["Date", "Business", "Schema", "Amount", "Reference", "Plan", "Billing Cycle", "Recorded By"])
+    for p in TenantPaymentRecord.objects.all().order_by("-recorded_at"):
+        writer.writerow([
+            p.recorded_at.strftime("%Y-%m-%d %H:%M"),
+            p.tenant_name,
+            p.schema_name,
+            p.amount,
+            p.reference,
+            p.plan_name,
+            p.billing_cycle,
+            p.recorded_by,
+        ])
+    return response
 
 
 @command_required

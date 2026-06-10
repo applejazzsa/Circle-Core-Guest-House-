@@ -28,6 +28,33 @@ class CommandUser(models.Model):
         return _check_password(raw_password, self.password)
 
 
+class TenantPaymentRecord(models.Model):
+    """
+    Full payment history per tenant — lives in the public schema so it
+    survives across Command Center sessions and is never lost on re-seeding.
+    """
+    BILLING_CHOICES = [
+        ("monthly", "Monthly"),
+        ("annual", "Annual"),
+    ]
+
+    schema_name = models.CharField(max_length=63, db_index=True)
+    tenant_name = models.CharField(max_length=200)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    reference = models.CharField(max_length=100, blank=True)
+    billing_cycle = models.CharField(max_length=10, choices=BILLING_CHOICES, default="monthly")
+    plan_name = models.CharField(max_length=100, blank=True)
+    recorded_by = models.CharField(max_length=150, blank=True)
+    notes = models.TextField(blank=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-recorded_at"]
+
+    def __str__(self):
+        return f"{self.tenant_name} R{self.amount} {self.recorded_at:%Y-%m-%d}"
+
+
 class CommandAuditLog(models.Model):
     actor = models.ForeignKey(CommandUser, on_delete=models.SET_NULL, null=True, blank=True)
     actor_username = models.CharField(max_length=150, blank=True)

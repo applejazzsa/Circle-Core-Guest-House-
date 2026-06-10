@@ -242,6 +242,41 @@
     {% endif %}
   </div>
 
+  <!-- Payment History -->
+  <div class="cc-card" style="grid-column:1/-1;">
+    <div class="cc-card-title">Payment History</div>
+    {% if payment_history %}
+    <div class="cc-table-wrap">
+      <table class="cc-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Reference</th>
+            <th>Plan</th>
+            <th>Billing</th>
+            <th>Recorded by</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payment_history %}
+          <tr>
+            <td style="color:#94a3b8;">{{ p.recorded_at|date:"d M Y H:i" }}</td>
+            <td style="color:#4ade80;font-weight:700;">R {{ p.amount }}</td>
+            <td><code style="font-size:11px;color:#94a3b8;">{{ p.reference|default:"—" }}</code></td>
+            <td style="color:#f1f5f9;">{{ p.plan_name|default:"—" }}</td>
+            <td>{{ p.billing_cycle|title }}</td>
+            <td style="color:#64748b;">{{ p.recorded_by|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="color:#475569;font-size:13px;padding:8px 0;">No payments recorded yet. Use "Record Manual Payment" above to log an EFT.</div>
+    {% endif %}
+  </div>
+
   <!-- Internal Notes -->
   <div class="cc-card" style="grid-column:1/-1;">
     <div class="cc-card-title">Internal Notes</div>
