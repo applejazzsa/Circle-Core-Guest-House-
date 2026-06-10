@@ -12,6 +12,14 @@ DEBUG = False
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv())
 BASE_DOMAIN = config('BASE_DOMAIN', default='guesthouse.circlecore.co.za')
 
+# PayFast — always OFF in production unless explicitly enabled in .env
+PAYFAST_SANDBOX = config('PAYFAST_SANDBOX', default=False, cast=bool)
+
+# Email — resolve TLS/SSL mutual-exclusion: if SSL is on, TLS must be off
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
+EMAIL_USE_TLS = False if EMAIL_USE_SSL else config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_PORT = config('EMAIL_PORT', default=465 if EMAIL_USE_SSL else 587, cast=int)
+
 # django-tenants requires the postgresql backend — not the standard one
 DATABASES = {
     'default': {

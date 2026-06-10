@@ -21,7 +21,7 @@ from django_tenants.utils import schema_context
 from tenants.models import Domain, GuestHouseTenant, Lead
 
 from .decorators import command_required
-from .models import CommandAuditLog, CommandUser, TenantPaymentRecord
+from .models import CommandAuditLog, CommandUser, CronHealth, TenantPaymentRecord
 
 logger = logging.getLogger(__name__)
 
@@ -554,6 +554,15 @@ def revenue_dashboard(request):
 
     recent_payments = TenantPaymentRecord.objects.all()[:30]
 
+    # MRR trend: last 6 months of recorded payments grouped by month
+    from collections import defaultdict
+    monthly_totals = defaultdict(Decimal)
+    six_months_ago = timezone.now() - timezone.timedelta(days=183)
+    for p in TenantPaymentRecord.objects.filter(recorded_at__gte=six_months_ago).order_by("recorded_at"):
+        key = p.recorded_at.strftime("%b %Y")
+        monthly_totals[key] += p.amount
+    mrr_trend = [{"month": k, "total": v} for k, v in monthly_totals.items()]
+
     return render(request, "command/revenue.html", {
         "rows": rows,
         "total_collected": total_collected,
@@ -562,6 +571,7 @@ def revenue_dashboard(request):
         "active_count": active_count,
         "trial_count": trial_count,
         "recent_payments": recent_payments,
+        "mrr_trend": mrr_trend,
         "username": request.session.get("command_username"),
     })
 
@@ -658,6 +668,90 @@ def export_subscriptions_csv(request):
             "Yes" if tenant.is_verified else "No",
         ])
     return response
+
+
+# ── Audit log ─────────────────────────────────────────────────────────────────
+
+@command_required
+def audit_log(request):
+    schema_filter = request.GET.get("schema", "").strip()
+    action_filter = request.GET.get("action", "").strip()
+
+    qs = CommandAuditLog.objects.select_related("actor").order_by("-created_at")
+    if schema_filter:
+        qs = qs.filter(schema_name__icontains=schema_filter)
+    if action_filter:
+        qs = qs.filter(action__icontains=action_filter)
+
+    from django.core.paginator import Paginator
+    paginator = Paginator(qs, 50)
+    page = paginator.get_page(request.GET.get("page", 1))
+
+    actions = CommandAuditLog.objects.values_list("action", flat=True).distinct().order_by("action")
+
+    return render(request, "command/audit_log.html", {
+        "page": page,
+        "schema_filter": schema_filter,
+        "action_filter": action_filter,
+        "actions": actions,
+        "username": request.session.get("command_username"),
+    })
+
+
+# ── System health ──────────────────────────────────────────────────────────────
+
+@command_required
+def system_health(request):
+    from django.conf import settings as django_settings
+    cron_jobs = {c.job_name: c for c in CronHealth.objects.all()}
+
+    health_items = []
+    now = timezone.now()
+
+    for job_name, label in [("trial_reminders", "Trial Reminder Emails"), ("backup", "Daily Backup")]:
+        job = cron_jobs.get(job_name)
+        if not job:
+            status = "never"
+            age_hours = None
+        else:
+            age_hours = (now - job.last_run_at).total_seconds() / 3600
+            status = job.last_status
+
+        health_items.append({
+            "name": label,
+            "job_name": job_name,
+            "job": job,
+            "age_hours": age_hours,
+            "status": status,
+            "stale": age_hours is not None and age_hours > 26,
+        })
+
+    config_checks = [
+        {
+            "label": "PayFast sandbox",
+            "ok": not django_settings.PAYFAST_SANDBOX,
+            "value": "sandbox" if django_settings.PAYFAST_SANDBOX else "live",
+            "warn_if_bad": "PayFast is in SANDBOX mode — real payments will not be captured.",
+        },
+        {
+            "label": "Email SSL/TLS",
+            "ok": not (getattr(django_settings, "EMAIL_USE_SSL", False) and getattr(django_settings, "EMAIL_USE_TLS", False)),
+            "value": f"SSL={django_settings.EMAIL_USE_SSL} TLS={django_settings.EMAIL_USE_TLS} PORT={django_settings.EMAIL_PORT}",
+            "warn_if_bad": "EMAIL_USE_SSL and EMAIL_USE_TLS are both True — email will fail.",
+        },
+        {
+            "label": "Debug mode",
+            "ok": not django_settings.DEBUG,
+            "value": "on" if django_settings.DEBUG else "off",
+            "warn_if_bad": "DEBUG is ON in production — disable immediately.",
+        },
+    ]
+
+    return render(request, "command/system_health.html", {
+        "health_items": health_items,
+        "config_checks": config_checks,
+        "username": request.session.get("command_username"),
+    })
 
 
 # ── Leads ─────────────────────────────────────────────────────────────────────

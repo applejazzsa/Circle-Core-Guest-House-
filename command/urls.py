@@ -19,6 +19,8 @@ urlpatterns = [
     path("export/subscriptions.csv", views.export_subscriptions_csv, name="command_export_csv"),
     path("export/payments.csv", views.export_payment_history_csv, name="command_export_payments_csv"),
     path("revenue/", views.revenue_dashboard, name="command_revenue"),
+    path("audit/", views.audit_log, name="command_audit"),
+    path("system/", views.system_health, name="command_system"),
     path("leads/", views.lead_list, name="command_leads"),
     path("leads/<int:pk>/status/", views.lead_update_status, name="command_lead_status"),
 ]

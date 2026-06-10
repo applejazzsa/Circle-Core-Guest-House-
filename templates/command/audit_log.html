@@ -1,0 +1,99 @@
+{% extends "command/base.html" %}
+{% block title %}Audit Log{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+{% block nav_audit %}active{% endblock %}
+
+{% block content %}
+
+<div class="cc-card" style="margin-bottom:20px;">
+  <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+    <div>
+      <label class="cc-label">Schema / Tenant</label>
+      <input type="text" name="schema" value="{{ schema_filter }}" class="cc-input" style="width:180px;" placeholder="e.g. ncx">
+    </div>
+    <div>
+      <label class="cc-label">Action</label>
+      <select name="action" class="cc-input cc-select" style="width:220px;">
+        <option value="">All actions</option>
+        {% for a in actions %}
+        <option value="{{ a }}" {% if a == action_filter %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-ghost">Filter</button>
+    {% if schema_filter or action_filter %}
+    <a href="/command/audit/" class="btn btn-ghost">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="cc-card">
+  <div style="display:flex;align-items:center;margin-bottom:14px;">
+    <div class="cc-card-title" style="margin-bottom:0;flex:1;">
+      {{ page.paginator.count }} event{{ page.paginator.count|pluralize }}
+    </div>
+    <span style="font-size:11px;color:#475569;">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  </div>
+
+  <div class="cc-table-wrap">
+    <table class="cc-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Admin</th>
+          <th>Action</th>
+          <th>Tenant</th>
+          <th>Object</th>
+          <th>Reason</th>
+          <th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in page %}
+        <tr>
+          <td style="color:#64748b;white-space:nowrap;font-size:12px;">{{ log.created_at|date:"d M Y H:i" }}</td>
+          <td style="font-weight:600;color:#a78bfa;">{{ log.actor_username|default:"—" }}</td>
+          <td>
+            <code style="font-size:11px;color:
+              {% if 'suspend' in log.action %}#f87171
+              {% elif 'activate' in log.action or 'verified' in log.action %}#4ade80
+              {% elif 'password' in log.action %}#f59e0b
+              {% else %}#94a3b8{% endif %};">
+              {{ log.action }}
+            </code>
+          </td>
+          <td>
+            {% if log.schema_name %}
+            <a href="/command/tenants/{{ log.schema_name }}/" style="color:#a78bfa;">{{ log.schema_name }}</a>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td style="color:#f1f5f9;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {{ log.object_repr|default:"—" }}
+          </td>
+          <td style="color:#64748b;font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {{ log.reason|default:"—" }}
+          </td>
+          <td style="color:#475569;font-size:11px;">{{ log.ip_address|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center;color:#475569;padding:32px;">No audit events found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page.has_other_pages %}
+  <div style="display:flex;gap:8px;margin-top:16px;align-items:center;">
+    {% if page.has_previous %}
+    <a href="?page={{ page.previous_page_number }}&schema={{ schema_filter }}&action={{ action_filter }}" class="btn btn-ghost btn-sm">← Prev</a>
+    {% endif %}
+    <span style="font-size:12px;color:#64748b;">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}
+    <a href="?page={{ page.next_page_number }}&schema={{ schema_filter }}&action={{ action_filter }}" class="btn btn-ghost btn-sm">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

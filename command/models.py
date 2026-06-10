@@ -55,6 +55,20 @@ class TenantPaymentRecord(models.Model):
         return f"{self.tenant_name} R{self.amount} {self.recorded_at:%Y-%m-%d}"
 
 
+class CronHealth(models.Model):
+    """Single-row table updated by the cron container on every job run."""
+    job_name = models.CharField(max_length=80, primary_key=True)
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    last_status = models.CharField(max_length=20, default="unknown")
+    last_message = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Cron Health"
+
+    def __str__(self):
+        return f"{self.job_name} — {self.last_status} @ {self.last_run_at}"
+
+
 class CommandAuditLog(models.Model):
     actor = models.ForeignKey(CommandUser, on_delete=models.SET_NULL, null=True, blank=True)
     actor_username = models.CharField(max_length=150, blank=True)

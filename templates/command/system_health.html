@@ -1,0 +1,74 @@
+{% extends "command/base.html" %}
+{% block title %}System Health{% endblock %}
+{% block page_title %}System Health{% endblock %}
+{% block nav_system %}active{% endblock %}
+
+{% block content %}
+
+<!-- Config checks -->
+<div class="cc-card" style="margin-bottom:20px;">
+  <div class="cc-card-title">Configuration</div>
+  {% for check in config_checks %}
+  <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #1e2433;">
+    <div style="width:10px;height:10px;border-radius:50%;background:{% if check.ok %}#22c55e{% else %}#ef4444{% endif %};flex-shrink:0;"></div>
+    <div style="flex:1;">
+      <div style="font-size:13px;font-weight:600;color:#f1f5f9;">{{ check.label }}</div>
+      {% if not check.ok %}
+      <div style="font-size:12px;color:#f87171;margin-top:2px;">{{ check.warn_if_bad }}</div>
+      {% endif %}
+    </div>
+    <code style="font-size:11px;color:#64748b;">{{ check.value }}</code>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Cron jobs -->
+<div class="cc-card" style="margin-bottom:20px;">
+  <div class="cc-card-title">Scheduled Jobs</div>
+  {% for item in health_items %}
+  <div style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid #1e2433;">
+    <div style="width:12px;height:12px;border-radius:50%;flex-shrink:0;background:
+      {% if item.status == 'never' %}#475569
+      {% elif item.stale %}#f59e0b
+      {% elif item.status == 'error' %}#ef4444
+      {% else %}#22c55e{% endif %};"></div>
+    <div style="flex:1;">
+      <div style="font-size:13px;font-weight:600;color:#f1f5f9;">{{ item.name }}</div>
+      {% if item.job %}
+      <div style="font-size:12px;color:#64748b;margin-top:2px;">
+        Last run: {{ item.job.last_run_at|date:"d M Y H:i" }}
+        {% if item.stale %}<span style="color:#f59e0b;margin-left:8px;">⚠ More than 26h ago — cron may be down</span>{% endif %}
+      </div>
+      {% if item.job.last_message %}
+      <div style="font-size:11px;color:#475569;margin-top:2px;">{{ item.job.last_message }}</div>
+      {% endif %}
+      {% else %}
+      <div style="font-size:12px;color:#f87171;margin-top:2px;">Never run — cron container may not be healthy</div>
+      {% endif %}
+    </div>
+    <span class="badge {% if item.status == 'ok' %}badge-active{% elif item.status == 'error' %}badge-expired{% elif item.status == 'never' %}badge-cancelled{% else %}badge-trial{% endif %}">
+      {{ item.status }}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Cert reminder -->
+<div class="cc-card" style="border-color:rgba(245,158,11,0.3);">
+  <div class="cc-card-title" style="color:#f59e0b;">SSL Certificate Reminder</div>
+  <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
+    <p>The wildcard cert for <code style="color:#a78bfa;">*.guesthouse.circlecore.co.za</code> was obtained manually
+    via a DNS-01 challenge and <strong style="color:#f59e0b;">does not auto-renew</strong>.</p>
+    <p style="margin-top:8px;"><strong style="color:#f1f5f9;">Expires: 07 Sep 2026</strong></p>
+    <p style="margin-top:8px;">Renew by mid-August. Steps:</p>
+    <ol style="margin-top:6px;padding-left:20px;color:#64748b;font-size:12px;line-height:1.8;">
+      <li>SSH into server, run <code>tmux new -s cert</code></li>
+      <li><code>certbot certonly --manual --preferred-challenges dns -d guesthouse.circlecore.co.za -d *.guesthouse.circlecore.co.za</code></li>
+      <li>Add TXT record in Xneelo DNS for <code>_acme-challenge.guesthouse</code></li>
+      <li>Verify propagation at Google Dig, then press Enter</li>
+      <li><code>docker exec circlecore-nginx nginx -s reload</code></li>
+    </ol>
+  </div>
+</div>
+
+{% endblock %}

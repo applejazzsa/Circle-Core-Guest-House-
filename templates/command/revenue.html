@@ -34,6 +34,24 @@
   </div>
 </div>
 
+<!-- MRR Trend -->
+{% if mrr_trend %}
+<div class="cc-card" style="margin-bottom:20px;">
+  <div class="cc-card-title">Cash Collected — Last 6 Months</div>
+  <div style="display:flex;align-items:flex-end;gap:12px;height:80px;padding-bottom:4px;">
+    {% for entry in mrr_trend %}
+    {% with pct=entry.total|floatformat:0 %}
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <div style="font-size:11px;color:#4ade80;font-weight:700;">R {{ entry.total|floatformat:0 }}</div>
+      <div style="width:100%;background:#4ade80;border-radius:4px 4px 0 0;min-height:8px;opacity:0.8;height:40px;"></div>
+      <div style="font-size:10px;color:#475569;white-space:nowrap;">{{ entry.month }}</div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <!-- Payment table -->
 <div class="cc-card">
   <div style="display:flex;align-items:center;margin-bottom:14px;">
