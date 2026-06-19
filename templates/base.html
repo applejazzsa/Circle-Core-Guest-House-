@@ -239,12 +239,7 @@
     </a>
     {% endif %}
 
-    <a href="{% url 'core:pos_transactions' %}" class="nav-item {% if u == 'pos_transactions' %}active{% endif %}">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-      </svg>
-      POS Integrations
-    </a>
+    {% endif %}
 
     {% if can_manage_system %}
     <a href="{% url 'core:exception_report' %}" class="nav-item {% if u == 'exception_report' %}active{% endif %}">
@@ -252,44 +247,6 @@
         <path d="M12 2l8 4v6c0 5-3.4 9.4-8 10-4.6-.6-8-5-8-10V6l8-4z"/><path d="M12 8v5"/><path d="M12 17h.01"/>
       </svg>
       Exceptions
-    </a>
-    {% endif %}
-
-    <div class="nav-group-label">Point of Sale</div>
-
-    <a href="{% url 'core:pos_terminal' %}" class="nav-item {% if u == 'pos_terminal' %}active{% endif %}">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><polyline points="8,21 12,17 16,21"/><line x1="12" y1="17" x2="12" y2="21"/>
-      </svg>
-      Terminal
-    </a>
-
-    <a href="{% url 'core:pos_items_list' %}" class="nav-item {% if 'pos_item' in u or 'pos_categor' in u %}active{% endif %}">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-      </svg>
-      Items & Menu
-    </a>
-
-    <a href="{% url 'core:pos_sales_list' %}" class="nav-item {% if 'pos_sale' in u %}active{% endif %}">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-      </svg>
-      Sales History
-    </a>
-
-    <a href="{% url 'core:pos_shifts' %}" class="nav-item {% if 'pos_shift' in u %}active{% endif %}">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>
-      </svg>
-      Shifts
-    </a>
-
-    <a href="{% url 'core:pos_reports' %}" class="nav-item {% if u == 'pos_reports' %}active{% endif %}">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-      </svg>
-      POS Reports
     </a>
     {% endif %}
 
@@ -302,6 +259,11 @@
         <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
       </svg>
       Staff
+    </a>
+
+    <a href="{% url 'core:offline_management' %}" class="nav-item {% if 'offline' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/></svg>
+      Offline
     </a>
 
     <a href="{% url 'core:settings' %}" class="nav-item {% if u == 'settings' %}active{% endif %}">
@@ -439,11 +401,9 @@
     <!-- Right actions -->
     <div class="topbar-actions" style="display:flex; align-items:center; gap:10px; margin-left:auto; flex-shrink:0;">
       {% if not is_cleaner %}
-      <a href="{% url 'core:pos_terminal' %}" class="btn btn-secondary btn-sm">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><path d="M6 15h.01"/><path d="M10 15h4"/>
-        </svg>
-        <span>POS</span>
+      <a id="offline-status-link" href="{% url 'core:offline_console' %}" class="btn btn-ghost btn-sm" title="Offline reception and synchronization status">
+        <span id="offline-status-dot" style="width:7px;height:7px;border-radius:50%;background:#22c55e;"></span>
+        <span id="offline-status-text">Online</span>
       </a>
       <a href="{% url 'core:booking_add' %}?source=Walk-in&status=Confirmed" class="btn btn-primary btn-sm">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -659,6 +619,16 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/service-worker.js').catch(() => {});
   });
 }
+function updateConnectivityStatus() {
+  const dot = document.getElementById('offline-status-dot');
+  const text = document.getElementById('offline-status-text');
+  if (!dot || !text) return;
+  dot.style.background = navigator.onLine ? '#22c55e' : '#f59e0b';
+  text.textContent = navigator.onLine ? 'Online' : 'Offline';
+}
+window.addEventListener('online', updateConnectivityStatus);
+window.addEventListener('offline', updateConnectivityStatus);
+updateConnectivityStatus();
 
 // Chart.js global dark defaults
 if (typeof Chart !== 'undefined') {

@@ -65,6 +65,11 @@
                 {{ form.num_guests.errors }}
             </div>
             <div>
+                <label class="text-sm font-medium text-slate-700" for="{{ form.vehicle_registration.id_for_label }}">Vehicle registration</label>
+                {{ form.vehicle_registration }}
+                {{ form.vehicle_registration.errors }}
+            </div>
+            <div>
                 <label class="text-sm font-medium text-slate-700" for="{{ form.booking_source.id_for_label }}">Booking source</label>
                 {{ form.booking_source }}
                 {{ form.booking_source.errors }}
@@ -142,8 +147,25 @@
 
 <script>
     const ROOM_PRICES = {{ room_prices_json|safe }};
+    const ROOM_STATUSES = {{ room_statuses_json|safe }};
     const roomSelect = document.getElementById('{{ form.room.id_for_label }}');
     const rateInput = document.getElementById('{{ form.rate_per_night.id_for_label }}');
+
+    const STATUS_LABELS = {
+        'Available':   '✓ Available',
+        'Booked':      '⬤ Booked',
+        'Occupied':    '⬤ Occupied',
+        'Cleaning':    '⬤ Cleaning',
+        'Maintenance': '⚠ Maintenance',
+        'Blocked':     '✗ Blocked',
+    };
+
+    Array.from(roomSelect.options).forEach(function (opt) {
+        const status = ROOM_STATUSES[opt.value];
+        if (status) {
+            opt.text = opt.text + ' — ' + (STATUS_LABELS[status] || status);
+        }
+    });
 
     roomSelect.addEventListener('change', function () {
         const price = ROOM_PRICES[this.value];

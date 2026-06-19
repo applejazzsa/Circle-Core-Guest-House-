@@ -3,7 +3,7 @@ from django.db import connection
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from .roles import is_cleaner, is_operator, is_owner
+from .roles import is_cleaner, is_operator, is_owner, is_reception, is_viewer
 from .subscriptions import grace_ends_at
 
 
@@ -118,8 +118,6 @@ class SubscriptionMiddleware:
                 return redirect("/subscription/upgrade/?feature=inventory")
             if request.path.startswith("/maintenance/") and not subscription.has_feature("maintenance_requests"):
                 return redirect("/subscription/upgrade/?feature=maintenance_requests")
-            if request.path.startswith("/pos/") and not subscription.has_feature("pos_integration"):
-                return redirect("/subscription/upgrade/?feature=pos_integration")
 
         return self.get_response(request)
 
@@ -159,12 +157,26 @@ class RoleAccessMiddleware:
         "/subscription/setup/",
         "/subscription/status/",
         "/staff/",
+        "/offline/manage/",
+        "/offline/conflicts/",
     ]
 
     OPERATOR_BLOCKED_PREFIXES = [
         "/security/",
         "/daily-close/",
         "/export/",
+    ]
+
+    RECEPTION_ALLOWED_PREFIXES = [
+        "/rooms/",
+        "/bookings/",
+        "/guests/",
+        "/availability/",
+        "/calendar/",
+        "/search/",
+        "/cleaning/",
+        "/housekeeping/",
+        "/maintenance/",
     ]
 
     def __init__(self, get_response):
@@ -179,6 +191,9 @@ class RoleAccessMiddleware:
 
         if any(request.path.startswith(path) for path in [*self.EXEMPT_PATHS, _admin_path()]):
             return self.get_response(request)
+
+        if is_viewer(request.user) and request.method not in ("GET", "HEAD", "OPTIONS"):
+            return redirect("/")
 
         if is_cleaner(request.user):
             if request.path == "/":
@@ -196,6 +211,16 @@ class RoleAccessMiddleware:
 
         if not is_cleaner(request.user) and is_operator(request.user):
             if any(request.path.startswith(path) for path in self.OPERATOR_BLOCKED_PREFIXES):
+                return redirect("/")
+
+        if is_reception(request.user):
+            if request.path == "/":
+                return redirect("/bookings/")
+            is_allowed = request.path == "/" or any(
+                request.path.startswith(path) for path in self.RECEPTION_ALLOWED_PREFIXES
+            )
+            is_payment_action = "/payments/" in request.path or "/refund/" in request.path
+            if not is_allowed or is_payment_action:
                 return redirect("/")
 
         if any(request.path.startswith(path) for path in self.OWNER_ONLY_PREFIXES) and not is_owner(request.user):

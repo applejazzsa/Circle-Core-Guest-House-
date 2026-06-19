@@ -18,6 +18,41 @@ A multi-tenant SaaS guest house management system built with Django and `django-
 - PostgreSQL 15+ (SQLite is not supported)
 - Redis 7+ (rate limiting, cache)
 
+## Staff authentication
+
+Tenant login supports two independent methods:
+
+- **Email or username + password** remains the primary login for owners, administrators, and managers.
+- **Phone number + PIN** is an optional simplified login for reception, cleaning, and other staff accounts.
+
+Only a tenant owner can enable PIN login, assign the staff phone number, set or reset the PIN, disable PIN login, or change a staff role. PINs must contain 4–6 digits and are stored with Django's password hashing framework; the original PIN cannot be displayed after saving.
+
+PIN login is disabled by default. Five unsuccessful PIN attempts lock PIN login for that staff account for 15 minutes. A successful login or an owner PIN reset clears the failed-attempt counter. All authentication and staff profiles remain inside the tenant's PostgreSQL schema, so a phone number configured in one guest house cannot authenticate against another guest house.
+
+After deploying the PIN-login migration, apply it to every tenant schema:
+
+```bash
+python manage.py migrate_schemas --settings=config.settings_production
+```
+
+## Offline reception
+
+The first offline release supports one designated reception browser per property. Visit **System → Offline**, approve the device, then open **Offline Reception** while connected once. The application caches its shell and stores room, rate, guest, and active-stay data in IndexedDB.
+
+While disconnected, the designated device can queue walk-ins, check-outs, cleaning updates, maintenance reports, and cash payments. Each operation has a UUID and the server stores an idempotency receipt, so reconnect retries cannot apply the same operation twice. A signed offline lease expires after 72 hours. Owners can revoke the device and review room/rate/clock conflicts from Offline Management.
+
+Card and PayFast processing, email and WhatsApp delivery, subscription changes, and cloud reports remain online-only. Offline data is browser-local: do not clear site data before all queued actions have synchronized.
+
+Production rollout:
+
+1. Run `python manage.py migrate_schemas --settings=config.settings_production`.
+2. Run `python manage.py collectstatic --noinput --settings=config.settings_production`.
+3. Sign in on the designated reception computer and visit `/offline/` while online.
+4. Approve that device from `/offline/manage/` using an owner account.
+5. Reopen `/offline/` and verify the status shows an active lease and zero queued actions.
+
+Simultaneous multi-device offline operation is reserved for the property edge-server phase. That deployment requires an always-on local computer, router connectivity, and preferably a UPS; it will reuse the same operation and conflict protocol implemented here.
+
 ---
 
 ## Local Development Setup

@@ -47,3 +47,4 @@ staticfiles/
 .DS_Store
 Thumbs.db
 backups/
+.claude/worktrees/

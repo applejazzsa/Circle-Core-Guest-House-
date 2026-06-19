@@ -18,10 +18,10 @@
     .right { text-align: right; }
     .center { text-align: center; }
     .muted { color: #64748b; }
-    .green { color: #22c55e; }
+    .green { color: {{ settings.pdf_primary_color|default:"#c9a84c" }}; }
     .dark { color: #0d0f12; }
     .small-label {
-      color: #22c55e;
+      color: {{ settings.pdf_primary_color|default:"#c9a84c" }};
       font-size: 8.5px;
       font-weight: bold;
       letter-spacing: .8px;
@@ -29,7 +29,7 @@
     }
     .top-line {
       height: 6px;
-      background: #22c55e;
+      background: {{ settings.pdf_primary_color|default:"#c9a84c" }};
       margin-bottom: 22px;
     }
     .brand-name {
@@ -54,7 +54,7 @@
       font-size: 9px;
       font-weight: bold;
       color: {% if payment_totals.balance_due <= 0 %}#16a34a{% else %}#f59e0b{% endif %};
-      border: 1px solid {% if payment_totals.balance_due <= 0 %}#22c55e{% else %}#f59e0b{% endif %};
+      border: 1px solid {% if payment_totals.balance_due <= 0 %}{{ settings.pdf_primary_color|default:"#c9a84c" }}{% else %}#f59e0b{% endif %};
       padding: 3px 8px;
       text-transform: uppercase;
     }
@@ -79,7 +79,7 @@
     }
     .box-spacer { width: 18px; }
     .box-title {
-      color: #22c55e;
+      color: {{ settings.pdf_primary_color|default:"#c9a84c" }};
       font-size: 8.5px;
       font-weight: bold;
       letter-spacing: .8px;
@@ -165,7 +165,7 @@
     }
     .notes-table td.note-box {
       border: 1px solid #cbd5e1;
-      border-left: 4px solid #22c55e;
+      border-left: 4px solid {{ settings.pdf_primary_color|default:"#c9a84c" }};
       padding: 11px 12px;
       background: #f8fafc;
       min-height: 62px;

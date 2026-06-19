@@ -14,7 +14,7 @@
 </div>
 
 <!-- Role legend -->
-<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:24px;">
+<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:24px;">
   <div style="padding:14px 16px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-elevated);">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
       <span class="badge badge-amber" style="font-size:10px;">Cleaner</span>
@@ -23,9 +23,17 @@
   </div>
   <div style="padding:14px 16px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-elevated);">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-      <span class="badge badge-blue" style="font-size:10px;">Operator</span>
+      <span class="badge badge-blue" style="font-size:10px;">Manager</span>
     </div>
-    <div style="font-size:12px; color:var(--color-text-tertiary); line-height:1.5;">Bookings, Guests, Payments, POS, Reports. No system settings.</div>
+    <div style="font-size:12px; color:var(--color-text-tertiary); line-height:1.5;">Bookings, Guests, Payments, Reports. No system settings.</div>
+  </div>
+  <div style="padding:14px 16px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-elevated);">
+    <div style="margin-bottom:6px;"><span class="badge badge-blue" style="font-size:10px;">Reception</span></div>
+    <div style="font-size:12px; color:var(--color-text-tertiary); line-height:1.5;">Bookings, Guests, and room check-in or check-out.</div>
+  </div>
+  <div style="padding:14px 16px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-elevated);">
+    <div style="margin-bottom:6px;"><span class="badge badge-gray" style="font-size:10px;">Viewer</span></div>
+    <div style="font-size:12px; color:var(--color-text-tertiary); line-height:1.5;">Read-only access with no operational changes.</div>
   </div>
   <div style="padding:14px 16px; border:1px solid var(--color-green-border); border-radius:var(--radius-md); background:var(--color-green-glow);">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
@@ -48,6 +56,7 @@
       <tr>
         <th>Name / Username</th>
         <th>Email</th>
+        <th>Phone / PIN</th>
         <th>Role</th>
         <th>Status</th>
         <th>Actions</th>
@@ -73,11 +82,23 @@
         </td>
         <td style="font-size:13px; color:var(--color-text-secondary);">{{ u.email|default:"—" }}</td>
         <td>
+          {% if u.staff_profile.phone_number %}
+          <div style="font-size:12.5px; color:var(--color-text-secondary);">{{ u.staff_profile.phone_number }}</div>
+          {% endif %}
+          {% if u.staff_profile.pin_enabled %}
+          <span class="badge badge-green" style="font-size:9px; margin-top:3px;">PIN enabled</span>
+          {% else %}
+          <span style="font-size:11px; color:var(--color-text-tertiary);">PIN disabled</span>
+          {% endif %}
+        </td>
+        <td>
           {% with role=u.groups.all|first %}
           {% if role %}
             {% if role.name == "Owner" %}
             <span class="badge badge-green" style="font-size:10px;">{{ role.name }}</span>
             {% elif role.name == "Operator" %}
+            <span class="badge badge-blue" style="font-size:10px;">{{ role.name }}</span>
+            {% elif role.name == "Manager" or role.name == "Reception" %}
             <span class="badge badge-blue" style="font-size:10px;">{{ role.name }}</span>
             {% elif role.name == "Cleaner" %}
             <span class="badge badge-amber" style="font-size:10px;">{{ role.name }}</span>

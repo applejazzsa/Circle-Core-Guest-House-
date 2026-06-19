@@ -64,6 +64,20 @@ def track_login(sender, request, user, **kwargs):
         pass
 
 
+@receiver(post_save, sender="auth.User")
+def ensure_staff_profile(sender, instance, created, **kwargs):
+    from django.db import connection
+    if connection.schema_name == "public":
+        return
+    try:
+        from core.models import StaffProfile
+        role = "Owner" if instance.is_superuser else "Viewer"
+        StaffProfile.objects.get_or_create(user=instance, defaults={"role": role})
+    except Exception:
+        # Auth tables are created before core migrations on a new tenant.
+        pass
+
+
 @receiver(post_save, sender="core.Room")
 def track_room_created(sender, instance, created, **kwargs):
     if created:

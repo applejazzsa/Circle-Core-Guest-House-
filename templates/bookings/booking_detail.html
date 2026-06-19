@@ -94,6 +94,12 @@
                     <dt class="text-xs font-medium text-slate-400">Guests</dt>
                     <dd class="mt-0.5 text-sm text-slate-900">{{ booking.num_guests }} person{{ booking.num_guests|pluralize }}</dd>
                 </div>
+                {% if booking.vehicle_registration %}
+                <div>
+                    <dt class="text-xs font-medium text-slate-400">Vehicle Reg.</dt>
+                    <dd class="mt-0.5 font-mono text-sm font-semibold uppercase text-slate-900">{{ booking.vehicle_registration }}</dd>
+                </div>
+                {% endif %}
             </dl>
         </section>
 

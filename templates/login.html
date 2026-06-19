@@ -1,83 +1,85 @@
 {% extends "base_auth.html" %}
-{% block title %}Sign In — Circle Core Guest House{% endblock %}
+{% block title %}Sign in to Circle Core Guest House{% endblock %}
 
 {% block content %}
-<main style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:var(--color-bg-base);">
-  <div style="width:100%; max-width:380px;">
-
-    <!-- Logo & Branding -->
-    <div style="text-align:center; margin-bottom:36px;">
+<main style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:var(--color-bg-base);">
+  <div style="width:100%; max-width:420px;">
+    <div style="text-align:center; margin-bottom:28px;">
       {% if guest_house_settings.logo %}
       <img src="{{ guest_house_settings.logo.url }}" alt="{{ guest_house_settings.guest_house_name }}" style="width:56px; height:56px; border-radius:12px; object-fit:contain; margin:0 auto 14px; display:block;">
       {% else %}
       <div style="width:56px; height:56px; border-radius:13px; background:var(--color-green-500); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; box-shadow:var(--shadow-green);">
-        <svg width="26" height="26" viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
-          <rect x="9" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
-          <rect x="2" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
-          <rect x="9" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
-        </svg>
+        <svg width="26" height="26" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" fill="#000" opacity=".8"/><rect x="9" y="2" width="5" height="5" rx="1" fill="#000" opacity=".5"/><rect x="2" y="9" width="5" height="5" rx="1" fill="#000" opacity=".5"/><rect x="9" y="9" width="5" height="5" rx="1" fill="#000" opacity=".8"/></svg>
       </div>
       {% endif %}
-      <div style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--color-text-primary); letter-spacing:-0.03em; line-height:1.2;">Circle Core</div>
-      <div style="font-size:10px; color:var(--color-text-tertiary); margin-top:3px; letter-spacing:0.12em; text-transform:uppercase; font-weight:600;">Guest House</div>
+      <h1 style="font-family:var(--font-display); font-size:22px; font-weight:800; color:var(--color-text-primary); letter-spacing:-.03em; margin:0;">Sign in to Circle Core Guest House</h1>
+      <p style="font-size:12.5px; color:var(--color-text-tertiary); margin-top:7px;">Choose the sign-in method provided by your administrator.</p>
     </div>
 
-    <!-- Card -->
-    <div class="card" style="padding:28px 28px 24px;">
+    <div class="card" style="padding:24px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; padding:4px; border-radius:var(--radius-md); background:var(--color-bg-subtle); margin-bottom:20px;">
+        <button type="button" id="email-tab" onclick="showLogin('email')" style="border:0; border-radius:7px; padding:10px 8px; cursor:pointer; font-size:12.5px; font-weight:700;">Email Login</button>
+        <button type="button" id="pin-tab" onclick="showLogin('pin')" style="border:0; border-radius:7px; padding:10px 8px; cursor:pointer; font-size:12.5px; font-weight:700;">Staff PIN Login</button>
+      </div>
 
-      {% if form.errors %}
-      <div style="margin-bottom:20px; padding:11px 14px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.22); border-radius:var(--radius-md); font-size:13px; color:#f87171; display:flex; align-items:center; gap:8px;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        Incorrect username or password.
+      {% if login_failed %}
+      <div role="alert" style="margin-bottom:18px; padding:11px 14px; background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.22); border-radius:var(--radius-md); font-size:13px; color:#f87171;">
+        Unable to sign in with those details.
       </div>
       {% endif %}
 
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="next" value="{{ next }}">
-
-        <div class="form-group">
-          <label class="form-label" for="{{ form.username.id_for_label }}">Username</label>
-          <input type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}"
-            value="{{ form.username.value|default:'' }}" required autofocus autocomplete="username"
-            class="form-input">
-        </div>
-
-        <div class="form-group" style="margin-bottom:24px;">
-          <label class="form-label" for="{{ form.password.id_for_label }}">Password</label>
-          <div style="position:relative;">
-            <input type="password" name="{{ form.password.html_name }}" id="{{ form.password.id_for_label }}"
-              required autocomplete="current-password"
-              class="form-input" style="padding-right:40px;">
-            <button type="button"
-              onclick="(function(){var i=document.getElementById('{{ form.password.id_for_label }}');var show=i.type==='password';i.type=show?'text':'password';document.getElementById('login-eye-show').style.display=show?'none':'block';document.getElementById('login-eye-hide').style.display=show?'block':'none';})()"
-              style="position:absolute; right:11px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--color-text-tertiary); padding:2px; line-height:0;"
-              title="Toggle password visibility">
-              <svg id="login-eye-show" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-              </svg>
-              <svg id="login-eye-hide" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
-                <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                <line x1="1" y1="1" x2="23" y2="23"/>
-              </svg>
-            </button>
+      <section id="email-panel">
+        <form method="post" autocomplete="on">
+          {% csrf_token %}
+          <input type="hidden" name="login_method" value="email">
+          <input type="hidden" name="next" value="{{ next }}">
+          <div class="form-group">
+            <label class="form-label" for="id_username">Email or Username</label>
+            <input class="form-input" type="text" name="username" id="id_username" value="{{ email_form.username.value|default:'' }}" required autocomplete="username" {% if login_method != 'pin' %}autofocus{% endif %}>
           </div>
-        </div>
+          <div class="form-group" style="margin-bottom:22px;">
+            <label class="form-label" for="id_password">Password</label>
+            <input class="form-input" type="password" name="password" id="id_password" required autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; min-height:44px;">Sign In</button>
+        </form>
+        <div style="text-align:center; margin-top:15px;"><a href="{% url 'password_reset' %}" style="font-size:12.5px; color:var(--color-text-secondary); text-decoration:none;">Forgot password?</a></div>
+      </section>
 
-        <button type="submit" class="btn btn-primary" style="width:100%; padding:12px; font-size:14px; font-weight:600;">
-          Sign In
-        </button>
-      </form>
-
-      <div style="text-align:center; margin-top:16px;">
-        <a href="{% url 'password_reset' %}" style="font-size:12.5px; color:var(--color-text-secondary); text-decoration:none;">Forgot password?</a>
-      </div>
+      <section id="pin-panel" style="display:none;">
+        <form method="post" autocomplete="on">
+          {% csrf_token %}
+          <input type="hidden" name="login_method" value="pin">
+          <input type="hidden" name="next" value="{{ next }}">
+          <div class="form-group">
+            <label class="form-label" for="id_phone_number">Phone Number</label>
+            <input class="form-input" type="tel" name="phone_number" id="id_phone_number" value="{{ pin_form.phone_number.value|default:'' }}" required autocomplete="tel" inputmode="tel" placeholder="082 123 4567">
+          </div>
+          <div class="form-group" style="margin-bottom:22px;">
+            <label class="form-label" for="id_pin">PIN</label>
+            <input class="form-input" type="password" name="pin" id="id_pin" required minlength="4" maxlength="6" pattern="[0-9]{4,6}" autocomplete="current-password" inputmode="numeric" placeholder="4–6 digits" style="font-family:var(--font-mono); font-size:20px; letter-spacing:.22em; text-align:center;">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; min-height:48px;">Sign In with PIN</button>
+        </form>
+        <p style="font-size:11.5px; line-height:1.5; color:var(--color-text-tertiary); text-align:center; margin-top:14px;">After five unsuccessful attempts, PIN login is locked for 15 minutes. Contact the owner if you need your PIN reset.</p>
+      </section>
     </div>
-
-    <p style="text-align:center; margin-top:20px; font-size:11px; color:var(--color-text-tertiary); letter-spacing:0.02em;">
-      Circle Core Guest House Management System
-    </p>
   </div>
 </main>
+
+<script>
+function showLogin(method) {
+  const pin = method === 'pin';
+  document.getElementById('email-panel').style.display = pin ? 'none' : '';
+  document.getElementById('pin-panel').style.display = pin ? '' : 'none';
+  const active = 'var(--color-green-500)';
+  const inactive = 'transparent';
+  document.getElementById('email-tab').style.background = pin ? inactive : active;
+  document.getElementById('email-tab').style.color = pin ? 'var(--color-text-secondary)' : '#07110a';
+  document.getElementById('pin-tab').style.background = pin ? active : inactive;
+  document.getElementById('pin-tab').style.color = pin ? '#07110a' : 'var(--color-text-secondary)';
+  if (pin) document.getElementById('id_phone_number').focus();
+}
+showLogin('{{ login_method|default:"email" }}');
+</script>
 {% endblock %}

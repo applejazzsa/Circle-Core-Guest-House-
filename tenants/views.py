@@ -122,9 +122,10 @@ def pwa_manifest(request):
 
 def service_worker(request):
     script = """
-const CACHE_NAME = 'circle-core-shell-v1';
+const CACHE_NAME = 'circle-core-shell-v2';
 const CORE_ASSETS = [
   '/static/css/theme.css',
+  '/static/js/offline-reception.js',
   '/static/icons/circle-core-icon-192.png',
   '/static/icons/circle-core-icon-512.png',
   '/static/icons/circle-core-icon.svg',
@@ -154,7 +155,15 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match('/')));
+    event.respondWith(
+      fetch(request).then(response => {
+        if (url.pathname === '/offline/' && response.ok && !response.redirected) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put('/offline/', copy));
+        }
+        return response;
+      }).catch(() => caches.match('/offline/'))
+    );
     return;
   }
 
@@ -568,7 +577,6 @@ def _create_local_demo_workspace(request) -> str:
                 'feature_weekly_bookings': True,
                 'feature_inventory': True,
                 'feature_staff_roles': True,
-                'feature_pos_integration': True,
                 'feature_custom_pdf_branding': True,
                 'feature_maintenance_requests': True,
             },

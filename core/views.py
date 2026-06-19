@@ -20,7 +20,7 @@ from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.db.models import Count, DecimalField, F, OuterRef, Q, Subquery, Sum, Value
 from django.db.models.deletion import ProtectedError
-from django.db.models.functions import Coalesce, ExtractHour
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -28,7 +28,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from .forms import BookingForm, BookingRefundForm, ExpenseForm, GuestForm, GuestHouseSettingsForm, PaymentForm, RoomForm, validate_image_upload
+from .forms import BookingForm, BookingRefundForm, ExpenseForm, GuestForm, GuestHouseSettingsForm, PaymentForm, RoomForm, StaffPinSetupForm, validate_image_upload
 from .models import (
     AuditLog,
     Booking,
@@ -45,13 +45,8 @@ from .models import (
     InventoryTransaction,
     MaintenanceRequest,
     Payment,
-    POSCategory,
-    POSItem,
-    POSSale,
-    POSSaleItem,
-    POSShift,
-    POSTransaction,
     Room,
+    StaffProfile,
     Subscription,
     SubscriptionPlan,
     TrialEngagement,
@@ -65,15 +60,15 @@ from .email_utils import (
     notify_payment_received,
 )
 from .pdf_utils import generate_pdf
-from .pdf_documents import render_booking_invoice_pdf, render_payment_receipt_pdf, render_pos_receipt_pdf
+from .pdf_documents import render_booking_invoice_pdf, render_payment_receipt_pdf
 from .subscriptions import trial_end
-from django.contrib.auth.models import Group, User as AuthUser
-from .roles import is_cleaner, is_owner, STAFF_ROLES
+from django.contrib.auth.models import User as AuthUser
+from .roles import assign_role, is_cleaner, is_owner, STAFF_ROLES
 
 
 SENSITIVE_DISCOUNT_AMOUNT = Decimal("50.00")
 SENSITIVE_DISCOUNT_PERCENT = Decimal("5.00")
-SHIFT_VARIANCE_APPROVAL_AMOUNT = Decimal("0.00")
+
 MAX_CLEANING_PROOF_SIZE = 5 * 1024 * 1024
 ALLOWED_CLEANING_PROOF_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
@@ -158,14 +153,6 @@ def _approval_fields_html():
         '<input name="manager_password" placeholder="Owner password" type="password" autocomplete="current-password">'
         '</div></div>'
     )
-
-
-def _cash_shift_required(request):
-    active_prop = get_active_property(request)
-    if POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).exists():
-        return True
-    messages.error(request, "Open a POS cash shift before recording cash transactions.")
-    return False
 
 
 def _is_date_locked(value):
@@ -401,8 +388,6 @@ def home(request):
     active_prop, rooms = _property_rooms(request)
     _, property_bookings = _property_bookings(request)
     _, property_payments = _property_payments(request)
-    _, property_pos_sales = _property_pos_sales(request)
-    _, property_pos_shifts = _property_pos_shifts(request)
     total_rooms = rooms.count()
     occupied_rooms = rooms.filter(status="Occupied").count()
     booked_rooms = rooms.filter(status="Booked").count()
@@ -513,7 +498,6 @@ def home(request):
     urgent_room_ids = set(open_maintenance_requests.filter(priority="urgent", room__isnull=False).values_list("room_id", flat=True))
     owner_exception_count = 0
     owner_refund_count = 0
-    owner_open_shift_count = 0
     owner_locked_today = False
     if is_owner(request.user):
         today_audits = AuditLog.objects.filter(created_at__date=today)
@@ -523,11 +507,7 @@ def home(request):
             | Q(reason__icontains="backdated")
             | Q(reason__icontains="cancel")
         ).count()
-        owner_refund_count = (
-            property_pos_sales.filter(created_at__date=today, status="refunded").count()
-            + BookingRefund.objects.filter(refund_date=today, booking__room__prop=active_prop).count()
-        )
-        owner_open_shift_count = property_pos_shifts.filter(closed_at__isnull=True).count()
+        owner_refund_count = BookingRefund.objects.filter(refund_date=today, booking__room__prop=active_prop).count()
         owner_locked_today = DailyCloseLock.objects.filter(close_date=today).exists()
 
     checked_in_by_room = {booking.room_id: booking for booking in in_house_bookings}
@@ -571,7 +551,6 @@ def home(request):
             "urgent_maintenance_count": open_maintenance_requests.filter(priority="urgent").count(),
             "owner_exception_count": owner_exception_count,
             "owner_refund_count": owner_refund_count,
-            "owner_open_shift_count": owner_open_shift_count,
             "owner_locked_today": owner_locked_today,
             "room_board": room_board,
             "today": today,
@@ -620,17 +599,8 @@ def search(request):
 @login_required
 def settings_view(request):
     settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
-    generated_pos_api_key = request.session.pop("generated_pos_api_key", "")
 
     if request.method == "POST":
-        if request.POST.get("action") == "regenerate_pos_api_key":
-            generated_pos_api_key = settings_obj.regenerate_pos_api_key()
-            request.session["generated_pos_api_key"] = generated_pos_api_key
-            if request.POST.get("has_existing_key"):
-                messages.warning(request, "POS API key regenerated. Your previous POS connection is now invalid.")
-            else:
-                messages.success(request, "POS API key generated.")
-            return redirect("core:settings")
         form = GuestHouseSettingsForm(request.POST, request.FILES, instance=settings_obj)
         if form.is_valid():
             form.save()
@@ -645,7 +615,6 @@ def settings_view(request):
         {
             "form": form,
             "settings_obj": settings_obj,
-            "generated_pos_api_key": generated_pos_api_key,
         },
     )
 
@@ -673,10 +642,6 @@ def _backfill_unassigned_property_data(default_prop):
     Room.objects.filter(prop__isnull=True).update(prop=default_prop)
     Expense.objects.filter(prop__isnull=True).update(prop=default_prop)
     InventoryItem.objects.filter(prop__isnull=True).update(prop=default_prop)
-    POSCategory.objects.filter(prop__isnull=True).update(prop=default_prop)
-    POSItem.objects.filter(prop__isnull=True).update(prop=default_prop)
-    POSSale.objects.filter(prop__isnull=True).update(prop=default_prop)
-    POSShift.objects.filter(prop__isnull=True).update(prop=default_prop)
 
 
 def _property_rooms(request):
@@ -698,20 +663,6 @@ def _property_payments(request):
     if not active_prop:
         return active_prop, Payment.objects.none()
     return active_prop, Payment.objects.filter(booking__room__prop=active_prop)
-
-
-def _property_pos_shifts(request):
-    active_prop = get_active_property(request)
-    if not active_prop:
-        return active_prop, POSShift.objects.none()
-    return active_prop, POSShift.objects.filter(prop=active_prop)
-
-
-def _property_pos_sales(request):
-    active_prop = get_active_property(request)
-    if not active_prop:
-        return active_prop, POSSale.objects.none()
-    return active_prop, POSSale.objects.filter(prop=active_prop)
 
 
 @login_required
@@ -824,6 +775,7 @@ def staff_list(request):
     staff_users = (
         AuthUser.objects.filter(is_superuser=False)
         .prefetch_related("groups")
+        .select_related("staff_profile")
         .order_by("username")
     )
     return render(request, "core/staff_list.html", {"staff_users": staff_users, "roles": STAFF_ROLES})
@@ -844,30 +796,35 @@ def staff_add(request):
         username = request.POST.get("username", "").strip().lower()
         email = request.POST.get("email", "").strip()
         password = request.POST.get("password", "").strip()
-        role_name = request.POST.get("role", "")
         first_name = request.POST.get("first_name", "").strip()
         last_name = request.POST.get("last_name", "").strip()
+        pin_form = StaffPinSetupForm(request.POST)
 
-        if not username or not password or role_name not in STAFF_ROLES:
+        if not username or not password:
             messages.error(request, "Username, password, and a valid role are required.")
-            return render(request, "core/staff_form.html", {"roles": STAFF_ROLES, "post": request.POST})
+            return render(request, "core/staff_form.html", {"roles": STAFF_ROLES, "post": request.POST, "pin_form": pin_form})
 
         if AuthUser.objects.filter(username=username).exists():
             messages.error(request, f"Username '{username}' is already taken.")
-            return render(request, "core/staff_form.html", {"roles": STAFF_ROLES, "post": request.POST})
+            return render(request, "core/staff_form.html", {"roles": STAFF_ROLES, "post": request.POST, "pin_form": pin_form})
+
+        if not pin_form.is_valid():
+            messages.error(request, "Please correct the highlighted staff login settings.")
+            return render(request, "core/staff_form.html", {"roles": STAFF_ROLES, "post": request.POST, "pin_form": pin_form})
 
         user = AuthUser.objects.create_user(
             username=username, email=email, password=password,
             first_name=first_name, last_name=last_name,
         )
-        group, _ = Group.objects.get_or_create(name=role_name)
-        user.groups.add(group)
-        messages.success(request, f"{role_name} account created for {username}.")
+        assign_role(user, pin_form.cleaned_data["role"])
+        pin_form.save(user)
+        messages.success(request, f"{pin_form.cleaned_data['role']} account created for {username}.")
         return redirect("core:staff_list")
 
     return render(request, "core/staff_form.html", {
         "roles": STAFF_ROLES,
         "post": {"first_name": "", "last_name": "", "username": "", "email": "", "role": ""},
+        "pin_form": StaffPinSetupForm(),
     })
 
 
@@ -876,8 +833,9 @@ def staff_edit(request, pk):
     if not is_owner(request.user):
         return redirect("core:home")
     staff_user = get_object_or_404(AuthUser, pk=pk, is_superuser=False)
+    staff_profile, _ = StaffProfile.objects.get_or_create(user=staff_user)
     if request.method == "POST":
-        role_name = request.POST.get("role", "")
+        pin_form = StaffPinSetupForm(request.POST, staff_user=staff_user)
         new_password = request.POST.get("new_password", "").strip()
         is_active = request.POST.get("is_active") == "on"
         if is_active and not staff_user.is_active:
@@ -889,10 +847,21 @@ def staff_edit(request, pk):
                     "users",
                 )
 
-        if role_name in STAFF_ROLES:
-            staff_user.groups.clear()
-            group, _ = Group.objects.get_or_create(name=role_name)
-            staff_user.groups.add(group)
+        if not pin_form.is_valid():
+            current_role = next((g.name for g in staff_user.groups.all() if g.name in STAFF_ROLES), staff_profile.role)
+            messages.error(request, "Please correct the highlighted staff login settings.")
+            return render(request, "core/staff_form.html", {
+                "staff_user": staff_user,
+                "staff_profile": staff_profile,
+                "roles": STAFF_ROLES,
+                "current_role": current_role,
+                "editing": True,
+                "post": request.POST,
+                "pin_form": pin_form,
+            })
+
+        assign_role(staff_user, pin_form.cleaned_data["role"])
+        pin_form.save(staff_user)
 
         if new_password:
             staff_user.set_password(new_password)
@@ -910,10 +879,19 @@ def staff_edit(request, pk):
     )
     return render(request, "core/staff_form.html", {
         "staff_user": staff_user,
+        "staff_profile": staff_profile,
         "roles": STAFF_ROLES,
         "current_role": current_role,
         "editing": True,
         "post": {"first_name": "", "last_name": "", "username": "", "email": "", "role": ""},
+        "pin_form": StaffPinSetupForm(
+            staff_user=staff_user,
+            initial={
+                "phone_number": staff_profile.phone_number or "",
+                "pin_enabled": staff_profile.pin_enabled,
+                "role": current_role or staff_profile.role,
+            },
+        ),
     })
 
 
@@ -1854,6 +1832,11 @@ def _room_prices_json(active_prop=None):
     return json.dumps(data)
 
 
+def _room_statuses_json(active_prop=None):
+    rooms = Room.objects.filter(prop=active_prop) if active_prop else Room.objects.none()
+    return json.dumps({str(r.pk): r.status for r in rooms})
+
+
 def _parse_date(value):
     if not value:
         return None
@@ -2073,6 +2056,7 @@ def booking_add(request):
             "form": form,
             "title": "Add Booking",
             "room_prices_json": _room_prices_json(active_prop),
+            "room_statuses_json": _room_statuses_json(active_prop),
             "walk_in_mode": walk_in_mode,
             "locked_room": locked_room,
         },
@@ -2237,7 +2221,6 @@ def payment_add(request, booking_id):
             "booking": booking,
             "form": form,
             "payment_totals": booking.payment_totals(),
-            "open_shift": POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).first(),
         },
     )
 
@@ -2329,17 +2312,6 @@ def exception_report(request):
         created_at__date=report_date,
         discount__gt=0,
     )
-    refunded_sales = POSSale.objects.select_related("served_by").filter(
-        prop=active_prop,
-        created_at__date=report_date,
-        status="refunded",
-    )
-    shift_variances = [
-        shift
-        for shift in POSShift.objects.select_related("opened_by", "closed_by").filter(prop=active_prop, closed_at__date=report_date)
-        if shift.cash_variance and shift.cash_variance != 0
-    ]
-
     return render(
         request,
         "core/exception_report.html",
@@ -2347,8 +2319,6 @@ def exception_report(request):
             "selected_date": report_date,
             "sensitive_audits": sensitive_audits,
             "discounted_bookings": discounted_bookings,
-            "refunded_sales": refunded_sales,
-            "shift_variances": shift_variances,
         },
     )
 
@@ -2418,45 +2388,20 @@ def daily_close(request):
 
     payments = Payment.objects.filter(booking__room__prop=active_prop, payment_date=close_date)
     expenses = Expense.objects.filter(prop=active_prop, date=close_date)
-    pos_sales = POSSale.objects.filter(prop=active_prop, created_at__date=close_date)
-    shifts = POSShift.objects.select_related("opened_by", "closed_by").filter(prop=active_prop).filter(Q(opened_at__date=close_date) | Q(closed_at__date=close_date))
     bookings = Booking.objects.select_related("guest", "room").filter(room__prop=active_prop, check_in_date__lte=close_date, check_out_date__gte=close_date)
     audit_logs = AuditLog.objects.select_related("actor", "approved_by").filter(created_at__date=close_date)
 
     cash_payments = payments.filter(payment_method="Cash").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
     card_payments = payments.filter(payment_method="Card").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
     eft_payments = payments.filter(payment_method="EFT").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-    pos_cash = pos_sales.filter(status="completed", payment_method__in=["cash", "split"]).aggregate(total=Sum("cash_amount"))["total"] or Decimal("0.00")
-    pos_card = pos_sales.filter(status="completed", payment_method__in=["card", "split"]).aggregate(total=Sum("card_amount"))["total"] or Decimal("0.00")
-    pos_eft = pos_sales.filter(status="completed", payment_method="eft").aggregate(total=Sum("total"))["total"] or Decimal("0.00")
-    pos_wallet = pos_sales.filter(status="completed", payment_method__in=["snapscan", "zapper"]).aggregate(total=Sum("total"))["total"] or Decimal("0.00")
-    pos_room_charge = pos_sales.filter(status="completed", payment_method="room_charge").aggregate(total=Sum("total"))["total"] or Decimal("0.00")
-    pos_refunds = abs(pos_sales.filter(status="refunded").aggregate(total=Sum("total"))["total"] or Decimal("0.00"))
     booking_refunds_qs = BookingRefund.objects.filter(booking__room__prop=active_prop, refund_date=close_date)
     booking_refunds = booking_refunds_qs.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-    refunds = pos_refunds + booking_refunds
+    refunds = booking_refunds
     cash_expenses = expenses.filter(payment_method="Cash").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
     cash_booking_refunds = booking_refunds_qs.filter(refund_method="Cash").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-    pos_cash_refunds = abs(pos_sales.filter(status="refunded", payment_method__in=["cash", "split"]).aggregate(total=Sum("cash_amount"))["total"] or Decimal("0.00"))
-    discounts = (pos_sales.filter(status="completed").aggregate(total=Sum("discount_amount"))["total"] or Decimal("0.00")) + (
-        bookings.aggregate(total=Sum("discount"))["total"] or Decimal("0.00")
-    )
-    opening_float_total = sum((shift.opening_float for shift in shifts), Decimal("0.00"))
-    counted_cash_total = sum((shift.closing_cash or Decimal("0.00") for shift in shifts if shift.closing_cash is not None), Decimal("0.00"))
-    expected_cash_total = opening_float_total + cash_payments + pos_cash - cash_expenses - cash_booking_refunds - pos_cash_refunds
-    cash_variance_total = counted_cash_total - expected_cash_total if counted_cash_total else None
-    open_shifts = shifts.filter(closed_at__isnull=True).count()
-
-    shift_rows = []
-    for shift in shifts:
-        shift_rows.append(
-            {
-                "shift": shift,
-                "expected_cash": shift.expected_cash,
-                "closing_cash": shift.closing_cash,
-                "variance": shift.cash_variance,
-            }
-        )
+    discounts = bookings.aggregate(total=Sum("discount"))["total"] or Decimal("0.00")
+    expected_cash_total = cash_payments - cash_expenses - cash_booking_refunds
+    cash_variance_total = None
 
     return render(
         request,
@@ -2467,24 +2412,16 @@ def daily_close(request):
             "payments_total": payments.aggregate(total=Sum("amount"))["total"] or Decimal("0.00"),
             "expenses_total": expenses.aggregate(total=Sum("amount"))["total"] or Decimal("0.00"),
             "cash_payments": cash_payments,
-            "card_payments": card_payments + pos_card,
-            "eft_payments": eft_payments + pos_eft,
-            "pos_wallet": pos_wallet,
-            "pos_room_charge": pos_room_charge,
-            "pos_cash": pos_cash,
+            "card_payments": card_payments,
+            "eft_payments": eft_payments,
             "cash_expenses": cash_expenses,
             "cash_booking_refunds": cash_booking_refunds,
-            "pos_cash_refunds": pos_cash_refunds,
-            "opening_float_total": opening_float_total,
-            "counted_cash_total": counted_cash_total,
             "expected_cash_total": expected_cash_total,
             "cash_variance_total": cash_variance_total,
-            "open_shifts": open_shifts,
             "refunds": refunds,
             "discounts": discounts,
             "checkins": Booking.objects.filter(room__prop=active_prop, check_in_date=close_date).exclude(status__in=Booking.INACTIVE_STATUSES).count(),
             "checkouts": Booking.objects.filter(room__prop=active_prop, check_out_date=close_date).exclude(status__in=Booking.INACTIVE_STATUSES).count(),
-            "shift_rows": shift_rows,
             "sensitive_actions": audit_logs.filter(action__in=["delete", "refund", "login_override", "exception"])[:20],
         },
     )
@@ -3012,152 +2949,7 @@ def booking_edit(request, pk):
             "booking": booking,
             "title": f"Edit {booking.booking_reference}",
             "room_prices_json": _room_prices_json(active_prop),
-        },
-    )
-
-
-@csrf_exempt
-def pos_payment_api(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "Method not allowed"}, status=405)
-
-    settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
-    if not settings_obj or not settings_obj.pos_api_key:
-        return JsonResponse({"error": "POS integration not configured"}, status=503)
-    if request.headers.get("X-POS-API-Key") != settings_obj.pos_api_key:
-        return JsonResponse({"error": "Unauthorized"}, status=401)
-
-    try:
-        payload = json.loads(request.body.decode("utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
-
-    required = ["pos_reference", "amount", "payment_method", "status"]
-    missing = [field for field in required if not payload.get(field)]
-    if missing:
-        return JsonResponse({"error": f"Missing fields: {', '.join(missing)}"}, status=400)
-
-    booking = None
-    active_prop = _api_property_from_request(request, payload)
-    booking_reference = payload.get("booking_reference", "")
-    if booking_reference:
-        if not active_prop:
-            return JsonResponse(
-                {"error": "Property is required for POS booking payments. Send X-Circle-Property-ID or property_id."},
-                status=400,
-            )
-        booking = Booking.objects.filter(booking_reference=booking_reference, room__prop=active_prop).first()
-
-    try:
-        amount = Decimal(str(payload["amount"]))
-    except Exception:
-        return JsonResponse({"error": "Invalid amount"}, status=400)
-
-    transaction, created = POSTransaction.objects.get_or_create(
-        pos_reference=payload["pos_reference"],
-        defaults={
-            "booking": booking,
-            "pos_system": payload.get("pos_system") or "Unknown POS",
-            "amount": amount,
-            "currency": payload.get("currency") or "R",
-            "payment_method": payload.get("payment_method"),
-            "status": payload.get("status"),
-            "raw_payload": payload,
-        },
-    )
-    if not created:
-        return JsonResponse({"success": True, "message": "Transaction already received"}, status=200)
-
-    message = "Transaction recorded"
-    if booking and transaction.status == "completed":
-        payment_method = payload.get("payment_method")
-        if payment_method not in dict(Payment.PAYMENT_METHOD_CHOICES):
-            payment_method = "Cash"
-        Payment.objects.create(
-            booking=booking,
-            amount=amount,
-            payment_method=payment_method,
-            payment_type="Payment",
-            reference=transaction.pos_reference,
-            notes=f"Received via POS: {transaction.pos_system}",
-        )
-        booking.recalculate_balance()
-        transaction.processed = True
-        transaction.processing_notes = "Payment recorded against booking."
-        transaction.save(update_fields=["processed", "processing_notes"])
-        message = "Payment recorded"
-    elif booking_reference and not booking:
-        transaction.processing_notes = "Booking reference was provided but not found."
-        transaction.save(update_fields=["processing_notes"])
-
-    return JsonResponse(
-        {
-            "success": True,
-            "message": message,
-            "booking_reference": booking.booking_reference if booking else booking_reference,
-            "balance_due": float(booking.balance_due) if booking else None,
-        }
-    )
-
-
-def pos_booking_lookup_api(request, reference):
-    settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
-    if not settings_obj or not settings_obj.pos_api_key:
-        return JsonResponse({"error": "POS integration not configured"}, status=503)
-    if request.headers.get("X-POS-API-Key") != settings_obj.pos_api_key:
-        return JsonResponse({"error": "Unauthorized"}, status=401)
-
-    active_prop = _api_property_from_request(request, request.GET)
-    if not active_prop:
-        return JsonResponse(
-            {"error": "Property is required for POS booking lookup. Send X-Circle-Property-ID or property_id."},
-            status=400,
-        )
-    booking = get_object_or_404(
-        Booking.objects.select_related("guest", "room"),
-        booking_reference=reference,
-        room__prop=active_prop,
-    )
-    totals = booking.payment_totals()
-    return JsonResponse(
-        {
-            "booking_reference": booking.booking_reference,
-            "guest_name": booking.guest.full_name,
-            "room": booking.room.name,
-            "check_in": booking.check_in_date.isoformat(),
-            "check_out": booking.check_out_date.isoformat(),
-            "total_amount": float(booking.total_amount),
-            "amount_paid": float(totals["net_paid"]),
-            "balance_due": float(booking.balance_due),
-            "status": booking.status,
-        }
-    )
-
-
-@login_required
-def pos_transactions(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    status_filter = request.GET.get("status", "")
-    date_filter = request.GET.get("date", "")
-    transactions = POSTransaction.objects.select_related("booking").all()
-    if status_filter:
-        transactions = transactions.filter(status=status_filter)
-    if date_filter:
-        try:
-            selected_date = datetime.date.fromisoformat(date_filter)
-            transactions = transactions.filter(received_at__date=selected_date)
-        except ValueError:
-            pass
-    return render(
-        request,
-        "core/pos_transactions.html",
-        {
-            "transactions": transactions,
-            "status_filter": status_filter,
-            "date_filter": date_filter,
-            "status_choices": POSTransaction.STATUS_CHOICES,
+            "room_statuses_json": _room_statuses_json(active_prop),
         },
     )
 
@@ -3285,7 +3077,6 @@ FEATURE_DISPLAY_NAMES = {
     "full_reports": "Full Reports & Charts",
     "hourly_bookings": "Hourly Room Bookings",
     "weekly_bookings": "Weekly Room Bookings",
-    "pos_integration": "POS Payment Integration",
     "staff_roles": "Staff Roles & Permissions",
     "export": "CSV & Excel Data Export",
     "multi_property": "Multi-property Management",
@@ -3412,7 +3203,6 @@ def subscription_status(request):
         "weekly_bookings",
         "inventory",
         "staff_roles",
-        "pos_integration",
         "multi_property",
         "api_access",
         "custom_pdf_branding",
@@ -3960,790 +3750,6 @@ def inventory_categories(request):
             "is_category_form": True,
         },
     )
-
-
-# ─── POS ITEM MANAGEMENT ────────────────────────────────────
-
-class POSItemForm(forms.ModelForm):
-    class Meta:
-        model = POSItem
-        fields = [
-            'name', 'category', 'price', 'emoji', 'barcode', 'sku',
-            'is_quick_item', 'is_active', 'track_inventory',
-            'stock_quantity', 'low_stock_alert', 'color', 'sort_order',
-        ]
-        widgets = {'color': forms.TextInput(attrs={'type': 'color'})}
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        field_style = "padding:10px 14px; width:100%; box-sizing:border-box;"
-        for name, field in self.fields.items():
-            if name not in ('is_quick_item', 'is_active', 'track_inventory'):
-                field.widget.attrs.update({'style': field_style})
-
-
-class POSCategoryForm(forms.ModelForm):
-    class Meta:
-        model = POSCategory
-        fields = ['name', 'icon', 'color', 'sort_order', 'is_active']
-        widgets = {'color': forms.TextInput(attrs={'type': 'color'})}
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for name, field in self.fields.items():
-            if name != 'is_active':
-                field.widget.attrs.update({'style': 'padding:10px 14px; width:100%; box-sizing:border-box;'})
-
-
-_DEFAULT_POS_CATEGORIES = [
-    ("Food & Snacks",     "🍔", "#f97316"),
-    ("Drinks",            "🥤", "#3b82f6"),
-    ("Alcohol",           "🍺", "#f59e0b"),
-    ("Toiletries",        "🧴", "#8b5cf6"),
-    ("Cleaning",          "🧹", "#22c55e"),
-    ("Miscellaneous",     "📦", "#6b7280"),
-]
-
-
-def _seed_default_pos_categories(active_prop):
-    if POSCategory.objects.filter(prop=active_prop).exists():
-        return
-    for i, (name, icon, color) in enumerate(_DEFAULT_POS_CATEGORIES):
-        POSCategory.objects.get_or_create(
-            name=name,
-            prop=active_prop,
-            defaults={"icon": icon, "color": color, "sort_order": i},
-        )
-
-
-def _pos_item_form_for_property(active_prop, *args, **kwargs):
-    form = POSItemForm(*args, **kwargs)
-    form.fields["category"].queryset = POSCategory.objects.filter(prop=active_prop)
-    return form
-
-
-@login_required
-def pos_items_list(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    categories = POSCategory.objects.filter(prop=active_prop, is_active=True)
-    category_filter = request.GET.get('category', '')
-    items = POSItem.objects.select_related('category').filter(prop=active_prop)
-    if category_filter:
-        items = items.filter(category_id=category_filter)
-    quick_items = POSItem.objects.filter(prop=active_prop, is_quick_item=True, is_active=True).order_by('sort_order', 'name')
-    return render(request, 'pos/items_list.html', {
-        'items': items,
-        'categories': categories,
-        'category_filter': category_filter,
-        'quick_items': quick_items,
-        'total_items': POSItem.objects.filter(prop=active_prop, is_active=True).count(),
-        'quick_count': quick_items.count(),
-    })
-
-
-@login_required
-def pos_item_add(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    _seed_default_pos_categories(active_prop)
-    cat_form = POSCategoryForm()
-    if request.method == 'POST':
-        form = _pos_item_form_for_property(active_prop, request.POST)
-        if form.is_valid():
-            item = form.save(commit=False)
-            item.prop = active_prop
-            item.save()
-            messages.success(request, f'"{item.name}" added to POS menu.')
-            return redirect('core:pos_items_list')
-    else:
-        form = _pos_item_form_for_property(active_prop)
-    return render(request, 'pos/item_form.html', {
-        'form': form, 'cat_form': cat_form, 'title': 'Add POS Item',
-    })
-
-
-@login_required
-def pos_item_edit(request, pk):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    item = get_object_or_404(POSItem, pk=pk, prop=active_prop)
-    cat_form = POSCategoryForm()
-    if request.method == 'POST':
-        form = _pos_item_form_for_property(active_prop, request.POST, instance=item)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f'"{item.name}" updated.')
-            return redirect('core:pos_items_list')
-    else:
-        form = _pos_item_form_for_property(active_prop, instance=item)
-    return render(request, 'pos/item_form.html', {
-        'form': form, 'cat_form': cat_form, 'item': item, 'title': f'Edit {item.name}',
-    })
-
-
-@login_required
-def pos_item_delete(request, pk):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    item = get_object_or_404(POSItem, pk=pk, prop=active_prop)
-    if request.method == 'POST':
-        approver = _manager_approval(request, "Delete POS item")
-        if not approver:
-            messages.error(request, "Owner approval is required to remove POS menu items.")
-            return redirect('core:pos_items_list')
-        before = _model_snapshot(item, ["name", "price", "stock_quantity", "track_inventory"])
-        name = item.name
-        item.delete()
-        _audit(request, "delete", item, before=before, reason="POS item deleted", approved_by=approver)
-        messages.success(request, f'"{name}" removed from POS menu.')
-    return redirect('core:pos_items_list')
-
-
-@login_required
-def pos_category_add(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    if request.method == 'POST':
-        form = POSCategoryForm(request.POST)
-        if form.is_valid():
-            cat = form.save(commit=False)
-            cat.prop = get_active_property(request)
-            cat.save()
-            messages.success(request, f'Category "{cat.name}" created.')
-    return redirect('core:pos_items_list')
-
-
-@login_required
-def pos_items_reorder(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            ids = data.get('ids', [])
-            active_prop = get_active_property(request)
-            for order, item_id in enumerate(ids):
-                POSItem.objects.filter(pk=item_id, prop=active_prop).update(sort_order=order)
-            return JsonResponse({'success': True})
-        except Exception:
-            return JsonResponse({'success': False}, status=400)
-    return JsonResponse({'error': 'POST only'}, status=405)
-
-
-# ─── POS TERMINAL ───────────────────────────────────────────
-
-@login_required
-def pos_terminal(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    categories = POSCategory.objects.filter(prop=active_prop, is_active=True).prefetch_related('items')
-    items = POSItem.objects.select_related('category').filter(prop=active_prop, is_active=True)
-    quick_items = items.filter(is_quick_item=True)
-    settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
-    open_shift = POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).first()
-    items_json = json.dumps([
-        {
-            'id': item.pk,
-            'name': item.name,
-            'price': float(item.price),
-            'emoji': item.emoji,
-            'category_id': item.category_id,
-            'barcode': item.barcode,
-            'is_quick_item': item.is_quick_item,
-            'color': item.color,
-            'track_inventory': item.track_inventory,
-            'stock_quantity': float(item.stock_quantity),
-            'is_out_of_stock': item.is_out_of_stock,
-            'is_low_stock': item.is_low_stock,
-        }
-        for item in items
-    ])
-    categories_json = json.dumps([
-        {'id': cat.pk, 'name': cat.name, 'icon': cat.icon, 'color': cat.color}
-        for cat in categories
-    ])
-    recent_sales = (
-        POSSale.objects
-        .select_related('guest')
-        .prefetch_related('items')
-        .filter(prop=active_prop, created_at__date=timezone.localdate())
-        .order_by('-created_at')[:20]
-    )
-    active_bookings = (
-        Booking.objects
-        .select_related('guest', 'room')
-        .filter(room__prop=active_prop, status='Checked In')
-        .order_by('room__name')
-    )
-    active_bookings_json = json.dumps([
-        {
-            'id': b.pk,
-            'reference': b.booking_reference,
-            'guest_name': b.guest.full_name,
-            'room_name': b.room.name,
-            'balance_due': float(b.balance_due),
-        }
-        for b in active_bookings
-    ])
-    return render(request, 'pos/terminal.html', {
-        'categories': categories,
-        'items': items,
-        'quick_items': quick_items,
-        'items_json': items_json,
-        'categories_json': categories_json,
-        'settings': settings_obj,
-        'open_shift': open_shift,
-        'vat_rate': float(settings_obj.vat_rate) if settings_obj.vat_registered else 0,
-        'vat_registered': settings_obj.vat_registered,
-        'recent_sales': recent_sales,
-        'active_bookings': active_bookings,
-        'active_bookings_json': active_bookings_json,
-    })
-
-
-@login_required
-def pos_active_bookings_api(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    bookings = Booking.objects.select_related('guest', 'room').filter(room__prop=active_prop, status='Checked In')
-    data = [
-        {
-            'id': b.pk,
-            'reference': b.booking_reference,
-            'guest_name': b.guest.full_name,
-            'room_name': b.room.name,
-            'balance_due': float(b.balance_due),
-        }
-        for b in bookings
-    ]
-    return JsonResponse({'bookings': data})
-
-
-@login_required
-def pos_barcode_lookup(request, barcode):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    item = POSItem.objects.filter(prop=active_prop, barcode=barcode, is_active=True).select_related('category').first()
-    if not item:
-        return JsonResponse({'found': False})
-    return JsonResponse({
-        'found': True,
-        'item': {
-            'id': item.pk,
-            'name': item.name,
-            'price': float(item.price),
-            'emoji': item.emoji,
-            'category': item.category.name if item.category else '',
-            'is_out_of_stock': item.is_out_of_stock,
-        }
-    })
-
-
-@login_required
-def pos_complete_sale(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST only'}, status=405)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
-
-    items_data = data.get('items', [])
-    if not items_data:
-        return JsonResponse({'error': 'No items in cart'}, status=400)
-
-    settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
-    active_prop = get_active_property(request)
-    booking = None
-    booking_id = data.get('booking_id')
-    if booking_id:
-        booking = Booking.objects.select_related('guest').filter(pk=booking_id, room__prop=active_prop).first()
-
-    discount_pct = Decimal(str(data.get('discount_pct', 0)))
-    discount_amount = Decimal(str(data.get('discount_amount', 0)))
-    payment_method = data.get('payment_method', 'cash')
-    if payment_method in ("cash", "split") and not POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).exists():
-        return JsonResponse({'error': 'Open a POS shift before taking cash payments.'}, status=400)
-
-    subtotal = Decimal('0.00')
-    sale_items_to_create = []
-    for item_data in items_data:
-        qty = Decimal(str(item_data.get('quantity', 1)))
-        unit_price = Decimal(str(item_data.get('unit_price', 0)))
-        item_discount_pct = Decimal(str(item_data.get('discount_pct', 0)))
-        discount_per_unit = unit_price * (item_discount_pct / 100)
-        line_total = (unit_price - discount_per_unit) * qty
-        subtotal += line_total
-        sale_items_to_create.append({
-            'pos_item_id': item_data.get('pos_item_id'),
-            'name': item_data.get('name', ''),
-            'quantity': qty,
-            'unit_price': unit_price,
-            'discount_pct': item_discount_pct,
-            'line_total': line_total,
-        })
-
-    if discount_amount == 0 and discount_pct > 0:
-        discount_amount = (subtotal * discount_pct / 100).quantize(Decimal('0.01'))
-    approver = None
-    if discount_amount > SENSITIVE_DISCOUNT_AMOUNT or discount_pct > SENSITIVE_DISCOUNT_PERCENT:
-        approver = _manager_approval_credentials(
-            request,
-            data.get("manager_username", ""),
-            data.get("manager_password", ""),
-            "POS large discount",
-        )
-        if not approver:
-            return JsonResponse(
-                {
-                    'error': 'Owner approval is required for this discount.',
-                    'approval_required': True,
-                    'reason': f'Discount R{discount_amount:.2f} / {discount_pct:.2f}%',
-                },
-                status=403,
-            )
-
-    after_discount = subtotal - discount_amount
-    tax_amount = Decimal('0.00')
-    if settings_obj.vat_registered and after_discount > 0:
-        vat_rate = settings_obj.vat_rate
-        divisor = Decimal('100') + vat_rate
-        tax_amount = (after_discount * vat_rate / divisor).quantize(Decimal('0.01'))
-    total = after_discount
-
-    cash_tendered = Decimal(str(data.get('cash_tendered', 0)))
-    change_given = Decimal(str(data.get('change_given', 0)))
-    cash_amount = Decimal(str(data.get('cash_amount', 0)))
-    card_amount = Decimal(str(data.get('card_amount', 0)))
-
-    open_shift = POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).first()
-
-    sale = POSSale.objects.create(
-        prop=active_prop,
-        booking=booking,
-        guest=booking.guest if booking else None,
-        shift=open_shift,
-        subtotal=subtotal,
-        discount_amount=discount_amount,
-        discount_pct=discount_pct,
-        tax_amount=tax_amount,
-        total=total,
-        payment_method=payment_method,
-        cash_amount=cash_amount if payment_method == 'split' else (total if payment_method == 'cash' else Decimal('0')),
-        card_amount=card_amount if payment_method == 'split' else (total if payment_method == 'card' else Decimal('0')),
-        cash_tendered=cash_tendered,
-        change_given=change_given,
-        notes=data.get('notes', ''),
-        served_by=request.user,
-        status='completed',
-    )
-    _audit(
-        request,
-        "create",
-        sale,
-        after=_model_snapshot(sale, ["subtotal", "discount_amount", "discount_pct", "total", "payment_method", "status"]),
-        approved_by=approver,
-        reason="POS sale completed",
-    )
-
-    for item_data in sale_items_to_create:
-        pos_item = None
-        if item_data['pos_item_id']:
-            pos_item = POSItem.objects.filter(pk=item_data['pos_item_id'], prop=active_prop).first()
-        POSSaleItem.objects.create(
-            sale=sale,
-            pos_item=pos_item,
-            name=item_data['name'],
-            quantity=item_data['quantity'],
-            unit_price=item_data['unit_price'],
-            discount_pct=item_data['discount_pct'],
-            line_total=item_data['line_total'],
-        )
-        if pos_item and pos_item.track_inventory:
-            pos_item.stock_quantity = max(pos_item.stock_quantity - item_data['quantity'], Decimal('0'))
-            pos_item.save(update_fields=['stock_quantity'])
-
-    if payment_method == 'room_charge' and booking:
-        # Room charge increases what the guest owes — use update() to bypass compute_totals()
-        from django.db.models import F as DbF
-        Booking.objects.filter(pk=booking.pk).update(
-            total_amount=DbF('total_amount') + total,
-            balance_due=DbF('balance_due') + total,
-        )
-
-    return JsonResponse({
-        'success': True,
-        'sale_reference': sale.sale_reference,
-        'sale_id': sale.pk,
-        'total': float(sale.total),
-        'change_given': float(sale.change_given),
-        'receipt_url': f'/pos/sales/{sale.pk}/pdf/receipt/',
-    })
-
-
-# ─── POS SALES HISTORY ──────────────────────────────────────
-
-@login_required
-def pos_sales_list(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    today = timezone.localdate()
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    method_filter = request.GET.get('method', '')
-    query = request.GET.get('q', '').strip()
-    active_prop = get_active_property(request)
-
-    sales = POSSale.objects.select_related('guest', 'booking', 'served_by').prefetch_related('items').filter(prop=active_prop)
-    if date_from:
-        sales = sales.filter(created_at__date__gte=date_from)
-    if date_to:
-        sales = sales.filter(created_at__date__lte=date_to)
-    if method_filter:
-        sales = sales.filter(payment_method=method_filter)
-    if query:
-        sales = sales.filter(
-            Q(sale_reference__icontains=query)
-            | Q(guest__first_name__icontains=query)
-            | Q(guest__last_name__icontains=query)
-        )
-
-    today_sales = POSSale.objects.filter(prop=active_prop, created_at__date=today, status='completed')
-    today_revenue = today_sales.aggregate(t=Sum('total'))['t'] or Decimal('0.00')
-    today_count = today_sales.count()
-    avg_sale = (today_revenue / today_count).quantize(Decimal('0.01')) if today_count else Decimal('0.00')
-    top_item_qs = (
-        POSSaleItem.objects
-        .filter(sale__prop=active_prop, sale__created_at__date=today, sale__status='completed')
-        .values('name')
-        .annotate(cnt=Sum('quantity'))
-        .order_by('-cnt')
-        .first()
-    )
-    top_item = top_item_qs['name'] if top_item_qs else '—'
-
-    return render(request, 'pos/sales_list.html', {
-        'sales': sales[:200],
-        'today_revenue': today_revenue,
-        'today_count': today_count,
-        'avg_sale': avg_sale,
-        'top_item': top_item,
-        'date_from': date_from,
-        'date_to': date_to,
-        'method_filter': method_filter,
-        'query': query,
-        'payment_methods': POSSale.PAYMENT_METHOD_CHOICES,
-    })
-
-
-@login_required
-def pos_sale_detail(request, pk):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    sale = get_object_or_404(
-        POSSale.objects.select_related('guest', 'booking', 'booking__room', 'served_by')
-        .prefetch_related('items', 'items__pos_item'),
-        pk=pk,
-        prop=active_prop,
-    )
-    return render(request, 'pos/sale_detail.html', {'sale': sale})
-
-
-@login_required
-def pos_sale_refund(request, pk):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    sale = get_object_or_404(POSSale, pk=pk, prop=active_prop)
-    if request.method == 'POST':
-        reason = request.POST.get('refund_reason', '').strip()
-        approver = _manager_approval(request, "POS refund")
-        if not approver:
-            messages.error(request, 'Owner approval is required to refund a POS sale.')
-            return redirect('core:pos_sale_detail', pk=pk)
-        if sale.status != 'completed':
-            messages.error(request, 'Only completed sales can be refunded.')
-            return redirect('core:pos_sale_detail', pk=pk)
-
-        refund = POSSale.objects.create(
-            prop=active_prop,
-            booking=sale.booking,
-            guest=sale.guest,
-            subtotal=-sale.subtotal,
-            discount_amount=-sale.discount_amount,
-            discount_pct=sale.discount_pct,
-            tax_amount=-sale.tax_amount,
-            total=-sale.total,
-            payment_method=sale.payment_method,
-            cash_amount=-sale.cash_amount,
-            card_amount=-sale.card_amount,
-            cash_tendered=Decimal('0'),
-            change_given=Decimal('0'),
-            status='refunded',
-            notes=f"Refund of {sale.sale_reference}",
-            refund_reason=reason,
-            original_sale=sale,
-            served_by=request.user,
-        )
-        for item in sale.items.all():
-            POSSaleItem.objects.create(
-                sale=refund,
-                pos_item=item.pos_item,
-                name=item.name,
-                quantity=-item.quantity,
-                unit_price=item.unit_price,
-                discount_pct=item.discount_pct,
-                line_total=-item.line_total,
-            )
-            if item.pos_item and item.pos_item.track_inventory:
-                item.pos_item.stock_quantity += item.quantity
-                item.pos_item.save(update_fields=['stock_quantity'])
-
-        sale.status = 'refunded'
-        sale.save(update_fields=['status'])
-        _audit(
-            request,
-            "refund",
-            sale,
-            before={"status": "completed", "total": _money(sale.total)},
-            after={"status": "refunded", "refund_reference": refund.sale_reference},
-            reason=reason,
-            approved_by=approver,
-        )
-
-        if sale.payment_method == 'room_charge' and sale.booking:
-            refund_payment = Payment.objects.filter(
-                booking=sale.booking,
-                reference=sale.sale_reference,
-            ).first()
-            if refund_payment:
-                refund_payment.delete()
-
-        messages.success(request, f'Refund processed: {refund.sale_reference}')
-        return redirect('core:pos_sale_detail', pk=refund.pk)
-    return render(request, 'pos/sale_detail.html', {'sale': sale, 'show_refund': True})
-
-
-@login_required
-def pos_receipt_pdf(request, pk):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    sale = get_object_or_404(
-        POSSale.objects.select_related('guest', 'booking', 'booking__room', 'served_by')
-        .prefetch_related('items'),
-        pk=pk,
-        prop=active_prop,
-    )
-    settings_obj = _pdf_settings_context()["settings"]
-    return render_pos_receipt_pdf(sale, settings_obj)
-
-
-# ─── POS SHIFTS ─────────────────────────────────────────────
-
-@login_required
-def pos_shifts(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    open_shift = POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).first()
-    past_shifts = POSShift.objects.filter(prop=active_prop, closed_at__isnull=False).select_related('opened_by', 'closed_by')[:20]
-    return render(request, 'pos/shifts.html', {
-        'open_shift': open_shift,
-        'past_shifts': past_shifts,
-    })
-
-
-@login_required
-def pos_open_shift(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    next_url = request.POST.get('next') or request.GET.get('next')
-    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
-        next_url = reverse('core:pos_shifts')
-
-    if request.method == 'POST':
-        active_prop = get_active_property(request)
-        if POSShift.objects.filter(prop=active_prop, closed_at__isnull=True).exists():
-            messages.error(request, 'A shift is already open.')
-        else:
-            opening_float_str = request.POST.get('opening_float', '0')
-            try:
-                opening_float = Decimal(opening_float_str)
-            except Exception:
-                opening_float = Decimal('0')
-            shift = POSShift.objects.create(
-                prop=active_prop,
-                opened_by=request.user,
-                opening_float=opening_float,
-                notes=request.POST.get('notes', ''),
-            )
-            _audit(request, "create", shift, after=_model_snapshot(shift, ["opening_float", "notes"]))
-            messages.success(request, f'Shift opened with R{opening_float} float.')
-    return redirect(next_url)
-
-
-@login_required
-def pos_close_shift(request, pk):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    active_prop = get_active_property(request)
-    shift = get_object_or_404(POSShift, pk=pk, prop=active_prop)
-    if request.method == 'POST':
-        if shift.closed_at:
-            messages.error(request, 'Shift is already closed.')
-        else:
-            closing_cash_str = request.POST.get('closing_cash', '0')
-            try:
-                closing_cash = Decimal(closing_cash_str)
-            except Exception:
-                closing_cash = Decimal('0')
-            shift.closed_at = timezone.now()
-            shift.closed_by = request.user
-            shift.closing_cash = closing_cash
-            shift.notes = request.POST.get('notes', shift.notes)
-            variance = closing_cash - shift.expected_cash
-            if variance != SHIFT_VARIANCE_APPROVAL_AMOUNT and not shift.notes.strip():
-                messages.error(request, 'Explain the cash variance in the notes before closing the shift.')
-                return redirect('core:pos_shifts')
-            shift.save()
-            _audit(
-                request,
-                "update",
-                shift,
-                after={
-                    "closing_cash": _money(shift.closing_cash),
-                    "expected_cash": _money(shift.expected_cash),
-                    "variance": _money(shift.cash_variance),
-                    "notes": shift.notes,
-                },
-                reason="Shift closed",
-            )
-            messages.success(request, 'Shift closed successfully.')
-    return redirect('core:pos_shifts')
-
-
-# ─── POS REPORTS ────────────────────────────────────────────
-
-@login_required
-def pos_reports(request):
-    blocked = _cleaner_blocked(request)
-    if blocked:
-        return blocked
-    today = timezone.localdate()
-    month_start = today.replace(day=1)
-    active_prop = get_active_property(request)
-
-    date_from_str = request.GET.get('date_from', month_start.isoformat())
-    date_to_str = request.GET.get('date_to', today.isoformat())
-    try:
-        date_from = datetime.date.fromisoformat(date_from_str)
-        date_to = datetime.date.fromisoformat(date_to_str)
-    except ValueError:
-        date_from = month_start
-        date_to = today
-
-    sales = POSSale.objects.filter(
-        prop=active_prop,
-        created_at__date__gte=date_from,
-        created_at__date__lte=date_to,
-        status='completed',
-    )
-
-    total_revenue = sales.aggregate(t=Sum('total'))['t'] or Decimal('0.00')
-    total_count = sales.count()
-    avg_sale_val = (total_revenue / total_count).quantize(Decimal('0.01')) if total_count else Decimal('0.00')
-
-    revenue_by_method = list(
-        sales.values('payment_method')
-        .annotate(total=Sum('total'), count=Count('id'))
-        .order_by('-total')
-    )
-
-    top_items = list(
-        POSSaleItem.objects
-        .filter(sale__in=sales)
-        .values('name')
-        .annotate(qty=Sum('quantity'), revenue=Sum('line_total'))
-        .order_by('-revenue')[:10]
-    )
-
-    revenue_by_category = list(
-        POSSaleItem.objects
-        .filter(sale__in=sales, pos_item__category__isnull=False)
-        .values('pos_item__category__name')
-        .annotate(revenue=Sum('line_total'))
-        .order_by('-revenue')
-    )
-
-    sales_by_hour = list(
-        sales.annotate(hour=ExtractHour('created_at'))
-        .values('hour')
-        .annotate(count=Count('id'), revenue=Sum('total'))
-        .order_by('hour')
-    )
-    hourly_labels = [str(h) for h in range(24)]
-    hourly_revenue = [0.0] * 24
-    for row in sales_by_hour:
-        if row['hour'] is not None:
-            hourly_revenue[int(row['hour'])] = float(row['revenue'] or 0)
-
-    room_charges = list(
-        sales.filter(payment_method='room_charge', booking__isnull=False)
-        .values('booking__booking_reference', 'booking__guest__first_name', 'booking__guest__last_name', 'booking__room__name')
-        .annotate(total=Sum('total'), count=Count('id'))
-        .order_by('-total')[:10]
-    )
-
-    return render(request, 'pos/reports.html', {
-        'total_revenue': total_revenue,
-        'total_count': total_count,
-        'avg_sale': avg_sale_val,
-        'date_from': date_from_str,
-        'date_to': date_to_str,
-        'revenue_by_method': revenue_by_method,
-        'top_items': top_items,
-        'revenue_by_category': revenue_by_category,
-        'hourly_labels_json': json.dumps(hourly_labels),
-        'hourly_revenue_json': json.dumps(hourly_revenue),
-        'revenue_by_method_json': json.dumps([
-            {'label': r['payment_method'], 'value': float(r['total'])}
-            for r in revenue_by_method
-        ]),
-        'top_items_json': json.dumps([
-            {'label': i['name'], 'value': float(i['revenue'])}
-            for i in top_items
-        ]),
-        'room_charges': room_charges,
-    })
 
 
 # ── Command Center impersonation entry point ──────────────────────────────────

@@ -2,10 +2,12 @@ import datetime
 from decimal import Decimal
 
 from django import forms
+from django.contrib.auth import authenticate
+from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from PIL import Image, UnidentifiedImageError
 
-from .models import Booking, BookingRefund, Expense, Guest, GuestHouseSettings, Payment, Room
+from .models import Booking, BookingRefund, Expense, Guest, GuestHouseSettings, Payment, Room, StaffProfile
 
 
 PREMIUM_FIELD_CLASSES = (
@@ -38,6 +40,119 @@ def validate_image_upload(upload):
         upload.seek(0)
 
 
+class EmailLoginForm(AuthenticationForm):
+    username = forms.CharField(label="Email or username", max_length=254)
+
+
+class PhonePinLoginForm(forms.Form):
+    phone_number = forms.CharField(label="Phone Number", max_length=30)
+    pin = forms.CharField(
+        label="PIN",
+        min_length=4,
+        max_length=6,
+        strip=False,
+        widget=forms.PasswordInput(attrs={"inputmode": "numeric", "autocomplete": "current-password"}),
+    )
+
+    error_message = "Unable to sign in with those details."
+
+    def __init__(self, request=None, *args, **kwargs):
+        self.request = request
+        self.user_cache = None
+        super().__init__(*args, **kwargs)
+
+    def clean_phone_number(self):
+        phone = StaffProfile.normalize_phone(self.cleaned_data["phone_number"])
+        if not phone:
+            raise forms.ValidationError("Phone number is required.")
+        return phone
+
+    def clean_pin(self):
+        try:
+            return StaffProfile.validate_pin(self.cleaned_data["pin"])
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages[0]) from exc
+
+    def clean(self):
+        cleaned_data = super().clean()
+        phone = cleaned_data.get("phone_number")
+        pin = cleaned_data.get("pin")
+        if phone and pin:
+            self.user_cache = authenticate(self.request, phone_number=phone, pin=pin)
+            if self.user_cache is None:
+                raise forms.ValidationError(self.error_message, code="invalid_login")
+        return cleaned_data
+
+    def get_user(self):
+        return self.user_cache
+
+
+class StaffPinSetupForm(forms.Form):
+    phone_number = forms.CharField(required=False, max_length=30)
+    pin_enabled = forms.BooleanField(required=False)
+    pin = forms.CharField(
+        required=False,
+        min_length=4,
+        max_length=6,
+        strip=False,
+        widget=forms.PasswordInput(attrs={"inputmode": "numeric", "autocomplete": "new-password"}),
+    )
+    role = forms.ChoiceField(choices=StaffProfile.ROLE_CHOICES)
+
+    def __init__(self, *args, staff_user=None, **kwargs):
+        self.staff_user = staff_user
+        super().__init__(*args, **kwargs)
+
+    def clean_phone_number(self):
+        phone = StaffProfile.normalize_phone(self.cleaned_data.get("phone_number"))
+        if not phone:
+            return None
+        duplicate = StaffProfile.objects.filter(phone_number=phone)
+        if self.staff_user:
+            duplicate = duplicate.exclude(user=self.staff_user)
+        if duplicate.exists():
+            raise forms.ValidationError("This phone number is already assigned to another staff member.")
+        return phone
+
+    def clean_pin(self):
+        pin = self.cleaned_data.get("pin", "")
+        if not pin:
+            return ""
+        try:
+            return StaffProfile.validate_pin(pin)
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages[0]) from exc
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get("pin_enabled"):
+            return cleaned_data
+        if not cleaned_data.get("phone_number"):
+            self.add_error("phone_number", "Phone number is required when PIN login is enabled.")
+        existing_hash = ""
+        if self.staff_user:
+            profile = StaffProfile.objects.filter(user=self.staff_user).first()
+            existing_hash = profile.pin_hash if profile else ""
+        if not cleaned_data.get("pin") and not existing_hash:
+            self.add_error("pin", "Set a PIN before enabling PIN login.")
+        return cleaned_data
+
+    def save(self, user):
+        profile, _ = StaffProfile.objects.get_or_create(user=user)
+        profile.phone_number = self.cleaned_data.get("phone_number")
+        profile.role = self.cleaned_data["role"]
+        if not self.cleaned_data.get("pin_enabled"):
+            profile.disable_pin()
+        else:
+            if self.cleaned_data.get("pin"):
+                profile.set_pin(self.cleaned_data["pin"])
+            profile.pin_enabled = True
+            profile.pin_failed_attempts = 0
+            profile.pin_locked_until = None
+        profile.save()
+        return profile
+
+
 class GuestHouseSettingsForm(forms.ModelForm):
     class Meta:
         model = GuestHouseSettings
@@ -47,16 +162,12 @@ class GuestHouseSettingsForm(forms.ModelForm):
             "phone",
             "email",
             "address",
-            "banking_details",
             "vat_registered",
             "vat_number",
             "vat_rate",
             "check_in_time",
             "check_out_time",
             "currency",
-            "cancellation_note",
-            "invoice_notes",
-            "receipt_notes",
             "enable_hourly_bookings",
             "enable_weekly_bookings",
             "hourly_booking_label",
@@ -69,7 +180,11 @@ class GuestHouseSettingsForm(forms.ModelForm):
             "early_checkin_fee",
             "weekend_surcharge_pct",
             "seasonal_note",
-            "pos_api_key",
+            "pdf_primary_color",
+            "banking_details",
+            "cancellation_note",
+            "invoice_notes",
+            "receipt_notes",
         ]
         widgets = {
             "check_in_time": forms.TimeInput(attrs={"type": "time"}),
@@ -228,6 +343,7 @@ class BookingForm(forms.ModelForm):
             "deposit_required",
             "booking_source",
             "status",
+            "vehicle_registration",
             "notes",
         ]
         widgets = {
@@ -326,6 +442,57 @@ class BookingForm(forms.ModelForm):
                         f"({conflict.booking_reference} - {conflict.guest.full_name})."
                     )
 
+        return cleaned_data
+
+
+class QuickCheckInForm(forms.Form):
+    IDENTITY_CHOICES = [
+        ("plate", "Number plate"),
+        ("existing", "Existing guest"),
+        ("walk_in", "Walk-in guest"),
+    ]
+    DURATION_LABELS = {
+        "1_hour": "1 Hour",
+        "2_hours": "2 Hours",
+        "3_hours": "3 Hours",
+        "5_hours": "5 Hours",
+        "daily": "Overnight",
+    }
+
+    identity_mode = forms.ChoiceField(choices=IDENTITY_CHOICES, initial="plate")
+    guest = forms.ModelChoiceField(queryset=Guest.objects.none(), required=False, empty_label="Choose a guest")
+    vehicle_registration = forms.CharField(required=False, max_length=20)
+    duration = forms.ChoiceField(choices=())
+    num_guests = forms.IntegerField(min_value=1, initial=1)
+
+    def __init__(self, *args, room, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.room = room
+        self.fields["guest"].queryset = Guest.objects.filter(is_generic=False).order_by("first_name", "last_name")
+        self.fields["num_guests"].max_value = room.max_guests
+        self.fields["num_guests"].widget.attrs.update({"min": 1, "max": room.max_guests})
+
+        duration_choices = []
+        for value in ("1_hour", "2_hours", "3_hours", "5_hours", "daily"):
+            price = room.get_price_for_duration(value)
+            if price is not None and price > 0:
+                duration_choices.append((value, f"{self.DURATION_LABELS[value]} — R {price:.2f}"))
+        self.fields["duration"].choices = duration_choices
+        if duration_choices:
+            self.fields["duration"].initial = duration_choices[0][0]
+
+    def clean_vehicle_registration(self):
+        return self.cleaned_data.get("vehicle_registration", "").strip().upper()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        identity_mode = cleaned_data.get("identity_mode")
+        if identity_mode == "plate" and not cleaned_data.get("vehicle_registration"):
+            self.add_error("vehicle_registration", "Enter the vehicle number plate.")
+        if identity_mode == "existing" and not cleaned_data.get("guest"):
+            self.add_error("guest", "Choose the guest who is checking in.")
+        if not self.fields["duration"].choices:
+            self.add_error("duration", "This room has no configured check-in rates.")
         return cleaned_data
 
 

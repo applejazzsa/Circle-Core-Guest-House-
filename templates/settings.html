@@ -14,7 +14,6 @@
   <a href="#general" class="filter-pill" id="tab-general">General</a>
   <a href="#pricing" class="filter-pill" id="tab-pricing">Pricing &amp; Durations</a>
   <a href="#documents" class="filter-pill" id="tab-documents">PDF &amp; Documents</a>
-  <a href="#integrations" class="filter-pill" id="tab-integrations">Integrations</a>
   <a href="{% url 'core:onboarding' %}" class="filter-pill" style="margin-left:auto;">Getting Started</a>
 </div>
 
@@ -161,6 +160,16 @@
     <div class="section-label" style="margin-bottom:20px;">PDF &amp; Documents</div>
     <div style="display:flex; flex-direction:column; gap:16px;">
       <div class="form-group">
+        <label class="form-label" for="{{ form.pdf_primary_color.id_for_label }}">PDF Brand Colour</label>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <input type="color" id="{{ form.pdf_primary_color.id_for_label }}" name="{{ form.pdf_primary_color.html_name }}"
+                 value="{{ form.pdf_primary_color.value|default:'#c9a84c' }}"
+                 style="width:48px; height:36px; border:1px solid var(--color-border); border-radius:var(--radius-sm); padding:2px; cursor:pointer; background:none;">
+          <span style="font-size:12px; color:var(--color-muted);">Accent colour applied to all PDF exports (invoices, receipts, confirmations)</span>
+        </div>
+        {% if form.pdf_primary_color.errors %}<div class="form-error">{{ form.pdf_primary_color.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="form-group">
         <label class="form-label" for="{{ form.banking_details.id_for_label }}">Banking Details</label>
         {{ form.banking_details }}
         {% if form.banking_details.errors %}<div class="form-error">{{ form.banking_details.errors.0 }}</div>{% endif %}
@@ -183,50 +192,14 @@
     </div>
   </div>
 
-  <!-- Integrations -->
-  <div class="settings-panel card" id="panel-integrations" style="margin-bottom:16px; display:none;">
-    <div class="section-label" style="margin-bottom:20px;">Integrations</div>
-    <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:18px; margin-bottom:16px;">
-      <div class="section-label" style="margin-bottom:10px;">POS API Key</div>
-      {% if generated_pos_api_key %}
-      <div style="padding:12px 14px; background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); border-radius:var(--radius-sm); margin-bottom:10px; font-size:13px; color:var(--color-green-400);">New key generated. Copy this now — it will be masked after you leave this page.</div>
-      <div style="font-family:var(--font-mono); font-size:13px; background:var(--color-bg-base); border:1px solid var(--color-border-bright); border-radius:var(--radius-sm); padding:10px 12px; color:var(--color-text-primary);">{{ generated_pos_api_key }}</div>
-      {% elif settings_obj.pos_api_key %}
-      <div style="font-family:var(--font-mono); font-size:13px; color:var(--color-text-secondary);">{{ settings_obj.masked_pos_api_key }}</div>
-      {% else %}
-      <div style="font-size:13px; color:var(--color-text-tertiary);">No API key generated yet.</div>
-      {% endif %}
-      <div style="display:none;">{{ form.pos_api_key }}</div>
-    </div>
-    {% if settings_obj.pos_api_key %}
-    <p style="font-size:13px; color:#f59e0b; margin-bottom:10px;">Regenerating will invalidate your current POS connection.</p>
-    <button form="regenerate-pos-key-form" type="submit" class="btn btn-ghost btn-sm" style="border-color:rgba(245,158,11,0.3); color:#f59e0b;">Regenerate Key</button>
-    {% else %}
-    <button form="regenerate-pos-key-form" type="submit" class="btn btn-primary btn-sm">Generate API Key</button>
-    {% endif %}
-    <div style="margin-top:20px; background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:16px; font-size:12.5px; color:var(--color-text-secondary); line-height:1.7;">
-      <div style="font-weight:600; color:var(--color-text-primary); margin-bottom:8px;">Connect your POS system</div>
-      <div style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-text-tertiary); margin-bottom:4px;">POST /api/pos/payment/</div>
-      <div style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-text-tertiary); margin-bottom:12px;">Header: X-POS-API-Key: &lt;your key&gt;</div>
-      <div style="font-weight:600; color:var(--color-text-primary); margin-bottom:4px;">Booking balance lookup</div>
-      <div style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-text-tertiary);">GET /api/pos/booking/&lt;reference&gt;/</div>
-    </div>
-  </div>
-
   <div style="display:flex; justify-content:flex-end; padding-top:4px;">
     <button type="submit" class="btn btn-primary btn-lg">Save Settings</button>
   </div>
 </form>
 
-<form id="regenerate-pos-key-form" method="post" style="display:none;">
-  {% csrf_token %}
-  <input type="hidden" name="action" value="regenerate_pos_api_key">
-  {% if settings_obj.pos_api_key %}<input type="hidden" name="has_existing_key" value="1">{% endif %}
-</form>
-
 <script>
 (function() {
-  const panels = ['general','pricing','documents','integrations'];
+  const panels = ['general','pricing','documents'];
   function showPanel(name) {
     panels.forEach(function(p) {
       const panel = document.getElementById('panel-' + p);

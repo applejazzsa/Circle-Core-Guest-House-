@@ -2,7 +2,6 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth.views import (
-    LoginView,
     LogoutView,
     PasswordResetCompleteView,
     PasswordResetConfirmView,
@@ -12,13 +11,14 @@ from django.contrib.auth.views import (
 from django.urls import include, path
 
 from tenants import views as tenant_views
+from core.auth_views import DualLoginView
 
 urlpatterns = [
     path("manifest.webmanifest", tenant_views.pwa_manifest, name="pwa_manifest"),
     path("service-worker.js", tenant_views.service_worker, name="service_worker"),
     path("healthz/", tenant_views.healthz, name="healthz"),
     path(settings.ADMIN_URL, admin.site.urls),
-    path("login/", LoginView.as_view(template_name="login.html", redirect_authenticated_user=True), name="login"),
+    path("login/", DualLoginView.as_view(), name="login"),
     path("logout/", LogoutView.as_view(next_page="login"), name="logout"),
     path(
         "password-reset/",

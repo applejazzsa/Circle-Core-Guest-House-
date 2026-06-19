@@ -10,11 +10,12 @@
   </div>
   <div class="page-header-actions">
     {% if not is_cleaner %}
-    {% if room.status == "Maintenance" or room.status == "Blocked" or room.status == "Booked" or room.status == "Occupied" %}
+    {% if room.status != "Available" or room.cleaning_status != "Clean" %}
     <span class="btn btn-ghost" style="opacity:0.45; cursor:not-allowed;">Unavailable</span>
     {% else %}
-    <a href="{% url 'core:booking_add' %}?room={{ room.pk }}" class="btn btn-primary">Book Room</a>
+    <a href="{% url 'core:booking_add' %}?room={{ room.pk }}&amp;source=Walk-in&amp;status=Confirmed" class="btn btn-primary">Check In Now</a>
     {% endif %}
+    <a href="{% url 'core:booking_add' %}?room={{ room.pk }}" class="btn btn-secondary">Reserve for Later</a>
     <a href="{% url 'core:room_edit' room.pk %}" class="btn btn-secondary">Edit</a>
     {% endif %}
     <a href="{% url 'core:room_list' %}" class="btn btn-ghost">← Rooms</a>

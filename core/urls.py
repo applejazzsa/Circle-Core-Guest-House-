@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import offline_views, views
 
 
 app_name = "core"
@@ -10,6 +10,12 @@ urlpatterns = [
     path("onboarding/", views.onboarding, name="onboarding"),
     path("onboarding/clear-demo/", views.onboarding_clear_demo, name="onboarding_clear_demo"),
     path("api/notifications/", views.notifications_feed, name="notifications_feed"),
+    path("offline/", offline_views.offline_console, name="offline_console"),
+    path("offline/manage/", offline_views.offline_management, name="offline_management"),
+    path("offline/conflicts/<int:pk>/resolve/", offline_views.offline_conflict_resolve, name="offline_conflict_resolve"),
+    path("api/offline/enroll/", offline_views.offline_enroll, name="offline_enroll"),
+    path("api/offline/bootstrap/", offline_views.offline_bootstrap, name="offline_bootstrap"),
+    path("api/offline/sync/", offline_views.offline_sync, name="offline_sync"),
     path("search/", views.search, name="search"),
     path("availability/", views.availability, name="availability"),
     path("reports/", views.reports, name="reports"),
@@ -37,9 +43,6 @@ urlpatterns = [
     path("trial/setup/", views.trial_setup, name="trial_setup"),
     path("trial/expired/", views.trial_expired, name="trial_expired"),
     path("api/bookings/completed-reminders/", views.completed_booking_reminders_api, name="completed_booking_reminders_api"),
-    path("api/pos/payment/", views.pos_payment_api, name="pos_payment_api"),
-    path("api/pos/booking/<str:reference>/", views.pos_booking_lookup_api, name="pos_booking_lookup_api"),
-    path("pos/transactions/", views.pos_transactions, name="pos_transactions"),
     path("rooms/", views.room_list, name="room_list"),
     path("rooms/add/", views.room_add, name="room_add"),
     path("rooms/<int:pk>/", views.room_detail, name="room_detail"),
@@ -93,29 +96,6 @@ urlpatterns = [
     path("bookings/<int:pk>/check-out/", views.booking_checkout, name="booking_checkout"),
     path("bookings/<int:pk>/no-show/", views.booking_no_show, name="booking_no_show"),
     path("bookings/<int:pk>/cancel/", views.booking_cancel, name="booking_cancel"),
-    # POS Terminal
-    path("pos/terminal/", views.pos_terminal, name="pos_terminal"),
-    path("pos/terminal/complete/", views.pos_complete_sale, name="pos_complete_sale"),
-    path("pos/api/items/barcode/<str:barcode>/", views.pos_barcode_lookup, name="pos_barcode_lookup"),
-    path("pos/api/bookings/active/", views.pos_active_bookings_api, name="pos_active_bookings_api"),
-    # POS Item Management
-    path("pos/items/", views.pos_items_list, name="pos_items_list"),
-    path("pos/items/add/", views.pos_item_add, name="pos_item_add"),
-    path("pos/items/<int:pk>/edit/", views.pos_item_edit, name="pos_item_edit"),
-    path("pos/items/<int:pk>/delete/", views.pos_item_delete, name="pos_item_delete"),
-    path("pos/items/reorder/", views.pos_items_reorder, name="pos_items_reorder"),
-    path("pos/categories/add/", views.pos_category_add, name="pos_category_add"),
-    # POS Sales
-    path("pos/sales/", views.pos_sales_list, name="pos_sales_list"),
-    path("pos/sales/<int:pk>/", views.pos_sale_detail, name="pos_sale_detail"),
-    path("pos/sales/<int:pk>/refund/", views.pos_sale_refund, name="pos_sale_refund"),
-    path("pos/sales/<int:pk>/pdf/receipt/", views.pos_receipt_pdf, name="pos_receipt_pdf"),
-    # POS Shifts
-    path("pos/shifts/", views.pos_shifts, name="pos_shifts"),
-    path("pos/shifts/open/", views.pos_open_shift, name="pos_open_shift"),
-    path("pos/shifts/<int:pk>/close/", views.pos_close_shift, name="pos_close_shift"),
-    # POS Reports
-    path("pos/reports/", views.pos_reports, name="pos_reports"),
     # Command Center impersonation entry
     path("command-enter/", views.command_enter, name="command_enter"),
 ]

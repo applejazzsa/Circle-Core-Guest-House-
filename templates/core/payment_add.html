@@ -54,31 +54,6 @@
   <!-- Payment Form -->
   <div class="card">
     <div class="section-label" style="margin-bottom:20px;">Payment Details</div>
-    {% if not open_shift %}
-    <div id="cash-shift-panel" style="margin-bottom:18px; padding:14px; border:1px solid rgba(245,158,11,0.3); border-radius:var(--radius-md); background:rgba(245,158,11,0.08);">
-      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap;">
-        <div style="flex:1; min-width:220px;">
-          <div style="font-size:13px; font-weight:700; color:#fbbf24; margin-bottom:4px;">Cash shift required</div>
-          <div style="font-size:12.5px; color:var(--color-text-secondary); line-height:1.5;">
-            Open a POS cash shift before recording cash payments. EFT and card payments can still be recorded without a cash shift.
-          </div>
-        </div>
-        <form method="post" action="{% url 'core:pos_open_shift' %}" style="display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap; margin:0;">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <label style="display:flex; flex-direction:column; gap:5px; margin:0;">
-            <span style="font-size:10px; font-weight:700; color:var(--color-text-tertiary); letter-spacing:0.08em; text-transform:uppercase;">Float</span>
-            <input type="number" name="opening_float" value="0" min="0" step="0.01" style="width:110px; padding:8px 10px; font-size:13px;">
-          </label>
-          <button type="submit" class="btn btn-amber btn-sm">Open cash shift</button>
-        </form>
-      </div>
-    </div>
-    {% else %}
-    <div style="margin-bottom:18px; padding:10px 12px; border:1px solid var(--color-green-border); border-radius:var(--radius-md); background:var(--color-green-glow); font-size:12.5px; color:var(--color-green-400); font-weight:600;">
-      Cash shift is open. Cash payments can be recorded.
-    </div>
-    {% endif %}
     <form method="post">
       {% csrf_token %}
       {% if form.non_field_errors %}

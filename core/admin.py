@@ -15,18 +15,22 @@ from .models import (
     InventoryTransaction,
     MaintenanceRequest,
     Payment,
-    POSCategory,
-    POSItem,
-    POSSale,
-    POSSaleItem,
-    POSShift,
-    POSTransaction,
     Room,
     RoomInventoryAssignment,
+    StaffProfile,
     Subscription,
     SubscriptionPlan,
     TrialLicense,
 )
+
+
+@admin.register(StaffProfile)
+class StaffProfileAdmin(admin.ModelAdmin):
+    list_display = ["user", "phone_number", "role", "pin_enabled", "pin_failed_attempts", "pin_locked_until"]
+    list_filter = ["role", "pin_enabled"]
+    search_fields = ["user__username", "user__email", "phone_number"]
+    readonly_fields = ["pin_failed_attempts", "pin_locked_until", "updated_at"]
+    fields = ["user", "phone_number", "role", "pin_enabled", "pin_failed_attempts", "pin_locked_until", "updated_at"]
 
 
 @admin.register(AuditLog)
@@ -115,7 +119,6 @@ class GuestHouseSettingsAdmin(admin.ModelAdmin):
                     "early_checkin_fee",
                     "weekend_surcharge_pct",
                     "seasonal_note",
-                    "pos_api_key",
                 )
             },
         ),
@@ -166,14 +169,6 @@ class BookingAdmin(admin.ModelAdmin):
     inlines = [PaymentInline]
 
 
-@admin.register(POSTransaction)
-class POSTransactionAdmin(admin.ModelAdmin):
-    list_display = ["received_at", "pos_reference", "pos_system", "booking", "amount", "status", "processed"]
-    list_filter = ["status", "processed", "pos_system", "received_at"]
-    search_fields = ["pos_reference", "booking__booking_reference", "pos_system"]
-    readonly_fields = ["received_at", "raw_payload"]
-
-
 @admin.register(TrialLicense)
 class TrialLicenseAdmin(admin.ModelAdmin):
     list_display = ["license_key", "guest_house_name", "owner_email", "expires_at", "is_active", "converted_to_paid"]
@@ -196,7 +191,6 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
             "weekly_bookings",
             "inventory",
             "staff_roles",
-            "pos_integration",
             "multi_property",
             "api_access",
             "custom_pdf_branding",
@@ -231,7 +225,6 @@ class SubscriptionAdmin(admin.ModelAdmin):
             "weekly_bookings",
             "inventory",
             "staff_roles",
-            "pos_integration",
             "multi_property",
             "api_access",
             "custom_pdf_branding",
@@ -341,43 +334,3 @@ class RoomInventoryAssignmentAdmin(admin.ModelAdmin):
     list_display = ["room", "item", "expected_quantity"]
     list_filter = ["room", "item__category"]
     search_fields = ["room__name", "item__name", "notes"]
-
-
-class POSSaleItemInline(admin.TabularInline):
-    model = POSSaleItem
-    extra = 0
-    fields = ['name', 'quantity', 'unit_price', 'discount_pct', 'line_total']
-    readonly_fields = ['line_total']
-
-
-@admin.register(POSSale)
-class POSSaleAdmin(admin.ModelAdmin):
-    list_display = ['sale_reference', 'created_at', 'guest', 'booking', 'payment_method', 'total', 'status']
-    list_filter = ['status', 'payment_method', 'created_at']
-    search_fields = ['sale_reference', 'guest__first_name', 'guest__last_name', 'booking__booking_reference']
-    readonly_fields = ['sale_reference', 'created_at', 'subtotal', 'total']
-    date_hierarchy = 'created_at'
-    inlines = [POSSaleItemInline]
-
-
-@admin.register(POSItem)
-class POSItemAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category', 'price', 'emoji', 'is_quick_item', 'track_inventory', 'stock_quantity', 'is_active']
-    list_filter = ['category', 'is_quick_item', 'is_active', 'track_inventory']
-    search_fields = ['name', 'barcode', 'sku']
-    list_editable = ['price', 'is_quick_item', 'is_active']
-    ordering = ['sort_order', 'name']
-
-
-@admin.register(POSCategory)
-class POSCategoryAdmin(admin.ModelAdmin):
-    list_display = ['name', 'icon', 'color', 'sort_order', 'is_active']
-    list_editable = ['sort_order', 'is_active']
-    ordering = ['sort_order', 'name']
-
-
-@admin.register(POSShift)
-class POSShiftAdmin(admin.ModelAdmin):
-    list_display = ['opened_at', 'opened_by', 'closed_at', 'closed_by', 'opening_float', 'closing_cash', 'is_open']
-    list_filter = ['opened_at', 'opened_by']
-    readonly_fields = ['opened_at', 'total_sales', 'expected_cash']

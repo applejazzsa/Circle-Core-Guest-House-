@@ -4,6 +4,7 @@ from datetime import timedelta, time
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.core.exceptions import ValidationError
+from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
@@ -29,6 +30,111 @@ class Property(models.Model):
     @property
     def room_count(self):
         return self.rooms.count()
+
+
+class StaffProfile(models.Model):
+    ROLE_CHOICES = [
+        ("Owner", "Owner / Admin"),
+        ("Manager", "Manager"),
+        ("Reception", "Reception"),
+        ("Cleaner", "Cleaner"),
+        ("Viewer", "Viewer"),
+        ("Operator", "Operator (legacy)"),
+    ]
+
+    user = models.OneToOneField(
+        "auth.User",
+        on_delete=models.CASCADE,
+        related_name="staff_profile",
+    )
+    phone_number = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    pin_hash = models.CharField(max_length=128, blank=True)
+    pin_enabled = models.BooleanField(default=False)
+    pin_failed_attempts = models.PositiveSmallIntegerField(default=0)
+    pin_locked_until = models.DateTimeField(null=True, blank=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="Viewer")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["user__username"]
+
+    def __str__(self):
+        return f"{self.user.username} staff profile"
+
+    @staticmethod
+    def normalize_phone(value):
+        raw = (value or "").strip()
+        digits = "".join(character for character in raw if character.isdigit())
+        if len(digits) == 10 and digits.startswith("0"):
+            return f"+27{digits[1:]}"
+        if len(digits) == 11 and digits.startswith("27"):
+            return f"+{digits}"
+        if raw.startswith("+") and digits:
+            return f"+{digits}"
+        return digits
+
+    @staticmethod
+    def validate_pin(pin):
+        value = str(pin or "")
+        if not value.isdigit() or not 4 <= len(value) <= 6:
+            raise ValidationError("PIN must contain 4 to 6 digits.")
+        return value
+
+    def set_pin(self, pin):
+        self.pin_hash = make_password(self.validate_pin(pin))
+
+    def check_pin(self, pin):
+        return bool(self.pin_hash) and check_password(str(pin or ""), self.pin_hash)
+
+    def disable_pin(self):
+        self.pin_enabled = False
+        self.pin_hash = ""
+        self.pin_failed_attempts = 0
+        self.pin_locked_until = None
+
+
+class OfflineDevice(models.Model):
+    client_id = models.UUIDField(unique=True, default=uuid.uuid4, editable=False)
+    prop = models.ForeignKey(Property, on_delete=models.CASCADE, related_name="offline_devices")
+    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="offline_devices")
+    label = models.CharField(max_length=120)
+    is_active = models.BooleanField(default=False)
+    lease_expires_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_offline_devices")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class OfflineOperation(models.Model):
+    STATUS_CHOICES = [("applied", "Applied"), ("conflict", "Conflict"), ("rejected", "Rejected")]
+    device = models.ForeignKey(OfflineDevice, on_delete=models.CASCADE, related_name="operations")
+    operation_id = models.UUIDField()
+    operation_type = models.CharField(max_length=40)
+    payload = models.JSONField(default=dict)
+    payload_hash = models.CharField(max_length=64)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES)
+    result = models.JSONField(default=dict, blank=True)
+    error = models.CharField(max_length=255, blank=True)
+    client_created_at = models.DateTimeField()
+    processed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["device", "operation_id"], name="unique_offline_device_operation")]
+        ordering = ["-processed_at"]
+
+
+class OfflineConflict(models.Model):
+    operation = models.OneToOneField(OfflineOperation, on_delete=models.CASCADE, related_name="conflict")
+    reason = models.CharField(max_length=255)
+    server_state = models.JSONField(default=dict, blank=True)
+    is_resolved = models.BooleanField(default=False)
+    resolution = models.CharField(max_length=30, blank=True)
+    resolved_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
 
 
 class Room(models.Model):
@@ -233,6 +339,7 @@ class Booking(models.Model):
     balance_due = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     booking_source = models.CharField(max_length=20, choices=BOOKING_SOURCE_CHOICES, default="Walk-in")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="Pending")
+    vehicle_registration = models.CharField(max_length=20, blank=True)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     booking_reference = models.CharField(max_length=20, unique=True, blank=True)
@@ -689,7 +796,7 @@ class GuestHouseSettings(models.Model):
         help_text="% extra on Fri/Sat nights",
     )
     seasonal_note = models.TextField(blank=True, help_text="Note shown on availability page")
-    pos_api_key = models.CharField(max_length=100, blank=True, help_text="Secret key for POS integration")
+    pdf_primary_color = models.CharField(max_length=7, default="#c9a84c", help_text="Brand colour used across all PDF exports (hex, e.g. #c9a84c)")
     onboarding_complete = models.BooleanField(default=False)
 
     class Meta:
@@ -702,50 +809,6 @@ class GuestHouseSettings(models.Model):
 
     def __str__(self):
         return self.guest_house_name
-
-    def regenerate_pos_api_key(self):
-        self.pos_api_key = f"sk-{uuid.uuid4().hex}"
-        self.save(update_fields=["pos_api_key"])
-        return self.pos_api_key
-
-    @property
-    def masked_pos_api_key(self):
-        if not self.pos_api_key:
-            return ""
-        return f"{self.pos_api_key[:4]}{'•' * 7}{self.pos_api_key[-4:]}"
-
-
-class POSTransaction(models.Model):
-    STATUS_CHOICES = [
-        ("pending", "Pending"),
-        ("completed", "Completed"),
-        ("failed", "Failed"),
-        ("refunded", "Refunded"),
-    ]
-
-    booking = models.ForeignKey(
-        Booking,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="pos_transactions",
-    )
-    pos_reference = models.CharField(max_length=100, unique=True)
-    pos_system = models.CharField(max_length=100, default="Unknown POS")
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=10, default="R")
-    payment_method = models.CharField(max_length=50)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-    raw_payload = models.JSONField(default=dict, blank=True)
-    received_at = models.DateTimeField(auto_now_add=True)
-    processed = models.BooleanField(default=False)
-    processing_notes = models.TextField(blank=True)
-
-    class Meta:
-        ordering = ["-received_at"]
-
-    def __str__(self):
-        return f"POS {self.pos_reference} - R {self.amount}"
 
 
 class TrialLicense(models.Model):
@@ -805,7 +868,6 @@ class SubscriptionPlan(models.Model):
     feature_weekly_bookings = models.BooleanField(default=False)
     feature_inventory = models.BooleanField(default=False)
     feature_staff_roles = models.BooleanField(default=False)
-    feature_pos_integration = models.BooleanField(default=False)
     feature_multi_property = models.BooleanField(default=False)
     feature_api_access = models.BooleanField(default=False)
     feature_custom_pdf_branding = models.BooleanField(default=False)
@@ -1053,160 +1115,6 @@ class RoomInventoryAssignment(models.Model):
         return f"{self.room.name} - {self.item.name}"
 
 
-class POSCategory(models.Model):
-    prop = models.ForeignKey(
-        "Property", on_delete=models.CASCADE, null=True, blank=True, related_name="pos_categories"
-    )
-    name = models.CharField(max_length=100)
-    color = models.CharField(max_length=7, default='#22c55e')
-    icon = models.CharField(max_length=50, blank=True,
-        help_text="Emoji or icon name e.g. 🍺 or coffee")
-    sort_order = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ['sort_order', 'name']
-
-    def __str__(self):
-        return self.name
-
-
-class POSItem(models.Model):
-    prop = models.ForeignKey(
-        "Property", on_delete=models.CASCADE, null=True, blank=True, related_name="pos_items"
-    )
-    name = models.CharField(max_length=200)
-    category = models.ForeignKey(POSCategory, on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='items')
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    barcode = models.CharField(max_length=100, blank=True,
-        help_text="EAN-13, QR, or custom barcode")
-    sku = models.CharField(max_length=50, blank=True)
-    is_quick_item = models.BooleanField(default=False,
-        help_text="Show on quick items grid for fast access")
-    is_active = models.BooleanField(default=True)
-    track_inventory = models.BooleanField(default=False)
-    stock_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    low_stock_alert = models.DecimalField(max_digits=10, decimal_places=2, default=5)
-    color = models.CharField(max_length=7, default='#1a1e26',
-        help_text="Card background color on POS grid")
-    emoji = models.CharField(max_length=10, blank=True,
-        help_text="Emoji displayed on POS item card")
-    sort_order = models.IntegerField(default=0)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['sort_order', 'name']
-
-    def __str__(self):
-        return f"{self.name} — R{self.price}"
-
-    @property
-    def is_low_stock(self):
-        return self.track_inventory and self.stock_quantity <= self.low_stock_alert
-
-    @property
-    def is_out_of_stock(self):
-        return self.track_inventory and self.stock_quantity <= 0
-
-
-class POSSale(models.Model):
-    PAYMENT_METHOD_CHOICES = [
-        ('cash', 'Cash'),
-        ('card', 'Card'),
-        ('eft', 'EFT'),
-        ('snapscan', 'SnapScan'),
-        ('zapper', 'Zapper'),
-        ('room_charge', 'Charge to Room'),
-        ('split', 'Split Payment'),
-        ('complimentary', 'Complimentary'),
-    ]
-    STATUS_CHOICES = [
-        ('completed', 'Completed'),
-        ('refunded', 'Refunded'),
-        ('partial_refund', 'Partial Refund'),
-        ('voided', 'Voided'),
-    ]
-
-    prop = models.ForeignKey(
-        "Property", on_delete=models.CASCADE, null=True, blank=True, related_name="pos_sales"
-    )
-    sale_reference = models.CharField(max_length=20, unique=True)
-    booking = models.ForeignKey('Booking', on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='pos_sales')
-    guest = models.ForeignKey('Guest', on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='pos_sales')
-    shift = models.ForeignKey('POSShift', on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='sales')
-
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
-    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    discount_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    total = models.DecimalField(max_digits=10, decimal_places=2)
-
-    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
-    cash_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    card_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    cash_tendered = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    change_given = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
-    notes = models.TextField(blank=True)
-    refund_reason = models.TextField(blank=True)
-    original_sale = models.ForeignKey('self', on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='refunds')
-    served_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL,
-        null=True, related_name='pos_sales')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-created_at']
-
-    def save(self, *args, **kwargs):
-        if not self.sale_reference:
-            import random
-            date_str = timezone.now().strftime('%Y%m%d')
-            for _ in range(100):
-                rand = random.randint(1000, 9999)
-                ref = f"POS-{date_str}-{rand}"
-                if not POSSale.objects.filter(sale_reference=ref).exists():
-                    self.sale_reference = ref
-                    break
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.sale_reference} — R{self.total}"
-
-    @property
-    def items_summary(self):
-        items = self.items.all()
-        if not items:
-            return "—"
-        names = [f"{item.name} x{item.quantity:.0f}" for item in items[:3]]
-        suffix = f" +{items.count() - 3} more" if items.count() > 3 else ""
-        return ", ".join(names) + suffix
-
-
-class POSSaleItem(models.Model):
-    sale = models.ForeignKey(POSSale, on_delete=models.CASCADE, related_name='items')
-    pos_item = models.ForeignKey(POSItem, on_delete=models.SET_NULL,
-        null=True, blank=True)
-    name = models.CharField(max_length=200)
-    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
-    discount_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    line_total = models.DecimalField(max_digits=10, decimal_places=2)
-
-    def save(self, *args, **kwargs):
-        discount = self.unit_price * (self.discount_pct / 100)
-        self.line_total = (self.unit_price - discount) * self.quantity
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.name} x{self.quantity}"
-
-
 class TrialEngagement(models.Model):
     """
     Singleton per tenant — tracks engagement activity during (and after) trial.
@@ -1266,62 +1174,3 @@ class TrialEngagement(models.Model):
 
     def __str__(self):
         return f"Engagement — {self.health_score} (logins:{self.login_count} bookings:{self.bookings_added})"
-
-
-class POSShift(models.Model):
-    prop = models.ForeignKey(
-        "Property", on_delete=models.CASCADE, null=True, blank=True, related_name="pos_shifts"
-    )
-    opened_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL,
-        null=True, related_name='pos_shifts_opened')
-    closed_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='pos_shifts_closed')
-    opening_float = models.DecimalField(max_digits=10, decimal_places=2,
-        default=0, help_text="Cash in till at start of shift")
-    closing_cash = models.DecimalField(max_digits=10, decimal_places=2,
-        null=True, blank=True)
-    opened_at = models.DateTimeField(auto_now_add=True)
-    closed_at = models.DateTimeField(null=True, blank=True)
-    notes = models.TextField(blank=True)
-
-    class Meta:
-        ordering = ['-opened_at']
-
-    @property
-    def is_open(self):
-        return self.closed_at is None
-
-    @property
-    def sales_during_shift(self):
-        qs = POSSale.objects.filter(
-            created_at__gte=self.opened_at,
-            status='completed',
-        )
-        if self.closed_at:
-            qs = qs.filter(created_at__lte=self.closed_at)
-        return qs
-
-    @property
-    def total_sales(self):
-        result = self.sales_during_shift.aggregate(total=Sum('total'))['total']
-        return result or Decimal('0.00')
-
-    @property
-    def cash_sales_total(self):
-        result = self.sales_during_shift.filter(
-            payment_method__in=['cash', 'split']
-        ).aggregate(total=Sum('cash_amount'))['total']
-        return result or Decimal('0.00')
-
-    @property
-    def expected_cash(self):
-        return self.opening_float + self.cash_sales_total
-
-    @property
-    def cash_variance(self):
-        if self.closing_cash is None:
-            return None
-        return self.closing_cash - self.expected_cash
-
-    def __str__(self):
-        return f"Shift opened {self.opened_at.strftime('%d %b %Y %H:%M')}"

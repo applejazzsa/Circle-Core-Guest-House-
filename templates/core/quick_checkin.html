@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Check In Now — Circle Core Guest House{% endblock %}
+
+{% block extra_css %}
+<style>
+  .quick-shell { max-width: 820px; margin: 0 auto; }
+  .quick-choice-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
+  .quick-choice { display:block; cursor:pointer; }
+  .quick-choice input { position:absolute; opacity:0; pointer-events:none; }
+  .quick-choice-body { min-height:72px; padding:14px; border:2px solid var(--color-border-bright); border-radius:var(--radius-md); background:var(--color-bg-subtle); transition:0.15s ease; }
+  .quick-choice input:checked + .quick-choice-body { border-color:var(--color-green-500); background:rgba(34,197,94,0.08); box-shadow:0 0 0 1px rgba(34,197,94,0.15); }
+  .quick-choice-title { color:var(--color-text-primary); font-size:14px; font-weight:700; }
+  .quick-choice-help { color:var(--color-text-tertiary); font-size:11.5px; margin-top:4px; line-height:1.4; }
+  .duration-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; }
+  .duration-card .quick-choice-body { min-height:92px; display:flex; flex-direction:column; justify-content:space-between; }
+  .duration-price { color:var(--color-green-400); font-family:var(--font-mono); font-size:16px; font-weight:700; }
+  .quick-summary { display:flex; justify-content:space-between; gap:18px; align-items:center; padding:18px; border:1px solid var(--color-green-border); border-radius:var(--radius-md); background:var(--color-green-glow); }
+  .quick-submit { width:100%; min-height:54px; justify-content:center; font-size:15px; }
+  @media (max-width:640px) {
+    .quick-choice-grid, .duration-grid { grid-template-columns:1fr; }
+    .quick-choice-body { min-height:auto; }
+    .quick-summary { align-items:flex-start; flex-direction:column; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="quick-shell">
+  <div class="page-header">
+    <div>
+      <div class="section-label">Walk-in</div>
+      <h1 class="page-title">Check In Now</h1>
+      <p class="page-subtitle">Only answer what is needed. The system handles the rest.</p>
+    </div>
+    <div class="page-header-actions">
+      <a href="{% url 'core:booking_add' %}{% if room %}?room={{ room.pk }}{% endif %}" class="btn btn-secondary">Reserve for Later</a>
+      <a href="{% url 'core:room_list' %}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </div>
+
+  {% if not room %}
+    <div class="card" style="margin-bottom:18px;">
+      <div class="section-label" style="margin-bottom:6px;">Step 1</div>
+      <h2 style="font-size:19px; color:var(--color-text-primary); margin:0;">Choose an available room</h2>
+    </div>
+    {% if ready_rooms %}
+    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px;">
+      {% for item in ready_rooms %}
+      <a href="{% url 'core:quick_checkin_room' item.pk %}" class="card" style="text-decoration:none; padding:20px; border:1px solid var(--color-green-border); transition:0.15s ease;">
+        <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+          <div>
+            <div style="font-size:17px; font-weight:750; color:var(--color-text-primary);">{{ item.name }}</div>
+            <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:4px;">{{ item.room_type }} · up to {{ item.max_guests }} guests</div>
+          </div>
+          <span class="badge badge-green">Ready</span>
+        </div>
+        <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:end;">
+          <div>
+            <div style="font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--color-text-tertiary);">Overnight</div>
+            <div style="font-family:var(--font-mono); color:var(--color-green-400); margin-top:3px;">R {{ item.price_per_night|floatformat:2 }}</div>
+          </div>
+          <span style="font-size:13px; font-weight:700; color:var(--color-green-400);">Choose →</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card empty-state">
+      <div class="empty-state-title">No rooms are ready</div>
+      <p class="empty-state-body">A room must be available and clean before a guest can check in.</p>
+      <a href="{% url 'core:room_list' %}" class="btn btn-primary">View Rooms</a>
+    </div>
+    {% endif %}
+  {% else %}
+    <div class="card" style="padding:18px 20px; margin-bottom:16px; border-left:4px solid var(--color-green-500);">
+      <div style="display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap;">
+        <div>
+          <div style="font-size:19px; font-weight:750; color:var(--color-text-primary);">{{ room.name }}</div>
+          <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:3px;">{{ room.room_type }} · maximum {{ room.max_guests }} guest{{ room.max_guests|pluralize }}</div>
+        </div>
+        {% if room_ready %}<span class="badge badge-green">Available and clean</span>{% else %}<span class="badge badge-red">Not ready</span>{% endif %}
+      </div>
+    </div>
+
+    {% if not room_ready %}
+    <div class="card" style="text-align:center; padding:32px;">
+      <h2 style="font-size:18px; color:var(--color-text-primary);">This room cannot be checked in now</h2>
+      <p style="color:var(--color-text-secondary); margin:8px 0 20px;">Its current status is {{ room.status }} and its cleaning status is {{ room.cleaning_status }}.</p>
+      <a href="{% url 'core:quick_checkin' %}" class="btn btn-primary">Choose Another Room</a>
+    </div>
+    {% else %}
+    <form method="post" id="quick-checkin-form" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div style="margin-bottom:16px; padding:13px 16px; border:1px solid rgba(239,68,68,.3); border-radius:var(--radius-md); background:rgba(239,68,68,.08); color:#f87171; font-size:13px;">{{ form.non_field_errors.0 }}</div>
+      {% endif %}
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="section-label" style="margin-bottom:6px;">Who is staying?</div>
+        <p style="font-size:12.5px; color:var(--color-text-secondary); margin-bottom:16px;">Choose the easiest way to identify this guest.</p>
+        <div class="quick-choice-grid">
+          <label class="quick-choice">
+            <input type="radio" name="identity_mode" value="plate" {% if form.identity_mode.value == 'plate' or not form.identity_mode.value %}checked{% endif %}>
+            <span class="quick-choice-body"><span class="quick-choice-title">Number Plate</span><span class="quick-choice-help">Fastest when a vehicle plate is available.</span></span>
+          </label>
+          <label class="quick-choice">
+            <input type="radio" name="identity_mode" value="existing" {% if form.identity_mode.value == 'existing' %}checked{% endif %}>
+            <span class="quick-choice-body"><span class="quick-choice-title">Existing Guest</span><span class="quick-choice-help">Use a guest already saved in the system.</span></span>
+          </label>
+          <label class="quick-choice">
+            <input type="radio" name="identity_mode" value="walk_in" {% if form.identity_mode.value == 'walk_in' %}checked{% endif %}>
+            <span class="quick-choice-body"><span class="quick-choice-title">Walk-in Guest</span><span class="quick-choice-help">Continue without recording guest details.</span></span>
+          </label>
+        </div>
+
+        <div id="plate-panel" class="form-group" style="margin-top:16px; margin-bottom:0;">
+          <label class="form-label" for="id_vehicle_registration">Vehicle Number Plate</label>
+          <input type="text" name="vehicle_registration" id="id_vehicle_registration" maxlength="20" autocomplete="off" value="{{ form.vehicle_registration.value|default:'' }}" placeholder="e.g. CA 123-456" style="width:100%; text-transform:uppercase; font-size:18px; font-weight:750; letter-spacing:.08em;">
+          {% if form.vehicle_registration.errors %}<div class="form-error">{{ form.vehicle_registration.errors.0 }}</div>{% endif %}
+        </div>
+        <div id="guest-panel" class="form-group" style="display:none; margin-top:16px; margin-bottom:0;">
+          <label class="form-label" for="{{ form.guest.id_for_label }}">Guest</label>
+          {{ form.guest }}
+          {% if form.guest.errors %}<div class="form-error">{{ form.guest.errors.0 }}</div>{% endif %}
+          <div class="form-hint">Not listed? Use “Reserve for Later” to create a full guest profile.</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="section-label" style="margin-bottom:6px;">How long are they staying?</div>
+        <p style="font-size:12.5px; color:var(--color-text-secondary); margin-bottom:16px;">The rate is included. You do not need to calculate anything.</p>
+        <div class="duration-grid">
+          {% for option in duration_options %}
+          <label class="quick-choice duration-card">
+            <input type="radio" name="duration" value="{{ option.value }}" data-price="{{ option.price|floatformat:2 }}" data-checkout="{{ option.checkout_label }}" {% if form.duration.value == option.value or not form.duration.value and forloop.first %}checked{% endif %}>
+            <span class="quick-choice-body">
+              <span class="quick-choice-title">{{ option.label }}</span>
+              <span><span class="duration-price">R {{ option.price|floatformat:2 }}</span><span class="quick-choice-help" style="display:block;">Leaves {{ option.checkout_label }}</span></span>
+            </span>
+          </label>
+          {% empty %}
+          <div style="grid-column:1/-1; color:#f87171;">No rates are configured for this room.</div>
+          {% endfor %}
+        </div>
+        {% if form.duration.errors %}<div class="form-error" style="margin-top:8px;">{{ form.duration.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
+          <div>
+            <div class="section-label">Number of Guests</div>
+            <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:4px;">Maximum {{ room.max_guests }} in this room</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button type="button" id="guests-minus" class="btn btn-secondary" aria-label="Remove one guest">−</button>
+            <input type="number" name="num_guests" id="id_num_guests" value="{{ form.num_guests.value|default:1 }}" min="1" max="{{ room.max_guests }}" style="width:64px; text-align:center; font-size:17px; font-weight:700;">
+            <button type="button" id="guests-plus" class="btn btn-secondary" aria-label="Add one guest">+</button>
+          </div>
+        </div>
+        {% if form.num_guests.errors %}<div class="form-error">{{ form.num_guests.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="quick-summary" style="margin-bottom:12px;">
+        <div>
+          <div style="font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--color-text-tertiary);">Checkout</div>
+          <div id="summary-checkout" style="font-size:14px; font-weight:650; color:var(--color-text-primary); margin-top:4px;">—</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--color-text-tertiary);">Total</div>
+          <div id="summary-total" style="font-family:var(--font-mono); font-size:22px; font-weight:750; color:var(--color-green-400); margin-top:3px;">—</div>
+        </div>
+      </div>
+      <button type="submit" id="quick-submit" class="btn btn-primary quick-submit" {% if not duration_options %}disabled{% endif %}>Confirm {{ room.name }} Check-in</button>
+      <p style="text-align:center; color:var(--color-text-tertiary); font-size:11.5px; margin-top:9px;">The room will immediately change to Occupied.</p>
+    </form>
+    {% endif %}
+  {% endif %}
+</div>
+
+{% if room and room_ready %}
+<script>
+(function() {
+  const form = document.getElementById('quick-checkin-form');
+  const platePanel = document.getElementById('plate-panel');
+  const guestPanel = document.getElementById('guest-panel');
+  const plateInput = document.getElementById('id_vehicle_registration');
+  const guestsInput = document.getElementById('id_num_guests');
+  const maxGuests = {{ room.max_guests }};
+
+  function updateIdentity() {
+    const selected = document.querySelector('[name="identity_mode"]:checked');
+    const mode = selected ? selected.value : 'plate';
+    platePanel.style.display = mode === 'plate' ? '' : 'none';
+    guestPanel.style.display = mode === 'existing' ? '' : 'none';
+    if (mode === 'plate') setTimeout(function() { plateInput.focus(); }, 0);
+  }
+  function updateSummary() {
+    const selected = document.querySelector('[name="duration"]:checked');
+    if (!selected) return;
+    document.getElementById('summary-total').textContent = 'R ' + selected.dataset.price;
+    document.getElementById('summary-checkout').textContent = selected.dataset.checkout;
+  }
+  function changeGuests(amount) {
+    const current = Number(guestsInput.value || 1);
+    guestsInput.value = Math.min(maxGuests, Math.max(1, current + amount));
+  }
+
+  document.querySelectorAll('[name="identity_mode"]').forEach(function(input) { input.addEventListener('change', updateIdentity); });
+  document.querySelectorAll('[name="duration"]').forEach(function(input) { input.addEventListener('change', updateSummary); });
+  document.getElementById('guests-minus').addEventListener('click', function() { changeGuests(-1); });
+  document.getElementById('guests-plus').addEventListener('click', function() { changeGuests(1); });
+  plateInput.addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+  form.addEventListener('submit', function(event) {
+    const button = document.getElementById('quick-submit');
+    if (form.dataset.submitting === 'true') {
+      event.preventDefault();
+      return;
+    }
+    form.dataset.submitting = 'true';
+    button.disabled = true;
+    button.textContent = 'Checking in...';
+  });
+  updateIdentity();
+  updateSummary();
+})();
+</script>
+{% endif %}
+{% endblock %}
