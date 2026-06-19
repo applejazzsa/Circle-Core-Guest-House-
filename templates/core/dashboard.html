@@ -6,27 +6,34 @@
 <style>
   .metric-card .metric-value { font-family: var(--font-body); letter-spacing: 0; }
 
-  .dash-metric-row  { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:16px; }
+  .dash-metric-row  { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:16px; }
   .dash-finance-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
   .dash-main-grid   { display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start; }
   .dash-ops-grid    { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
 
   @media (max-width:1200px) {
-    .dash-main-grid { grid-template-columns:1fr 280px; }
+    .dash-metric-row  { grid-template-columns:repeat(3,1fr); }
+    .dash-finance-row { grid-template-columns:repeat(4,1fr); }
+    .dash-main-grid   { grid-template-columns:1fr 280px; }
   }
   @media (max-width:1024px) {
-    .dash-metric-row, .dash-finance-row { grid-template-columns:repeat(2,1fr); }
+    .dash-metric-row  { grid-template-columns:repeat(3,1fr); }
+    .dash-finance-row { grid-template-columns:repeat(2,1fr); }
   }
-  @media (max-width:900px) {
-    .dash-main-grid { grid-template-columns:1fr; }
-    .dash-ops-grid  { grid-template-columns:1fr 1fr; }
+  @media (max-width:768px) {
+    .dash-metric-row  { grid-template-columns:repeat(2,1fr); gap:10px; }
+    .dash-finance-row { grid-template-columns:repeat(2,1fr); gap:10px; }
+    .dash-main-grid   { grid-template-columns:1fr; }
+    .dash-ops-grid    { grid-template-columns:1fr 1fr; }
+    /* Last lone card in odd position spans full row */
+    .dash-metric-row > *:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    .dash-finance-row > *:last-child:nth-child(odd) { grid-column: 1 / -1; }
   }
   @media (max-width:580px) {
-    .dash-metric-row, .dash-finance-row { grid-template-columns:repeat(2,1fr); gap:10px; }
-    .dash-ops-grid  { grid-template-columns:1fr; }
+    .dash-ops-grid { grid-template-columns:1fr; }
   }
   @media (max-width:420px) {
-    .dash-metric-row, .dash-finance-row { grid-template-columns:1fr; }
+    .dash-metric-row, .dash-finance-row { grid-template-columns:1fr; gap:8px; }
   }
 </style>
 
@@ -42,10 +49,10 @@
 <!-- ── Row 1: Room metrics ─────────────────────────────── -->
 {% if can_manage_system %}
 <div class="card" style="margin-bottom:18px; padding:16px 18px; border-left:3px solid {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#f59e0b{% else %}var(--color-green-500){% endif %};">
-  <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-    <div>
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:0;">
       <div class="section-label" style="margin-bottom:4px;">Owner Watch</div>
-      <div style="font-size:13.5px; color:var(--color-text-secondary);">
+      <div style="font-size:13.5px; color:var(--color-text-secondary); line-height:1.5;">
         {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}
         {{ owner_exception_count }} exception{{ owner_exception_count|pluralize }}, {{ owner_refund_count }} refund{{ owner_refund_count|pluralize }}, {{ owner_open_shift_count }} open shift{{ owner_open_shift_count|pluralize }} today.
         {% else %}
@@ -54,7 +61,7 @@
         {% if owner_locked_today %}<span style="color:var(--color-green-400); font-weight:700;">Daily close is locked.</span>{% else %}<span style="color:#f59e0b; font-weight:700;">Daily close is still open.</span>{% endif %}
       </div>
     </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <div style="display:flex; gap:8px; flex-shrink:0;">
       <a href="{% url 'core:audit_timeline' %}?date={{ today|date:'Y-m-d' }}" class="btn btn-ghost btn-sm">Audit Trail</a>
       <a href="{% url 'core:daily_close' %}?date={{ today|date:'Y-m-d' }}" class="btn btn-secondary btn-sm">Daily Close</a>
     </div>

@@ -443,13 +443,13 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><path d="M6 15h.01"/><path d="M10 15h4"/>
         </svg>
-        POS
+        <span>POS</span>
       </a>
       <a href="{% url 'core:booking_add' %}?source=Walk-in&status=Confirmed" class="btn btn-primary btn-sm">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
-        Walk-in
+        <span>Walk-in</span>
       </a>
       {% endif %}
     </div>
@@ -458,18 +458,18 @@
   <!-- Subscription banners -->
   {% if subscription and can_manage_system %}
     {% if subscription.is_trial and subscription.days_remaining <= 7 and subscription.days_remaining > 0 %}
-    <div style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18); padding:9px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+    <div class="site-notice" style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18);">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <span style="font-size:12.5px; color:#fbbf24; font-weight:500;">Trial expires in <strong>{{ subscription.days_remaining }} day{{ subscription.days_remaining|pluralize }}</strong></span>
       <a href="{% url 'core:plans_page' %}" style="font-size:12px; color:#f59e0b; font-weight:600; margin-left:8px; text-decoration:underline;">Upgrade now →</a>
     </div>
     {% elif subscription.is_trial and subscription.days_remaining > 7 %}
-    <div style="background:rgba(34,197,94,0.04); border-bottom:1px solid rgba(34,197,94,0.12); padding:8px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+    <div class="site-notice" style="background:rgba(34,197,94,0.04); border-bottom:1px solid rgba(34,197,94,0.12);">
       <span style="font-size:12px; color:var(--color-green-300);">Trial active · <strong>{{ subscription.days_remaining }} days</strong> remaining</span>
       <a href="{% url 'core:plans_page' %}" style="font-size:12px; color:var(--color-green-400); font-weight:500; margin-left:auto; text-decoration:none;">View plans →</a>
     </div>
     {% elif subscription.status == 'active' and subscription.days_remaining <= 7 %}
-    <div style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18); padding:9px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+    <div class="site-notice" style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18);">
       <span style="font-size:12.5px; color:#fbbf24; font-weight:500;">Subscription renews in <strong>{{ subscription.days_remaining }} days</strong></span>
       <a href="{% url 'core:subscription_status' %}" style="font-size:12px; color:#f59e0b; font-weight:600; margin-left:8px;">Manage →</a>
     </div>
@@ -477,7 +477,7 @@
   {% endif %}
 
   {% if is_cleaner and cleaning_notification_count > 0 %}
-  <div style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18); padding:9px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+  <div class="site-notice" style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18);">
     <span style="font-size:12.5px; color:#fbbf24; font-weight:500;">{{ cleaning_notification_count }} room{{ cleaning_notification_count|pluralize }} waiting for cleaning</span>
     <a href="{% url 'core:cleaning' %}" style="font-size:12px; color:#f59e0b; font-weight:600; margin-left:8px;">Open board</a>
   </div>
@@ -485,7 +485,7 @@
 
   <!-- Flash messages -->
   {% if messages %}
-  <div style="padding: 14px 28px 0; flex-shrink:0;">
+  <div class="site-notice" style="padding-top:14px; padding-bottom:0; flex-direction:column; align-items:stretch;">
     {% for message in messages %}
     <div data-message style="
       display:flex; align-items:center; gap:10px;
@@ -511,7 +511,7 @@
 
   <!-- Subscription state banners -->
   {% if request.subscription_state == 'grace' %}
-  <div style="background:rgba(245,158,11,0.08); border-bottom:1px solid rgba(245,158,11,0.25); padding:10px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+  <div class="site-notice" style="background:rgba(245,158,11,0.08); border-bottom:1px solid rgba(245,158,11,0.25);">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="3"/></svg>
     <span style="font-size:13px; color:#f59e0b; font-weight:500;">
       Your subscription has expired. You have <strong>{{ request.grace_days_left }} day{{ request.grace_days_left|pluralize }}</strong> remaining in your grace period before the account switches to read-only.
@@ -519,7 +519,7 @@
     <a href="mailto:support@circlecore.co.za?subject=Renew Subscription" style="margin-left:auto; font-size:12px; font-weight:600; color:#f59e0b; text-decoration:none; white-space:nowrap; border:1px solid rgba(245,158,11,0.4); padding:4px 12px; border-radius:6px;">Contact Us</a>
   </div>
   {% elif request.subscription_state == 'read_only' %}
-  <div style="background:rgba(239,68,68,0.08); border-bottom:1px solid rgba(239,68,68,0.25); padding:10px 28px; display:flex; align-items:center; gap:10px; flex-shrink:0;">
+  <div class="site-notice" style="background:rgba(239,68,68,0.08); border-bottom:1px solid rgba(239,68,68,0.25);">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     <span style="font-size:13px; color:#f87171; font-weight:500;">
       Read-only mode — your data is safe but you cannot create or edit records until your subscription is renewed.
@@ -626,18 +626,31 @@
 }
 
 @media (max-width: 1024px) {
-  #sidebar { position: fixed; transform: translateX(-100%); }
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    height: 100dvh;
+    transform: translateX(-100%);
+    z-index: 200;
+  }
   #sidebar.open { transform: translateX(0); }
-  #hamburger { display: flex !important; }
+  #sidebar-overlay { z-index: 150; }
   #sidebar-overlay.visible { display: block !important; }
+  #hamburger { display: flex !important; }
   .topbar-search { display: none !important; }
-  .topbar-header { padding: 0 14px !important; gap: 10px !important; }
+  .topbar-header { padding: 0 14px !important; gap: 8px !important; }
   .topbar-actions .btn span { display: none; }
   .main-content { padding: 16px 14px 32px !important; }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .topbar-actions .btn-secondary { display: none !important; }
+}
+
+@media (max-width: 480px) {
+  .topbar-actions .btn-primary { min-width: 36px; }
 }
 </style>
 <script>

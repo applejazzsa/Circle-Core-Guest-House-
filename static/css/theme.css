@@ -932,7 +932,13 @@ textarea.form-input { resize: vertical; min-height: 100px; }
 @media (max-width: 768px) {
   .main-content { padding: 16px 16px 32px !important; }
   .page-header { margin-bottom: 20px !important; }
-  .metric-card .metric-value { font-size: 1.75rem !important; }
+  .metric-card .metric-value { font-size: 1.6rem !important; }
+  .metric-card { padding: 14px !important; }
+}
+
+@media (max-width: 480px) {
+  .metric-card .metric-value { font-size: 1.4rem !important; }
+  .metric-card .metric-sub { font-size: 11px; }
 }
 
 @media (max-width: 1024px) {
@@ -1425,6 +1431,39 @@ textarea.form-input { resize: vertical; min-height: 100px; }
   .pos-items-grid { grid-template-columns: repeat(2, 1fr); }
   .pos-quick-grid { grid-template-columns: repeat(3, 1fr); }
   .pos-payment-methods { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── Topbar responsive ── */
+@media (max-width: 768px) {
+  /* Tighten property name max-width so topbar doesn't overflow */
+  .topbar-header { gap: 8px; }
+}
+
+@media (max-width: 480px) {
+  /* Hide property switcher label text, keep name readable */
+  .prop-label-text { display: none; }
+}
+
+/* ── Section label tighter on mobile ── */
+@media (max-width: 640px) {
+  .section-label { font-size: 9px; }
+}
+
+/* ── Site notice banners (subscription/flash) ── */
+.site-notice {
+  padding: 9px 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .site-notice {
+    padding: 9px 14px !important;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 }
 
 /* ── Print styles ── */
