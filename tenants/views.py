@@ -122,7 +122,7 @@ def pwa_manifest(request):
 
 def service_worker(request):
     script = """
-const CACHE_NAME = 'circle-core-shell-v2';
+const CACHE_NAME = 'circle-core-shell-v3';
 const CORE_ASSETS = [
   '/static/css/theme.css',
   '/static/js/offline-reception.js',
@@ -170,8 +170,10 @@ self.addEventListener('fetch', event => {
   if (url.pathname.startsWith('/static/') || url.pathname === '/manifest.webmanifest') {
     event.respondWith(
       caches.match(request).then(cached => cached || fetch(request).then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+        }
         return response;
       }))
     );

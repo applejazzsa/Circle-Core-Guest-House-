@@ -84,8 +84,9 @@ proxy_set_header X-Forwarded-Proto https;
 proxy_set_header X-Forwarded-Host $host;
 ```
 
-Adjust Docker volume alias paths if your Compose project name differs from
-`circle-core-guest-house`.
+Static requests are proxied to WhiteNoise in `guesthouse-web`. This deliberately
+avoids hard-coded Docker volume paths, which vary with the Compose project name
+and can serve a stale static manifest.
 
 ## Build And Start
 
@@ -93,6 +94,7 @@ Adjust Docker volume alias paths if your Compose project name differs from
 git pull
 docker compose -f docker-compose.production.yml build --no-cache guesthouse-web
 docker compose -f docker-compose.production.yml up -d
+docker cp docker/nginx/guesthouse.circlecore.co.za.conf circlecore-nginx:/etc/nginx/conf.d/guesthouse.circlecore.co.za.conf
 docker exec -it circlecore-nginx nginx -t
 docker restart circlecore-nginx
 ```
@@ -114,6 +116,7 @@ docker compose -f docker-compose.production.yml exec guesthouse-web python manag
 ```bash
 docker compose -f docker-compose.production.yml exec guesthouse-web python manage.py check --deploy --settings=config.settings_production
 docker compose -f docker-compose.production.yml exec guesthouse-web python manage.py showmigrations --settings=config.settings_production
+docker compose -f docker-compose.production.yml exec guesthouse-web python manage.py verify_static_assets --settings=config.settings_production
 docker compose -f docker-compose.production.yml exec guesthouse-web python manage.py test_email support@circlecore.co.za --settings=config.settings_production
 ```
 

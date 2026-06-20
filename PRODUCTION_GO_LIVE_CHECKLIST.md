@@ -10,6 +10,8 @@ Do not mark the app production-ready unless every required gate below is passed 
 - `python manage.py migrate_schemas --noinput --settings=config.settings_production` completes.
 - `python manage.py test core` passes against PostgreSQL.
 - Static files collect successfully with `python manage.py collectstatic --noinput --settings=config.settings_production`.
+- `python manage.py verify_static_assets --settings=config.settings_production` confirms every required manifest file exists.
+- The public CSS URL returned by `verify_static_assets` responds with HTTP 200 through nginx.
 
 ## Backup and Restore
 
