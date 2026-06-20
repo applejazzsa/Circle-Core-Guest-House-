@@ -38,27 +38,35 @@
 </style>
 
 <!-- Page header -->
-<div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px;">
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px;">
   <div>
-    <div class="section-label">Overview</div>
-    <h1 class="page-title">Dashboard</h1>
+    <div class="section-label" style="letter-spacing:0.14em; margin-bottom:4px;">Overview</div>
+    <h1 class="page-title page-title-gradient" style="font-size:2rem; font-weight:800; letter-spacing:-0.025em;">Dashboard</h1>
   </div>
-  <div style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-tertiary);">{{ today|date:"D, d M Y" }}</div>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <div style="width:7px; height:7px; border-radius:50%; background:var(--color-green-500); animation:dot-pulse 2.4s ease-in-out infinite; box-shadow:0 0 6px var(--color-green-500);"></div>
+    <div style="font-family:var(--font-mono); font-size:11.5px; color:var(--color-text-tertiary);">{{ today|date:"D, d M Y" }}</div>
+  </div>
 </div>
 
 <!-- ── Row 1: Room metrics ─────────────────────────────── -->
 {% if can_manage_system %}
-<div class="card" style="margin-bottom:18px; padding:16px 18px; border-left:3px solid {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#f59e0b{% else %}var(--color-green-500){% endif %};">
+<div class="owner-watch-card card" style="margin-bottom:20px; padding:16px 20px; border-left:3px solid {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#f59e0b{% else %}var(--color-green-500){% endif %}; border-color: {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}rgba(245,158,11,0.3){% else %}rgba(34,197,94,0.25){% endif %};">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-    <div style="flex:1; min-width:0;">
-      <div class="section-label" style="margin-bottom:4px;">Owner Watch</div>
-      <div style="font-size:13.5px; color:var(--color-text-secondary); line-height:1.5;">
-        {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}
-        {{ owner_exception_count }} exception{{ owner_exception_count|pluralize }}, {{ owner_refund_count }} refund{{ owner_refund_count|pluralize }}, {{ owner_open_shift_count }} open shift{{ owner_open_shift_count|pluralize }} today.
-        {% else %}
-        No risky activity flagged today.
-        {% endif %}
-        {% if owner_locked_today %}<span style="color:var(--color-green-400); font-weight:700;">Daily close is locked.</span>{% else %}<span style="color:#f59e0b; font-weight:700;">Daily close is still open.</span>{% endif %}
+    <div style="display:flex; align-items:center; gap:14px; flex:1; min-width:0;">
+      <div style="width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:{% if owner_exception_count or owner_refund_count or owner_open_shift_count %}rgba(245,158,11,0.1){% else %}rgba(34,197,94,0.1){% endif %}; border:1px solid {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}rgba(245,158,11,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#f59e0b{% else %}#22c55e{% endif %}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.4 9.4-8 10-4.6-.6-8-5-8-10V6l8-4z"/></svg>
+      </div>
+      <div style="min-width:0;">
+        <div class="section-label" style="margin-bottom:2px; color:{% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#f59e0b{% else %}var(--color-green-500){% endif %};">Owner Watch</div>
+        <div style="font-size:13px; color:var(--color-text-secondary); line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}
+          {{ owner_exception_count }} exception{{ owner_exception_count|pluralize }}, {{ owner_refund_count }} refund{{ owner_refund_count|pluralize }}, {{ owner_open_shift_count }} open shift{{ owner_open_shift_count|pluralize }} today —
+          {% else %}
+          No risky activity flagged today —
+          {% endif %}
+          {% if owner_locked_today %}<span style="color:var(--color-green-400); font-weight:700;">Daily close is locked.</span>{% else %}<span style="color:#f59e0b; font-weight:700;">Daily close is still open.</span>{% endif %}
+        </div>
       </div>
     </div>
     <div style="display:flex; gap:8px; flex-shrink:0;">
@@ -71,55 +79,55 @@
 
 <div class="dash-metric-row">
 
-  <div class="metric-card" style="--accent-color:var(--color-green-500);">
+  <div class="metric-card glow-animate" style="--accent-color:var(--color-green-500); --glow-clr:var(--glow-green); --accent-border:rgba(34,197,94,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div class="metric-label">Total Rooms</div>
-      <div class="metric-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+      <div class="metric-icon" style="--icon-from:rgba(34,197,94,0.2); --icon-to:rgba(34,197,94,0.05); --icon-border:rgba(34,197,94,0.3); --icon-color:var(--color-green-400);">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
       </div>
     </div>
     <div class="metric-value">{{ total_rooms }}</div>
     <div class="metric-sub">rooms configured</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:#ef4444;">
+  <div class="metric-card" style="--accent-color:#ef4444; --glow-clr:var(--glow-red); --accent-border:rgba(239,68,68,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div class="metric-label">Booked</div>
-      <div class="metric-icon" style="background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.25); color:#f87171;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <div class="metric-icon" style="--icon-from:rgba(239,68,68,0.2); --icon-to:rgba(239,68,68,0.05); --icon-border:rgba(239,68,68,0.3); --icon-color:#f87171;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </div>
     </div>
     <div class="metric-value">{{ booked_rooms }}</div>
     <div class="metric-sub">confirmed reservations</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:var(--color-blue);">
+  <div class="metric-card" style="--accent-color:var(--color-blue); --glow-clr:var(--glow-blue); --accent-border:rgba(59,130,246,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div class="metric-label">Occupied</div>
-      <div class="metric-icon" style="background:rgba(59,130,246,0.1); border-color:rgba(59,130,246,0.25); color:#60a5fa;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      <div class="metric-icon" style="--icon-from:rgba(59,130,246,0.2); --icon-to:rgba(59,130,246,0.05); --icon-border:rgba(59,130,246,0.3); --icon-color:#60a5fa;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
       </div>
     </div>
     <div class="metric-value">{{ occupied_rooms }}</div>
     <div class="metric-sub">{{ occupied_capacity_rate }}% of capacity</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:var(--color-green-500);">
+  <div class="metric-card" style="--accent-color:var(--color-green-500); --glow-clr:var(--glow-green); --accent-border:rgba(34,197,94,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div class="metric-label">Available</div>
-      <div class="metric-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <div class="metric-icon" style="--icon-from:rgba(34,197,94,0.2); --icon-to:rgba(34,197,94,0.05); --icon-border:rgba(34,197,94,0.3); --icon-color:var(--color-green-400);">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
     </div>
     <div class="metric-value">{{ available_rooms }}</div>
     <div class="metric-sub">of {{ total_rooms }} total</div>
   </div>
 
-  <a href="{% url 'core:cleaning' %}" class="metric-card" style="--accent-color:var(--color-amber); text-decoration:none;">
+  <a href="{% url 'core:cleaning' %}" class="metric-card" style="--accent-color:var(--color-amber); --glow-clr:var(--glow-amber); --accent-border:rgba(245,158,11,0.3); text-decoration:none;">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div class="metric-label">Needs Cleaning</div>
-      <div class="metric-icon" style="background:rgba(245,158,11,0.1); border-color:rgba(245,158,11,0.25); color:#f59e0b;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6v14m8-14v14M5 20h14"/></svg>
+      <div class="metric-icon" style="--icon-from:rgba(245,158,11,0.2); --icon-to:rgba(245,158,11,0.05); --icon-border:rgba(245,158,11,0.3); --icon-color:#fbbf24;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6v14m8-14v14M5 20h14"/></svg>
       </div>
     </div>
     <div class="metric-value">{{ rooms_needing_cleaning }}</div>
@@ -130,29 +138,29 @@
 <!-- ── Row 2: Finance metrics ─────────────────────────── -->
 <div class="dash-finance-row">
 
-  <div class="metric-card" style="--accent-color:var(--color-green-500);">
+  <div class="metric-card" style="--accent-color:var(--color-green-500); --glow-clr:var(--glow-green); --accent-border:rgba(34,197,94,0.3);">
     <div class="metric-label">Revenue This Month</div>
-    <div class="metric-value" style="font-size:1.75rem;">R {{ monthly_revenue }}</div>
+    <div class="metric-value" style="font-size:1.85rem; margin-top:12px;">{{ guest_house_settings.currency|default:"R" }} {{ monthly_revenue }}</div>
     <div class="metric-sub">collected payments</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:{% if outstanding_balances > 0 %}var(--color-red){% else %}var(--color-green-500){% endif %};">
+  <div class="metric-card" style="--accent-color:{% if outstanding_balances > 0 %}var(--color-red){% else %}var(--color-green-500){% endif %}; --glow-clr:{% if outstanding_balances > 0 %}var(--glow-red){% else %}var(--glow-green){% endif %}; --accent-border:{% if outstanding_balances > 0 %}rgba(239,68,68,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
     <div class="metric-label">Outstanding</div>
-    <div class="metric-value" style="font-size:1.75rem; color:{% if outstanding_balances > 0 %}#f87171{% else %}var(--color-text-primary){% endif %};">
-      R {{ outstanding_balances }}
+    <div class="metric-value" style="font-size:1.85rem; margin-top:12px; {% if outstanding_balances > 0 %}-webkit-text-fill-color:#f87171; color:#f87171;{% endif %}">
+      {{ guest_house_settings.currency|default:"R" }} {{ outstanding_balances }}
     </div>
     <div class="metric-sub">{% if outstanding_balances > 0 %}requires collection{% else %}all settled{% endif %}</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:var(--color-blue);">
+  <div class="metric-card" style="--accent-color:var(--color-blue); --glow-clr:var(--glow-blue); --accent-border:rgba(59,130,246,0.3);">
     <div class="metric-label">Bookings This Month</div>
-    <div class="metric-value">{{ bookings_this_month }}</div>
+    <div class="metric-value" style="margin-top:12px;">{{ bookings_this_month }}</div>
     <div class="metric-sub">active arrivals</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:var(--color-purple);">
+  <div class="metric-card" style="--accent-color:var(--color-purple); --glow-clr:var(--glow-purple); --accent-border:rgba(139,92,246,0.3);">
     <div class="metric-label">Occupancy Rate</div>
-    <div class="metric-value" style="color:var(--color-purple);">{{ occupancy_rate }}%</div>
+    <div class="metric-value" style="margin-top:12px; -webkit-text-fill-color:#a78bfa; color:#a78bfa;">{{ occupancy_rate }}%</div>
     <div class="metric-sub">month to date</div>
   </div>
 </div>
@@ -165,14 +173,14 @@
 
     <!-- Revenue chart -->
     <div class="card" style="padding:24px;">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
         <div>
           <div class="section-label">Revenue Trend</div>
-          <div style="font-family:var(--font-display); font-size:16px; font-weight:600; color:var(--color-text-primary); margin-top:2px;">Last 6 Months</div>
+          <div style="font-family:var(--font-display); font-size:17px; font-weight:700; color:var(--color-text-primary); margin-top:3px; letter-spacing:-0.01em;">Last 6 Months</div>
         </div>
         <a href="{% url 'core:reports' %}" class="btn btn-ghost btn-sm">View Reports</a>
       </div>
-      <div style="height:200px; position:relative;">
+      <div class="chart-wrapper" style="height:200px; position:relative; border-radius:var(--radius-md); padding:4px 0;">
         <canvas id="revenueChart"></canvas>
       </div>
     </div>
@@ -420,16 +428,29 @@
   const raw = JSON.parse(document.getElementById('revenue-data').textContent || '[]');
   const ctx = document.getElementById('revenueChart');
   if (!ctx || !window.Chart || !raw.length) return;
+
+  const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 200);
+  gradient.addColorStop(0,   'rgba(34, 197, 94, 0.35)');
+  gradient.addColorStop(0.5, 'rgba(34, 197, 94, 0.08)');
+  gradient.addColorStop(1,   'rgba(34, 197, 94, 0)');
+
   new Chart(ctx, {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: raw.map(d => d.month_label),
       datasets: [{
         data: raw.map(d => d.revenue),
-        backgroundColor: 'rgba(34, 197, 94, 0.7)',
-        hoverBackgroundColor: '#22c55e',
-        borderRadius: 6,
-        barThickness: 32,
+        fill: true,
+        backgroundColor: gradient,
+        borderColor: '#22c55e',
+        borderWidth: 2.5,
+        pointBackgroundColor: '#22c55e',
+        pointBorderColor: '#0d0f12',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        pointHoverBackgroundColor: '#4ade80',
+        tension: 0.45,
       }]
     },
     options: {
@@ -437,14 +458,16 @@
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#1a1e26',
-          borderColor: '#2a3142',
+          backgroundColor: 'rgba(17,20,27,0.95)',
+          borderColor: 'rgba(34,197,94,0.25)',
           borderWidth: 1,
           titleColor: '#94a3b8',
           bodyColor: '#f1f5f9',
-          padding: 10,
+          padding: 12,
+          cornerRadius: 10,
+          displayColors: false,
           callbacks: {
-            label: ctx => `R ${ctx.parsed.y.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}`
+            label: ctx => `  R ${ctx.parsed.y.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}`
           }
         }
       },
@@ -452,18 +475,24 @@
         x: {
           grid: { display: false },
           border: { display: false },
-          ticks: { color: '#64748b', font: { family: "'Inter', sans-serif", size: 11 } }
+          ticks: { color: '#475569', font: { family: "'Inter', sans-serif", size: 11 } }
         },
         y: {
           beginAtZero: true,
-          grid: { color: 'rgba(30,36,51,0.8)', drawBorder: false },
-          border: { display: false },
+          grid: { color: 'rgba(30,36,51,0.6)', drawBorder: false },
+          border: { display: false, dash: [4, 4] },
           ticks: {
-            color: '#64748b',
+            color: '#475569',
             font: { family: "'JetBrains Mono', monospace", size: 10 },
-            callback: v => `R${(v/1000).toFixed(0)}k`
+            callback: v => `R${(v/1000).toFixed(0)}k`,
+            maxTicksLimit: 5,
           }
         }
+      },
+      interaction: { mode: 'index', intersect: false },
+      animation: {
+        duration: 900,
+        easing: 'easeInOutQuart',
       }
     }
   });
