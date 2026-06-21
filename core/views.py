@@ -2175,8 +2175,6 @@ def payment_add(request, booking_id):
             payment = form.save(commit=False)
             if _is_date_locked(payment.payment_date):
                 return _locked_day_response(request, payment.payment_date, "core:booking_detail", pk=booking.pk)
-            if payment.payment_method == "Cash" and not _cash_shift_required(request):
-                return redirect("core:payment_add", booking_id=booking.pk)
             payment.booking = booking
             totals = booking.payment_totals()
             balance_due = totals["balance_due"]
