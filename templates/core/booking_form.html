@@ -211,8 +211,13 @@
 
       <!-- Identity mode toggle -->
       <div style="display:flex; gap:0; margin-bottom:20px; border:1px solid var(--color-border-bright); border-radius:var(--radius-md); overflow:hidden;">
-        <button type="button" id="id-tab-guest" onclick="setIdentityMode('guest')"
+        <button type="button" id="id-tab-walk-in" onclick="setIdentityMode('walk_in')"
           style="flex:1; padding:10px 0; font-size:12px; font-weight:700; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; background:var(--color-green-500); color:#fff; transition:background 0.15s, color 0.15s;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 21h14"/></svg>
+          Walk-in Guest
+        </button>
+        <button type="button" id="id-tab-guest" onclick="setIdentityMode('guest')"
+          style="flex:1; padding:10px 0; font-size:12px; font-weight:700; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; background:var(--color-bg-subtle); color:var(--color-text-secondary); transition:background 0.15s, color 0.15s;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Guest Profile
         </button>
@@ -223,15 +228,32 @@
         </button>
       </div>
 
+      <!-- Default walk-in panel -->
+      <div id="id-panel-walk-in">
+        <div style="padding:14px 16px; border:1px solid var(--color-green-border); border-radius:var(--radius-md); background:var(--color-green-glow); display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:flex-start; gap:10px; min-width:220px; flex:1;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-green-400)" stroke-width="2" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+            <div>
+              <div style="font-size:13px; font-weight:700; color:var(--color-text-primary);">Walk-in guest selected</div>
+              <div style="font-size:12px; color:var(--color-text-secondary); margin-top:3px;">No guest details are required. You can create a profile or use a vehicle number instead.</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="setIdentityMode('guest')">Choose guest</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="setIdentityMode('plate')">Use vehicle</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Guest profile panel -->
-      <div id="id-panel-guest">
+      <div id="id-panel-guest" style="display:none;">
         <div class="grid-2" style="gap:16px;">
           <div class="form-group" style="grid-column:1/-1;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
               <label class="form-label" for="{{ form.guest.id_for_label }}" style="margin-bottom:0;">Guest</label>
               <button type="button" id="open-quick-guest" style="background:none; border:none; cursor:pointer; font-size:12px; font-weight:600; color:var(--color-green-400); padding:2px 0; display:flex; align-items:center; gap:4px;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Guest or Vehicle
+                Create New Guest
               </button>
             </div>
             {{ form.guest }}
@@ -423,18 +445,25 @@
     return true;
   }
 
-  // ── Identity mode (Guest Profile vs Number Plate) ──────────────────────────
+  // ── Identity mode (Walk-in vs Guest Profile vs Vehicle Number) ─────────────
   window.setIdentityMode = function(mode) {
     var isGuest = mode === 'guest';
-    if (identityModeInput) identityModeInput.value = isGuest ? 'guest' : 'plate';
+    var isPlate = mode === 'plate';
+    var selectedMode = isGuest ? 'guest' : (isPlate ? 'plate' : 'walk_in');
+    if (identityModeInput) identityModeInput.value = selectedMode;
+    document.getElementById('id-panel-walk-in').style.display = selectedMode === 'walk_in' ? '' : 'none';
     document.getElementById('id-panel-guest').style.display = isGuest ? '' : 'none';
-    document.getElementById('id-panel-plate').style.display = isGuest ? 'none' : '';
+    document.getElementById('id-panel-plate').style.display = isPlate ? '' : 'none';
+    document.getElementById('id-tab-walk-in').style.background = selectedMode === 'walk_in' ? 'var(--color-green-500)' : 'var(--color-bg-subtle)';
+    document.getElementById('id-tab-walk-in').style.color = selectedMode === 'walk_in' ? '#fff' : 'var(--color-text-secondary)';
     document.getElementById('id-tab-guest').style.background = isGuest ? 'var(--color-green-500)' : 'var(--color-bg-subtle)';
     document.getElementById('id-tab-guest').style.color      = isGuest ? '#fff' : 'var(--color-text-secondary)';
-    document.getElementById('id-tab-plate').style.background = isGuest ? 'var(--color-bg-subtle)' : 'var(--color-green-500)';
-    document.getElementById('id-tab-plate').style.color      = isGuest ? 'var(--color-text-secondary)' : '#fff';
-    if (!isGuest) {
+    document.getElementById('id-tab-plate').style.background = isPlate ? 'var(--color-green-500)' : 'var(--color-bg-subtle)';
+    document.getElementById('id-tab-plate').style.color      = isPlate ? '#fff' : 'var(--color-text-secondary)';
+    if (isPlate) {
       setTimeout(function() { if (plateInput) plateInput.focus(); }, 50);
+    } else if (isGuest) {
+      setTimeout(function() { if (guestSelect) guestSelect.focus(); }, 50);
     }
   };
 
@@ -720,7 +749,7 @@
     if (wk) wk.checked = true;
   }
   setMode(activeMode(), false);
-  setIdentityMode('{{ form.identity_mode.value|default:"guest"|escapejs }}');
+  setIdentityMode('{{ form.identity_mode.value|default:"walk_in"|escapejs }}');
   if (plateInput && plateInput.value) plateInput.dispatchEvent(new Event('input'));
 
   // Prevent double-submit on the regular form submit button

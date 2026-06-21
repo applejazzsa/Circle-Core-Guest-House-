@@ -327,8 +327,12 @@ class GuestForm(forms.ModelForm):
 
 
 class BookingForm(forms.ModelForm):
-    IDENTITY_CHOICES = (("guest", "Guest profile"), ("plate", "Number plate"))
-    identity_mode = forms.ChoiceField(choices=IDENTITY_CHOICES, initial="guest", widget=forms.HiddenInput)
+    IDENTITY_CHOICES = (
+        ("walk_in", "Walk-in guest"),
+        ("guest", "Guest profile"),
+        ("plate", "Vehicle number"),
+    )
+    identity_mode = forms.ChoiceField(choices=IDENTITY_CHOICES, initial="walk_in", widget=forms.HiddenInput)
 
     class Meta:
         model = Booking
@@ -367,8 +371,13 @@ class BookingForm(forms.ModelForm):
         self.fields["guest"].queryset = Guest.objects.filter(is_generic=False)
         self.fields["guest"].label_from_instance = lambda obj: f"{obj.full_name} ({obj.phone})"
         self.fields["room"].label_from_instance = lambda obj: f"{obj.name} ({obj.room_type})"
-        if not self.is_bound and self.instance.pk and self.instance.vehicle_registration:
-            self.initial["identity_mode"] = "plate"
+        if not self.is_bound and self.instance.pk:
+            if self.instance.vehicle_registration:
+                self.initial["identity_mode"] = "plate"
+            elif self.instance.guest.is_generic:
+                self.initial["identity_mode"] = "walk_in"
+            else:
+                self.initial["identity_mode"] = "guest"
 
     def clean(self):
         cleaned_data = super().clean()
@@ -380,7 +389,7 @@ class BookingForm(forms.ModelForm):
         num_guests = cleaned_data.get("num_guests")
         discount = cleaned_data.get("discount") or 0
         deposit_required = cleaned_data.get("deposit_required") or 0
-        identity_mode = cleaned_data.get("identity_mode") or "guest"
+        identity_mode = cleaned_data.get("identity_mode") or "walk_in"
         vehicle_registration = (cleaned_data.get("vehicle_registration") or "").strip().upper()
         cleaned_data["vehicle_registration"] = vehicle_registration
 
@@ -388,6 +397,9 @@ class BookingForm(forms.ModelForm):
             if not vehicle_registration:
                 self.add_error("vehicle_registration", "Enter the vehicle number plate.")
             cleaned_data["guest"] = Guest.get_generic()
+        elif identity_mode == "walk_in":
+            cleaned_data["guest"] = Guest.get_generic()
+            cleaned_data["vehicle_registration"] = ""
         elif not cleaned_data.get("guest") or cleaned_data["guest"].is_generic:
             self.add_error("guest", "Select a guest or use Number Plate.")
 

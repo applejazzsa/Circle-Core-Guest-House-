@@ -2012,8 +2012,8 @@ def booking_add(request):
         and initial.get("check_in_date") == timezone.localdate()
     )
     identity_mode = request.POST.get("identity_mode") if request.method == "POST" else None
-    if identity_mode not in {"guest", "plate"}:
-        identity_mode = "plate" if initial.get("booking_source") == "Walk-in" and not guest_id else "guest"
+    if identity_mode not in {"walk_in", "guest", "plate"}:
+        identity_mode = "guest" if guest_id else "walk_in"
     initial["identity_mode"] = identity_mode
 
     if request.method == "POST":

@@ -534,6 +534,8 @@ class BookingFlowTest(CircleCoreTenantTestCase):
         self.assertNotIn('id="book-now-btn"', content)
         self.assertIn('id="booking-form"', content)
         self.assertFalse(response.context["form"].fields["guest"].queryset.filter(is_generic=True).exists())
+        self.assertEqual(response.context["form"]["identity_mode"].value(), "walk_in")
+        self.assertIn("Walk-in guest selected", content)
 
     def test_quick_identity_modal_is_accessible_and_updates_main_modes(self):
         response = self.client.get(reverse("core:booking_add"))
@@ -551,6 +553,38 @@ class BookingFlowTest(CircleCoreTenantTestCase):
         response = self.client.get(reverse("core:booking_edit", args=[booking.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["form"]["identity_mode"].value(), "plate")
+
+    def test_editing_walk_in_booking_opens_in_walk_in_mode(self):
+        booking = make_booking(self.room, Guest.get_generic())
+        response = self.client.get(reverse("core:booking_edit", args=[booking.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["form"]["identity_mode"].value(), "walk_in")
+
+    def test_default_walk_in_booking_requires_no_guest_or_vehicle(self):
+        check_in = timezone.localdate() + datetime.timedelta(days=1)
+        response = self.client.post(
+            reverse("core:booking_add"),
+            {
+                "identity_mode": "walk_in",
+                "guest": "",
+                "room": self.room.pk,
+                "check_in_date": check_in.isoformat(),
+                "check_out_date": (check_in + datetime.timedelta(days=1)).isoformat(),
+                "num_guests": 1,
+                "booking_duration_type": "daily",
+                "rate_per_night": self.room.price_per_night,
+                "discount": "0.00",
+                "deposit_required": "0.00",
+                "booking_source": "Walk-in",
+                "status": "Confirmed",
+                "vehicle_registration": "",
+                "notes": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        booking = Booking.objects.get(room=self.room)
+        self.assertTrue(booking.guest.is_generic)
+        self.assertEqual(booking.vehicle_registration, "")
 
     def test_number_plate_booking_uses_walk_in_guest_without_guest_selection(self):
         check_in = timezone.localdate() + datetime.timedelta(days=1)
