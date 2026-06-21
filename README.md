@@ -161,7 +161,6 @@ All tenant-specific commands require `--schema <schema_name>`. Use `list_tenants
 | `send_trial_reminders --dry-run` | Preview without sending |
 | `backup_local` | pg_dump + media zip backup |
 | `backup_local --output /path/to/dir` | Write backup to a specific directory |
-| `seed_pos_items --schema <name>` | Seed default POS items for a tenant |
 
 ### Examples
 
