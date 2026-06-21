@@ -12,186 +12,268 @@
   </div>
 </div>
 
-<div style="display:grid; grid-template-columns:1fr 1.35fr; gap:20px; max-width:900px;">
+<div style="display:grid; grid-template-columns:340px 1fr; gap:20px; max-width:960px; align-items:start;">
 
-  <!-- Booking Summary -->
+  <!-- LEFT: Booking Summary -->
   <div style="display:flex; flex-direction:column; gap:14px;">
-    <div class="card" style="padding:20px;">
-      <div class="section-label" style="margin-bottom:16px;">Booking Summary</div>
-      <div style="font-family:var(--font-mono); font-size:13px; color:var(--color-green-400); font-weight:500; margin-bottom:12px;">{{ booking.booking_reference }}</div>
 
-      <div class="detail-row">
-        <span class="detail-label">Guest</span>
-        <span class="detail-value" style="font-weight:500;">{{ booking.guest.full_name }}</span>
+    <!-- Reference card -->
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="background:linear-gradient(135deg,rgba(34,197,94,0.12),rgba(34,197,94,0.04)); border-bottom:1px solid rgba(34,197,94,0.15); padding:14px 18px;">
+        <div style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:4px;">Booking Reference</div>
+        <div style="font-family:var(--font-mono); font-size:14px; color:var(--color-green-400); font-weight:600;">{{ booking.booking_reference }}</div>
       </div>
-      <div class="detail-row">
-        <span class="detail-label">Room</span>
-        <span class="detail-value">{{ booking.room.name }}</span>
-      </div>
-      <div class="detail-row" style="border-bottom:none; padding-bottom:0;">
-        <span class="detail-label">Dates</span>
-        <span class="detail-value" style="font-family:var(--font-mono); font-size:12px;">{{ booking.check_in_date|date:"d M Y" }} – {{ booking.check_out_date|date:"d M Y" }}</span>
+      <div style="padding:16px 18px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:12px; color:var(--color-text-muted);">Guest</span>
+          <span style="font-size:13px; font-weight:600; color:var(--color-text-primary);">{{ booking.guest.full_name }}</span>
+        </div>
+        <div style="height:1px; background:var(--color-border);"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:12px; color:var(--color-text-muted);">Room</span>
+          <span style="font-size:13px; font-weight:600; color:var(--color-text-primary);">{{ booking.room.name }}</span>
+        </div>
+        <div style="height:1px; background:var(--color-border);"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:12px; color:var(--color-text-muted);">Dates</span>
+          <span style="font-family:var(--font-mono); font-size:11px; color:var(--color-text-secondary);">{{ booking.check_in_date|date:"d M Y" }} – {{ booking.check_out_date|date:"d M Y" }}</span>
+        </div>
       </div>
     </div>
 
-    <div class="card" style="padding:20px; border-top:3px solid var(--color-green-500);">
-      <div class="section-label" style="margin-bottom:8px;">Total Amount</div>
-      <div style="font-family:var(--font-mono); font-size:22px; font-weight:700; color:var(--color-text-primary);">R {{ booking.total_amount|floatformat:2 }}</div>
+    <!-- Totals -->
+    <div class="card" style="padding:18px; background:linear-gradient(135deg,rgba(34,197,94,0.06),rgba(16,163,74,0.02));">
+      <div style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:10px;">Total Amount</div>
+      <div style="font-family:var(--font-mono); font-size:28px; font-weight:800; color:var(--color-text-primary); letter-spacing:-0.5px;">R {{ booking.total_amount|floatformat:2 }}</div>
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-      <div class="card" style="padding:16px; border-top:3px solid var(--color-green-500);">
-        <div class="section-label" style="margin-bottom:6px; color:var(--color-green-400);">Paid</div>
-        <div style="font-family:var(--font-mono); font-size:16px; font-weight:600; color:var(--color-green-400);">R {{ payment_totals.total_paid|floatformat:2 }}</div>
+      <div class="card" style="padding:14px 16px; border-top:2px solid var(--color-green-500);">
+        <div style="font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--color-green-400); margin-bottom:6px;">Paid</div>
+        <div style="font-family:var(--font-mono); font-size:17px; font-weight:700; color:var(--color-green-400);">R {{ payment_totals.total_paid|floatformat:2 }}</div>
       </div>
-      <div class="card" style="padding:16px; border-top:3px solid {% if payment_totals.balance_due > 0 %}#ef4444{% else %}var(--color-green-500){% endif %};">
-        <div class="section-label" style="margin-bottom:6px; color:{% if payment_totals.balance_due > 0 %}#f87171{% else %}var(--color-green-400){% endif %};">Balance</div>
-        <div style="font-family:var(--font-mono); font-size:16px; font-weight:600; color:{% if payment_totals.balance_due > 0 %}#f87171{% else %}var(--color-green-400){% endif %};">R {{ payment_totals.balance_due|floatformat:2 }}</div>
+      <div class="card" style="padding:14px 16px; border-top:2px solid {% if payment_totals.balance_due > 0 %}#ef4444{% else %}var(--color-green-500){% endif %};">
+        <div style="font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:{% if payment_totals.balance_due > 0 %}#f87171{% else %}var(--color-green-400){% endif %}; margin-bottom:6px;">Balance</div>
+        <div style="font-family:var(--font-mono); font-size:17px; font-weight:700; color:{% if payment_totals.balance_due > 0 %}#f87171{% else %}var(--color-green-400){% endif %};">R {{ payment_totals.balance_due|floatformat:2 }}</div>
       </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Payment Form -->
+  <div class="card" style="padding:0; overflow:hidden;">
+
+    <!-- Header bar -->
+    <div style="padding:18px 24px; border-bottom:1px solid var(--color-border); background:linear-gradient(135deg,rgba(34,197,94,0.06),transparent);">
+      <div style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:2px;">Payment Details</div>
+      <div style="font-size:15px; font-weight:600; color:var(--color-text-primary);">Enter payment information below</div>
+    </div>
+
+    <div style="padding:24px;">
+      <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div style="margin-bottom:18px; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <!-- Amount input — large and prominent -->
+        <div style="margin-bottom:24px;">
+          <label style="display:block; font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:10px;">Amount Tendered</label>
+          <div style="position:relative;">
+            <span style="position:absolute; left:16px; top:50%; transform:translateY(-50%); font-family:var(--font-mono); font-size:20px; font-weight:700; color:var(--color-text-muted); pointer-events:none; line-height:1;">R</span>
+            <input type="number" step="0.01" name="{{ form.amount.html_name }}" id="{{ form.amount.id_for_label }}"
+                   value="{{ form.amount.value|default:'' }}"
+                   style="width:100%; padding:14px 16px 14px 36px; background:var(--color-bg-subtle); border:2px solid var(--color-border-bright); border-radius:var(--radius-md); color:var(--color-text-primary); font-family:var(--font-mono); font-size:24px; font-weight:700; outline:none; transition:border-color .15s, box-shadow .15s; box-sizing:border-box;"
+                   placeholder="0.00"
+                   onfocus="this.style.borderColor='var(--color-green-500)';this.style.boxShadow='0 0 0 3px rgba(34,197,94,0.12)'"
+                   onblur="this.style.borderColor='var(--color-border-bright)';this.style.boxShadow='none'">
+          </div>
+          {% if form.amount.errors %}<div class="form-error" style="margin-top:6px;">{{ form.amount.errors.0 }}</div>{% endif %}
+          <div id="change-display" style="display:none; margin-top:10px; padding:10px 14px; border-radius:var(--radius-md); font-family:var(--font-mono); font-size:13px; font-weight:600;"></div>
+        </div>
+
+        <!-- Payment Method -->
+        <div style="margin-bottom:24px;">
+          <label style="display:block; font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:12px;">Payment Method</label>
+          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;" id="payment-method-cards">
+
+            <label class="pay-method-card" data-value="Cash">
+              <input type="radio" name="payment_method" value="Cash" style="display:none;" {% if form.payment_method.value == "Cash" %}checked{% endif %}>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0"/><path d="M6 10v4M18 10v4"/></svg>
+              <span>Cash</span>
+            </label>
+
+            <label class="pay-method-card" data-value="EFT">
+              <input type="radio" name="payment_method" value="EFT" style="display:none;" {% if form.payment_method.value == "EFT" %}checked{% endif %}>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 12h12M3 18h8"/><path d="M17 15l2 2 4-4"/></svg>
+              <span>EFT</span>
+            </label>
+
+            <label class="pay-method-card" data-value="Card">
+              <input type="radio" name="payment_method" value="Card" style="display:none;" {% if form.payment_method.value == "Card" %}checked{% endif %}>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              <span>Card</span>
+            </label>
+
+            <label class="pay-method-card" data-value="SnapScan">
+              <input type="radio" name="payment_method" value="SnapScan" style="display:none;" {% if form.payment_method.value == "SnapScan" %}checked{% endif %}>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><rect x="7" y="7" width="4" height="4" rx=".5"/><rect x="13" y="7" width="4" height="4" rx=".5"/><rect x="7" y="13" width="4" height="4" rx=".5"/><path d="M13 15h4M15 13v4"/></svg>
+              <span>SnapScan</span>
+            </label>
+
+            <label class="pay-method-card" data-value="Zapper">
+              <input type="radio" name="payment_method" value="Zapper" style="display:none;" {% if form.payment_method.value == "Zapper" %}checked{% endif %}>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M13 2L4.5 13.5H12L11 22L19.5 10.5H12L13 2z"/></svg>
+              <span>Zapper</span>
+            </label>
+
+            <label class="pay-method-card" data-value="Bank Deposit">
+              <input type="radio" name="payment_method" value="Bank Deposit" style="display:none;" {% if form.payment_method.value == "Bank Deposit" %}checked{% endif %}>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M3 10h18M3 14h18M5 6l7-3 7 3"/><rect x="3" y="18" width="18" height="2" rx="1"/><path d="M6 10v8M10 10v8M14 10v8M18 10v8"/></svg>
+              <span style="font-size:10px; line-height:1.2;">Bank<br>Deposit</span>
+            </label>
+
+            <label class="pay-method-card" data-value="Other">
+              <input type="radio" name="payment_method" value="Other" style="display:none;" {% if form.payment_method.value == "Other" %}checked{% endif %}>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+              <span>Other</span>
+            </label>
+
+          </div>
+          {% if form.payment_method.errors %}<div class="form-error" style="margin-top:6px;">{{ form.payment_method.errors.0 }}</div>{% endif %}
+        </div>
+
+        <!-- Notes -->
+        <div style="margin-bottom:20px;">
+          <label class="form-label" for="{{ form.notes.id_for_label }}" style="font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--color-text-muted);">Notes</label>
+          {{ form.notes }}
+          {% if form.notes.errors %}<div class="form-error">{{ form.notes.errors.0 }}</div>{% endif %}
+        </div>
+
+        <!-- More details (collapsible) -->
+        <details style="margin-bottom:24px; border:1px solid var(--color-border); border-radius:var(--radius-md); overflow:hidden;">
+          <summary style="cursor:pointer; padding:12px 16px; font-size:12px; font-weight:600; letter-spacing:.04em; color:var(--color-text-secondary); background:var(--color-bg-subtle); list-style:none; display:flex; align-items:center; gap:8px; user-select:none;">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            More details
+          </summary>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px; border-top:1px solid var(--color-border);">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label" for="{{ form.payment_date.id_for_label }}">Date</label>
+              {{ form.payment_date }}
+              {% if form.payment_date.errors %}<div class="form-error">{{ form.payment_date.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label" for="{{ form.reference.id_for_label }}">Reference</label>
+              {{ form.reference }}
+              <div class="form-hint">Leave blank to auto-generate.</div>
+              {% if form.reference.errors %}<div class="form-error">{{ form.reference.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+        </details>
+
+        <!-- Actions -->
+        <div style="display:flex; gap:10px;">
+          <button type="submit" class="btn btn-primary btn-lg" style="flex:1;">Record Payment</button>
+          <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-lg">Cancel</a>
+        </div>
+
+      </form>
     </div>
   </div>
 
-  <!-- Payment Form -->
-  <div class="card">
-    <div class="section-label" style="margin-bottom:20px;">Payment Details</div>
-    <form method="post">
-      {% csrf_token %}
-      {% if form.non_field_errors %}
-      <div style="margin-bottom:16px; padding:12px 14px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;">{{ form.non_field_errors }}</div>
-      {% endif %}
-
-      <div class="form-group">
-        <label class="form-label" for="{{ form.amount.id_for_label }}">Amount Tendered</label>
-        {{ form.amount }}
-        {% if form.amount.errors %}<div class="form-error">{{ form.amount.errors.0 }}</div>{% endif %}
-        <div id="change-display" style="display:none; margin-top:10px; padding:10px 14px; border-radius:var(--radius-md); font-family:var(--font-mono); font-size:13px; font-weight:600;"></div>
-      </div>
-
-      <div class="form-group">
-        <div class="section-label" style="margin-bottom:12px;">Payment Method</div>
-        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;" id="payment-method-cards">
-          {% for value, label in form.fields.payment_method.choices %}
-          <label style="cursor:pointer; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); background:var(--color-bg-subtle); padding:12px 14px; transition:border-color 0.15s; display:block; text-align:center; font-size:13px; color:var(--color-text-secondary);">
-            <input type="radio" name="payment_method" value="{{ value }}" style="display:none;" {% if form.payment_method.value == value %}checked{% endif %}>
-            <span style="display:block; font-size:16px; margin-bottom:2px;">{% if value == "Cash" %}💵{% elif value == "EFT" %}🏦{% elif value == "Card" %}💳{% elif value == "SnapScan" %}📱{% elif value == "Zapper" %}⚡{% elif value == "Bank Deposit" %}🏦{% elif value == "Other" %}💰{% else %}●{% endif %}</span>
-            {{ label }}
-          </label>
-          {% endfor %}
-        </div>
-        {% if form.payment_method.errors %}<div class="form-error">{{ form.payment_method.errors.0 }}</div>{% endif %}
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="{{ form.notes.id_for_label }}">Notes</label>
-        {{ form.notes }}
-        {% if form.notes.errors %}<div class="form-error">{{ form.notes.errors.0 }}</div>{% endif %}
-      </div>
-
-      <details style="margin:4px 0 18px;">
-        <summary style="cursor:pointer; color:var(--color-text-secondary); font-size:13px; font-weight:600;">More details</summary>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px;">
-          <div class="form-group">
-            <label class="form-label" for="{{ form.payment_date.id_for_label }}">Date</label>
-            {{ form.payment_date }}
-            {% if form.payment_date.errors %}<div class="form-error">{{ form.payment_date.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="{{ form.reference.id_for_label }}">Reference</label>
-            {{ form.reference }}
-            <div class="form-hint">Leave blank to auto-generate.</div>
-            {% if form.reference.errors %}<div class="form-error">{{ form.reference.errors.0 }}</div>{% endif %}
-          </div>
-        </div>
-      </details>
-
-      <div style="display:flex; gap:12px; margin-top:8px;">
-        <button type="submit" class="btn btn-primary btn-lg">Record Payment</button>
-        <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-lg">Cancel</a>
-      </div>
-    </form>
-  </div>
 </div>
+
+<style>
+.pay-method-card {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-border-bright);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  transition: border-color .15s, background .15s, color .15s, box-shadow .15s;
+  line-height: 1.3;
+}
+.pay-method-card:hover {
+  border-color: var(--color-green-500);
+  color: var(--color-text-secondary);
+  background: rgba(34,197,94,0.04);
+}
+.pay-method-card.selected {
+  border-color: var(--color-green-500);
+  background: rgba(34,197,94,0.08);
+  color: var(--color-green-400);
+  box-shadow: 0 0 0 3px rgba(34,197,94,0.1);
+}
+details[open] summary svg {
+  transform: rotate(90deg);
+}
+details summary svg {
+  transition: transform .2s;
+  flex-shrink: 0;
+}
+</style>
 
 <script>
 (function() {
-  var balanceDue = parseFloat("{{ payment_totals.balance_due }}") || 0;
-  var depositRequired = parseFloat("{{ booking.deposit_required }}") || 0;
-  var totalPaid = parseFloat("{{ payment_totals.total_paid }}") || 0;
-  var amountInput = document.getElementById("{{ form.amount.id_for_label }}");
-  var display = document.getElementById("change-display");
+  var balanceDue       = parseFloat("{{ payment_totals.balance_due }}") || 0;
+  var depositRequired  = parseFloat("{{ booking.deposit_required }}")  || 0;
+  var totalPaid        = parseFloat("{{ payment_totals.total_paid }}")  || 0;
+  var amountInput      = document.getElementById("{{ form.amount.id_for_label }}");
+  var display          = document.getElementById("change-display");
 
   function updateChange() {
     var entered = parseFloat(amountInput.value) || 0;
     if (entered <= 0) { display.style.display = "none"; return; }
-
-    var isDepositPayment = totalPaid === 0 && depositRequired > 0 && Math.abs(entered - depositRequired) < 0.001;
-    var isFullPayment = Math.abs(entered - balanceDue) < 0.001;
-    var isOverpayment = entered > balanceDue && balanceDue > 0;
+    var isFullPayment   = Math.abs(entered - balanceDue) < 0.01;
+    var isOverpayment   = entered > balanceDue && balanceDue > 0;
+    var isDepositPayment = totalPaid === 0 && depositRequired > 0 && Math.abs(entered - depositRequired) < 0.01;
 
     if (isOverpayment) {
       var change = (entered - balanceDue).toFixed(2);
       display.textContent = "Change to give: R " + change;
-      display.style.display = "block";
-      display.style.background = "rgba(251,191,36,0.1)";
-      display.style.border = "1px solid rgba(251,191,36,0.35)";
-      display.style.color = "#fbbf24";
+      display.style.cssText += ";display:block;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.35);color:#fbbf24;";
     } else if (isFullPayment) {
-      display.textContent = "Exact amount — fully settled";
-      display.style.display = "block";
-      display.style.background = "var(--color-green-glow)";
-      display.style.border = "1px solid var(--color-green-border)";
-      display.style.color = "var(--color-green-400)";
+      display.textContent = "✓ Exact amount — fully settled";
+      display.style.cssText += ";display:block;background:var(--color-green-glow);border:1px solid var(--color-green-border);color:var(--color-green-400);";
     } else if (isDepositPayment) {
-      var remaining = (balanceDue - entered).toFixed(2);
-      display.textContent = "Deposit amount — R " + remaining + " balance remains";
-      display.style.display = "block";
-      display.style.background = "rgba(99,102,241,0.08)";
-      display.style.border = "1px solid rgba(99,102,241,0.25)";
-      display.style.color = "#818cf8";
+      display.textContent = "Deposit — R " + (balanceDue - entered).toFixed(2) + " balance remains";
+      display.style.cssText += ";display:block;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);color:#818cf8;";
     } else {
       var hint = totalPaid === 0 && depositRequired > 0
-        ? "Only R " + balanceDue.toFixed(2) + " (full) or R " + depositRequired.toFixed(2) + " (deposit) accepted"
-        : "Only R " + balanceDue.toFixed(2) + " (full balance) accepted";
+        ? "Accepted: R " + balanceDue.toFixed(2) + " (full) or R " + depositRequired.toFixed(2) + " (deposit)"
+        : "Accepted: R " + balanceDue.toFixed(2) + " (full balance)";
       display.textContent = hint;
-      display.style.display = "block";
-      display.style.background = "rgba(239,68,68,0.08)";
-      display.style.border = "1px solid rgba(239,68,68,0.2)";
-      display.style.color = "#f87171";
+      display.style.cssText += ";display:block;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;";
     }
+    display.style.display = "block";
   }
-
   if (amountInput) amountInput.addEventListener("input", updateChange);
 
-  function wireRadioCards(containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.querySelectorAll('label').forEach(function(label) {
-      const input = label.querySelector('input[type="radio"]');
-      function update() {
-        container.querySelectorAll('label').forEach(function(l) {
-          const i = l.querySelector('input[type="radio"]');
-          l.style.borderColor = i.checked ? 'var(--color-green-500)' : 'var(--color-border-bright)';
-          l.style.color = i.checked ? 'var(--color-text-primary)' : 'var(--color-text-secondary)';
-        });
-        toggleCashShiftPanel();
-      }
-      if (input) { input.addEventListener('change', update); if (input.checked) update(); }
+  // Payment method card selection
+  var cards = document.querySelectorAll('.pay-method-card');
+  function updateCards() {
+    cards.forEach(function(card) {
+      var inp = card.querySelector('input[type="radio"]');
+      card.classList.toggle('selected', inp && inp.checked);
     });
   }
-  function toggleCashShiftPanel() {
-    var panel = document.getElementById('cash-shift-panel');
-    if (!panel) return;
-    var selected = document.querySelector('input[name="payment_method"]:checked');
-    panel.style.display = selected && selected.value === 'Cash' ? 'block' : 'none';
-  }
-  wireRadioCards('payment-method-cards');
-  document.querySelectorAll('#payment-method-cards label').forEach(function(label) {
-    label.addEventListener('click', function() {
-      const input = label.querySelector('input[type="radio"]');
-      if (input) { input.checked = true; input.dispatchEvent(new Event('change', {bubbles:true})); }
+  cards.forEach(function(card) {
+    card.addEventListener('click', function() {
+      var inp = card.querySelector('input[type="radio"]');
+      if (inp) { inp.checked = true; }
+      updateCards();
     });
   });
-  toggleCashShiftPanel();
+  updateCards();
 })();
 </script>
 {% endblock %}
