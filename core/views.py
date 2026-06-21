@@ -2011,6 +2011,10 @@ def booking_add(request):
         and initial.get("status") == "Confirmed"
         and initial.get("check_in_date") == timezone.localdate()
     )
+    identity_mode = request.POST.get("identity_mode") if request.method == "POST" else None
+    if identity_mode not in {"guest", "plate"}:
+        identity_mode = "plate" if initial.get("booking_source") == "Walk-in" and not guest_id else "guest"
+    initial["identity_mode"] = identity_mode
 
     if request.method == "POST":
         form = BookingForm(request.POST)

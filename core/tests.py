@@ -526,6 +526,68 @@ class BookingFlowTest(CircleCoreTenantTestCase):
         response = self.client.get(reverse("core:booking_add"))
         self.assertEqual(response.status_code, 200)
 
+    def test_booking_add_has_one_guest_field_and_one_submit_action(self):
+        response = self.client.get(reverse("core:booking_add"))
+        content = response.content.decode()
+        self.assertEqual(content.count('id="id_guest"'), 1)
+        self.assertEqual(content.count('id="form-submit-btn"'), 1)
+        self.assertNotIn('id="book-now-btn"', content)
+        self.assertIn('id="booking-form"', content)
+
+    def test_number_plate_booking_uses_walk_in_guest_without_guest_selection(self):
+        check_in = timezone.localdate() + datetime.timedelta(days=1)
+        response = self.client.post(
+            reverse("core:booking_add"),
+            {
+                "identity_mode": "plate",
+                "guest": "",
+                "room": self.room.pk,
+                "check_in_date": check_in.isoformat(),
+                "check_out_date": (check_in + datetime.timedelta(days=1)).isoformat(),
+                "num_guests": 1,
+                "booking_duration_type": "daily",
+                "booking_start_time": "",
+                "booking_end_time": "",
+                "rate_per_night": self.room.price_per_night,
+                "discount": "0.00",
+                "deposit_required": "0.00",
+                "booking_source": "Walk-in",
+                "status": "Confirmed",
+                "vehicle_registration": "ysr 142 gp",
+                "notes": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        booking = Booking.objects.get(room=self.room)
+        self.assertTrue(booking.guest.is_generic)
+        self.assertEqual(booking.vehicle_registration, "YSR 142 GP")
+
+    def test_number_plate_mode_requires_a_plate(self):
+        check_in = timezone.localdate() + datetime.timedelta(days=1)
+        response = self.client.post(
+            reverse("core:booking_add"),
+            {
+                "identity_mode": "plate",
+                "guest": "",
+                "room": self.room.pk,
+                "check_in_date": check_in.isoformat(),
+                "check_out_date": (check_in + datetime.timedelta(days=1)).isoformat(),
+                "num_guests": 1,
+                "booking_duration_type": "daily",
+                "rate_per_night": self.room.price_per_night,
+                "discount": "0.00",
+                "deposit_required": "0.00",
+                "booking_source": "Walk-in",
+                "status": "Confirmed",
+                "vehicle_registration": "",
+                "notes": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Enter the vehicle number plate.")
+        self.assertContains(response, 'value="plate"', html=False)
+        self.assertFalse(Booking.objects.filter(room=self.room).exists())
+
     def test_checkin_changes_status(self):
         booking = make_booking(self.room, self.guest)
         self.client.post(reverse("core:booking_checkin", args=[booking.pk]))

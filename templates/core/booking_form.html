@@ -2,6 +2,34 @@
 {% block title %}{{ title }} — Circle Core Guest House{% endblock %}
 
 {% block content %}
+<style>
+  .booking-form-shell { max-width: 980px; }
+  .booking-action-bar {
+    position: sticky;
+    bottom: 16px;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--color-border-bright);
+    border-radius: var(--radius-lg);
+    background: rgba(19, 22, 27, 0.96);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(34, 197, 94, 0.05);
+    backdrop-filter: blur(18px);
+  }
+  .booking-action-copy { min-width: 0; }
+  .booking-action-title { color: var(--color-text-primary); font-size: 14px; font-weight: 700; }
+  .booking-action-help { color: var(--color-text-tertiary); font-size: 11.5px; margin-top: 2px; }
+  .booking-action-buttons { display: flex; gap: 10px; flex-shrink: 0; }
+  @media (max-width: 640px) {
+    .booking-action-bar { bottom: 8px; padding: 12px; }
+    .booking-action-copy { display: none; }
+    .booking-action-buttons { width: 100%; }
+    .booking-action-buttons .btn-primary { flex: 1; justify-content: center; }
+  }
+</style>
 <div class="page-header">
   <div>
     <div class="section-label">Bookings</div>
@@ -23,9 +51,10 @@
 </div>
 {% endif %}
 
-<div style="max-width:760px;">
-  <form method="post">
+<div class="booking-form-shell">
+  <form method="post" id="booking-form">
     {% csrf_token %}
+    {{ form.identity_mode }}
 
     {% if form.non_field_errors %}
     <div style="margin-bottom:16px; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;">
@@ -98,12 +127,11 @@
         </div>
         <div class="form-group" style="margin-bottom:0;">
           <label class="form-label" style="margin-bottom:8px;">Number Plate</label>
-          <input id="plate-input" type="text" placeholder="e.g. CA 123-456" autocomplete="off" maxlength="20"
+          <input id="plate-input" type="text" placeholder="e.g. CA 123-456" autocomplete="off" maxlength="20" value="{{ form.vehicle_registration.value|default_if_none:'' }}"
             style="width:100%; text-transform:uppercase; font-family:var(--font-mono, monospace); font-size:22px; font-weight:800; letter-spacing:0.1em; text-align:center; padding:14px; border:2px solid var(--color-border-bright); border-radius:var(--radius-md); background:var(--color-bg-subtle); color:var(--color-text-primary);">
           <div id="plate-display" style="display:none; margin-top:10px; text-align:center; padding:8px; border-radius:var(--radius-md); background:rgba(34,197,94,0.07); font-size:12px; color:var(--color-green-500); font-weight:600;"></div>
+          <div id="plate-error" class="form-error"{% if not form.vehicle_registration.errors %} style="display:none;"{% endif %}>{% if form.vehicle_registration.errors %}{{ form.vehicle_registration.errors.0 }}{% endif %}</div>
         </div>
-        <!-- Hidden field synced from plate-input -->
-        <div style="display:none;">{{ form.guest }}</div>
       </div>
 
       <!-- Hidden vehicle reg field always submitted -->
@@ -171,12 +199,6 @@
           {{ form.booking_end_time }}
           {% if form.booking_end_time.errors %}<div class="form-error">{{ form.booking_end_time.errors.0 }}</div>{% endif %}
         </div>
-        <div id="book-now-row" style="display:none; grid-column:1/-1;">
-          <button type="button" id="book-now-btn" onclick="bookNow()" style="width:100%; padding:12px; background:var(--color-green-500); color:#fff; border:none; border-radius:var(--radius-md); font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 0 16px rgba(34,197,94,0.4); letter-spacing:0.03em;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            Book Now — Confirm &amp; Create Booking
-          </button>
-        </div>
         <div class="form-group">
           <label class="form-label" for="rate_choice_select">Rate</label>
           <select id="rate_choice_select"></select>
@@ -220,16 +242,8 @@
       </div>
     </div>
 
-    <div style="display:flex; gap:12px;">
-      <button type="submit" id="form-submit-btn" class="btn btn-primary btn-lg">{% if booking %}Save Changes{% else %}Create Booking{% endif %}</button>
-      {% if booking %}
-      <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-lg">Cancel</a>
-      {% else %}
-      <a href="{% url 'core:booking_list' %}" class="btn btn-ghost btn-lg">Cancel</a>
-      {% endif %}
-    </div>
     {% if not is_owner %}
-    <div style="max-width:520px; margin-top:14px; padding:12px; border:1px solid rgba(245,158,11,0.25); border-radius:var(--radius-md); background:rgba(245,158,11,0.06);">
+    <div style="max-width:520px; margin-bottom:14px; padding:12px; border:1px solid rgba(245,158,11,0.25); border-radius:var(--radius-md); background:rgba(245,158,11,0.06);">
       <div class="form-label">Owner Approval For Sensitive Changes</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
         <input name="manager_username" placeholder="Owner username" autocomplete="username">
@@ -237,6 +251,20 @@
       </div>
     </div>
     {% endif %}
+    <div class="booking-action-bar">
+      <div class="booking-action-copy">
+        <div class="booking-action-title">{% if booking %}Save booking changes{% else %}Ready to create this booking?{% endif %}</div>
+        <div class="booking-action-help">Details are checked before the room is reserved. Click once and wait for confirmation.</div>
+      </div>
+      <div class="booking-action-buttons">
+        {% if booking %}
+        <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-lg">Cancel</a>
+        {% else %}
+        <a href="{% url 'core:booking_list' %}" class="btn btn-ghost btn-lg">Cancel</a>
+        {% endif %}
+        <button type="submit" id="form-submit-btn" class="btn btn-primary btn-lg">{% if booking %}Save Changes{% else %}Create Booking{% endif %}</button>
+      </div>
+    </div>
   </form>
 </div>
 
@@ -252,33 +280,32 @@
   const startTimeInput= document.getElementById('{{ form.booking_start_time.id_for_label }}');
   const endTimeInput  = document.getElementById('{{ form.booking_end_time.id_for_label }}');
   const weeksInput    = document.getElementById('weeks_count');
-  const statusSelect  = document.getElementById('{{ form.status.id_for_label }}');
   const guestSelect   = document.getElementById('{{ form.guest.id_for_label }}');
   const vregField     = document.getElementById('{{ form.vehicle_registration.id_for_label }}');
   const plateInput    = document.getElementById('plate-input');
-  const bookingForm   = document.querySelector('form');
+  const identityModeInput = document.getElementById('{{ form.identity_mode.id_for_label }}');
+  const bookingForm   = document.getElementById('booking-form');
   let bookingSubmissionLocked = false;
 
   function lockBookingSubmission() {
     if (bookingSubmissionLocked) return false;
     bookingSubmissionLocked = true;
 
-    const bookNowBtn = document.getElementById('book-now-btn');
     const submitBtn = document.getElementById('form-submit-btn');
-    [bookNowBtn, submitBtn].forEach(function(button) {
+    [submitBtn].forEach(function(button) {
       if (!button) return;
       button.disabled = true;
       button.style.opacity = '0.6';
       button.style.cursor = 'not-allowed';
     });
-    if (bookNowBtn) bookNowBtn.textContent = 'Booking...';
-    if (submitBtn) submitBtn.textContent = 'Creating booking...';
+    if (submitBtn) submitBtn.textContent = '{% if booking %}Saving changes...{% else %}Creating booking...{% endif %}';
     return true;
   }
 
   // ── Identity mode (Guest Profile vs Number Plate) ──────────────────────────
   window.setIdentityMode = function(mode) {
     var isGuest = mode === 'guest';
+    if (identityModeInput) identityModeInput.value = isGuest ? 'guest' : 'plate';
     document.getElementById('id-panel-guest').style.display = isGuest ? '' : 'none';
     document.getElementById('id-panel-plate').style.display = isGuest ? 'none' : '';
     document.getElementById('id-tab-guest').style.background = isGuest ? 'var(--color-green-500)' : 'var(--color-bg-subtle)';
@@ -310,9 +337,23 @@
 
   // Before submit: if plate mode is active, ensure Walk-in Guest is selected
   if (bookingForm) {
-    bookingForm.addEventListener('submit', function() {
-      var platePanelVisible = document.getElementById('id-panel-plate').style.display !== 'none';
-      if (platePanelVisible && guestSelect) {
+    bookingForm.addEventListener('submit', function(event) {
+      var plateMode = identityModeInput && identityModeInput.value === 'plate';
+      if (plateMode && guestSelect) {
+        if (!plateInput || !plateInput.value.trim()) {
+          var plateError = document.getElementById('plate-error');
+          if (plateError) {
+            plateError.textContent = 'Enter the vehicle number plate.';
+            plateError.style.display = 'block';
+          }
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          if (plateInput) {
+            plateInput.focus();
+            plateInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          return;
+        }
         for (var i = 0; i < guestSelect.options.length; i++) {
           if (guestSelect.options[i].textContent.indexOf('Walk-in') !== -1) {
             guestSelect.value = guestSelect.options[i].value;
@@ -320,6 +361,8 @@
           }
         }
         if (vregField && plateInput) vregField.value = plateInput.value.trim().toUpperCase();
+      } else if (vregField) {
+        vregField.value = '';
       }
     }, true); // capture phase so it runs before the double-submit guard
   }
@@ -369,12 +412,18 @@
     '1_hour': '1 Hour',
     '2_hours': '2 Hours',
     '3_hours': '3 Hours',
+    '5_hours': '5 Hours',
     'daily': 'Night',
     '24_hours': '24 Hours',
     'weekly': 'Week'
   };
 
-  const RATE_DURATIONS = ['1_hour', '2_hours', '3_hours', 'daily', '24_hours'];
+  const HOURLY_DURATIONS = ['1_hour', '2_hours', '3_hours', '5_hours'];
+  const DURATIONS_BY_MODE = {
+    hourly: HOURLY_DURATIONS,
+    daily: ['daily', '24_hours'],
+    weekly: ['weekly']
+  };
 
   function populateDatesForMode(mode, force) {
     const bookingDate = todayString();
@@ -401,18 +450,18 @@
 
   function setMode(mode, forceDates) {
     if (mode === 'hourly') {
-      if (!['1_hour','2_hours','3_hours'].includes(durationSelect.value)) durationSelect.value = '1_hour';
-      show('start-time-field'); show('end-time-field'); show('book-now-row');
+      if (!HOURLY_DURATIONS.includes(durationSelect.value)) durationSelect.value = '1_hour';
+      show('start-time-field'); show('end-time-field');
       hide('check-out-field');  hide('weekly-weeks-field');
       populateDatesForMode(mode, forceDates);
     } else if (mode === 'weekly') {
       durationSelect.value = 'weekly';
-      hide('start-time-field'); hide('end-time-field'); show('book-now-row');
+      hide('start-time-field'); hide('end-time-field');
       show('check-out-field');  show('weekly-weeks-field');
       populateDatesForMode(mode, forceDates);
     } else {
       durationSelect.value = 'daily';
-      hide('start-time-field'); hide('end-time-field'); show('book-now-row');
+      hide('start-time-field'); hide('end-time-field');
       show('check-out-field');  hide('weekly-weeks-field');
       populateDatesForMode(mode, forceDates);
     }
@@ -422,7 +471,7 @@
   }
 
   function availableDurationsForMode() {
-    return RATE_DURATIONS;
+    return DURATIONS_BY_MODE[activeMode()] || DURATIONS_BY_MODE.daily;
   }
 
   function populateRateChoices() {
@@ -470,16 +519,20 @@
   }
 
   function syncModeFromRate(duration) {
-    const mode = ['1_hour', '2_hours', '3_hours'].includes(duration) ? 'hourly' : 'daily';
+    const mode = duration === 'weekly' ? 'weekly' : (HOURLY_DURATIONS.includes(duration) ? 'hourly' : 'daily');
     const input = document.querySelector('[name="booking_type_mode"][value="' + mode + '"]');
     if (input) input.checked = true;
 
     if (mode === 'hourly') {
-      show('start-time-field'); show('end-time-field'); show('book-now-row');
+      show('start-time-field'); show('end-time-field');
       hide('check-out-field'); hide('weekly-weeks-field');
       populateDatesForMode(mode, false);
+    } else if (mode === 'weekly') {
+      hide('start-time-field'); hide('end-time-field');
+      show('check-out-field'); show('weekly-weeks-field');
+      populateDatesForMode(mode, false);
     } else {
-      hide('start-time-field'); hide('end-time-field'); show('book-now-row');
+      hide('start-time-field'); hide('end-time-field');
       show('check-out-field'); hide('weekly-weeks-field');
       populateDatesForMode(mode, false);
       if (duration === '24_hours' && checkInInput.value) {
@@ -520,52 +573,6 @@
     }
   }
 
-  // Book Now: stamp current date + time, compute end time, set Confirmed, submit
-  window.bookNow = function() {
-    if (bookingSubmissionLocked) return;
-    var btn = document.getElementById('book-now-btn');
-
-    var now = new Date();
-    var y   = now.getFullYear();
-    var mo  = String(now.getMonth() + 1).padStart(2, '0');
-    var d   = String(now.getDate()).padStart(2, '0');
-    var h   = now.getHours();
-    var min = Math.floor(now.getMinutes() / 5) * 5;   // round down to nearest 5 min
-
-    if (checkInInput)   checkInInput.value  = y + '-' + mo + '-' + d;
-    if (['1_hour', '2_hours', '3_hours'].includes(durationSelect.value)) {
-      if (checkOutInput)  checkOutInput.value = y + '-' + mo + '-' + d;
-      if (startTimeInput) startTimeInput.value = String(h).padStart(2,'0') + ':' + String(min).padStart(2,'0');
-    } else if (durationSelect.value === '24_hours') {
-      var tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      if (checkOutInput) checkOutInput.value = tomorrow.getFullYear() + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(tomorrow.getDate()).padStart(2, '0');
-    } else {
-      var nextDay = new Date(now);
-      nextDay.setDate(nextDay.getDate() + 1);
-      if (checkOutInput) checkOutInput.value = nextDay.getFullYear() + '-' + String(nextDay.getMonth() + 1).padStart(2, '0') + '-' + String(nextDay.getDate()).padStart(2, '0');
-    }
-
-    populateRateChoices();
-    updateHourlyEnd();  // computes end time from start + selected duration
-
-    // Force status to Confirmed then submit
-    if (statusSelect) statusSelect.value = 'Confirmed';
-    // If plate mode active, sync plate → vreg field and select Walk-in Guest
-    var platePanelVisible = document.getElementById('id-panel-plate') && document.getElementById('id-panel-plate').style.display !== 'none';
-    if (platePanelVisible && guestSelect) {
-      for (var i = 0; i < guestSelect.options.length; i++) {
-        if (guestSelect.options[i].textContent.indexOf('Walk-in') !== -1) {
-          guestSelect.value = guestSelect.options[i].value;
-          break;
-        }
-      }
-      if (vregField && plateInput) vregField.value = plateInput.value.trim().toUpperCase();
-    }
-    var form = btn ? btn.closest('form') : null;
-    if (form && lockBookingSubmission()) form.submit();
-  };
-
   // Attach booking-type card click handlers (label wraps hidden radio — also wire click for reliability)
   document.querySelectorAll('.booking-type-label').forEach(function(label) {
     label.addEventListener('click', function() {
@@ -589,7 +596,7 @@
 
   // Set initial booking-type radio from the form's duration value
   const initialDuration = durationSelect ? durationSelect.value : 'daily';
-  if (['1_hour','2_hours','3_hours'].includes(initialDuration)) {
+  if (HOURLY_DURATIONS.includes(initialDuration)) {
     const hr = document.querySelector('[name="booking_type_mode"][value="hourly"]');
     if (hr) hr.checked = true;
   } else if (initialDuration === 'weekly') {
@@ -597,6 +604,8 @@
     if (wk) wk.checked = true;
   }
   setMode(activeMode(), false);
+  setIdentityMode('{{ form.identity_mode.value|default:"guest"|escapejs }}');
+  if (plateInput && plateInput.value) plateInput.dispatchEvent(new Event('input'));
 
   // Prevent double-submit on the regular form submit button
   if (bookingForm) {

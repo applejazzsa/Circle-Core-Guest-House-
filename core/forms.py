@@ -327,6 +327,9 @@ class GuestForm(forms.ModelForm):
 
 
 class BookingForm(forms.ModelForm):
+    IDENTITY_CHOICES = (("guest", "Guest profile"), ("plate", "Number plate"))
+    identity_mode = forms.ChoiceField(choices=IDENTITY_CHOICES, initial="guest", widget=forms.HiddenInput)
+
     class Meta:
         model = Booking
         fields = [
@@ -360,6 +363,7 @@ class BookingForm(forms.ModelForm):
             field.widget.attrs.update({"class": PREMIUM_FIELD_CLASSES})
         # Ensure the generic walk-in guest exists and appears first
         Guest.get_generic()
+        self.fields["guest"].required = False
         self.fields["guest"].queryset = Guest.objects.all()
         self.fields["guest"].label_from_instance = lambda obj: (
             f"[ Walk-in Guest ]" if obj.is_generic else f"{obj.full_name} ({obj.phone})"
@@ -376,6 +380,16 @@ class BookingForm(forms.ModelForm):
         num_guests = cleaned_data.get("num_guests")
         discount = cleaned_data.get("discount") or 0
         deposit_required = cleaned_data.get("deposit_required") or 0
+        identity_mode = cleaned_data.get("identity_mode") or "guest"
+        vehicle_registration = (cleaned_data.get("vehicle_registration") or "").strip().upper()
+        cleaned_data["vehicle_registration"] = vehicle_registration
+
+        if identity_mode == "plate":
+            if not vehicle_registration:
+                self.add_error("vehicle_registration", "Enter the vehicle number plate.")
+            cleaned_data["guest"] = Guest.get_generic()
+        elif not cleaned_data.get("guest"):
+            self.add_error("guest", "Select a guest or use Number Plate.")
 
         if num_guests is not None and num_guests < 1:
             raise forms.ValidationError("Number of guests must be at least 1.")
