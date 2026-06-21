@@ -361,14 +361,14 @@ class BookingForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.update({"class": PREMIUM_FIELD_CLASSES})
-        # Ensure the generic walk-in guest exists and appears first
+        # Keep the system walk-in guest internal; staff choose a real guest or plate mode.
         Guest.get_generic()
         self.fields["guest"].required = False
-        self.fields["guest"].queryset = Guest.objects.all()
-        self.fields["guest"].label_from_instance = lambda obj: (
-            f"[ Walk-in Guest ]" if obj.is_generic else f"{obj.full_name} ({obj.phone})"
-        )
+        self.fields["guest"].queryset = Guest.objects.filter(is_generic=False)
+        self.fields["guest"].label_from_instance = lambda obj: f"{obj.full_name} ({obj.phone})"
         self.fields["room"].label_from_instance = lambda obj: f"{obj.name} ({obj.room_type})"
+        if not self.is_bound and self.instance.pk and self.instance.vehicle_registration:
+            self.initial["identity_mode"] = "plate"
 
     def clean(self):
         cleaned_data = super().clean()
@@ -388,7 +388,7 @@ class BookingForm(forms.ModelForm):
             if not vehicle_registration:
                 self.add_error("vehicle_registration", "Enter the vehicle number plate.")
             cleaned_data["guest"] = Guest.get_generic()
-        elif not cleaned_data.get("guest"):
+        elif not cleaned_data.get("guest") or cleaned_data["guest"].is_generic:
             self.add_error("guest", "Select a guest or use Number Plate.")
 
         if num_guests is not None and num_guests < 1:

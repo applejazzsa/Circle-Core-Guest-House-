@@ -533,6 +533,24 @@ class BookingFlowTest(CircleCoreTenantTestCase):
         self.assertEqual(content.count('id="form-submit-btn"'), 1)
         self.assertNotIn('id="book-now-btn"', content)
         self.assertIn('id="booking-form"', content)
+        self.assertFalse(response.context["form"].fields["guest"].queryset.filter(is_generic=True).exists())
+
+    def test_quick_identity_modal_is_accessible_and_updates_main_modes(self):
+        response = self.client.get(reverse("core:booking_add"))
+        content = response.content.decode()
+        self.assertIn('role="dialog"', content)
+        self.assertIn('aria-modal="true"', content)
+        self.assertIn("window.setIdentityMode('guest')", content)
+        self.assertIn("window.setIdentityMode('plate')", content)
+        self.assertIn("plateInput.dispatchEvent(new Event('input'))", content)
+
+    def test_editing_vehicle_booking_opens_in_number_plate_mode(self):
+        booking = make_booking(self.room, Guest.get_generic())
+        booking.vehicle_registration = "YSR 142 GP"
+        booking.save(update_fields=["vehicle_registration"])
+        response = self.client.get(reverse("core:booking_edit", args=[booking.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["form"]["identity_mode"].value(), "plate")
 
     def test_number_plate_booking_uses_walk_in_guest_without_guest_selection(self):
         check_in = timezone.localdate() + datetime.timedelta(days=1)

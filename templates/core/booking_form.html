@@ -23,11 +23,132 @@
   .booking-action-title { color: var(--color-text-primary); font-size: 14px; font-weight: 700; }
   .booking-action-help { color: var(--color-text-tertiary); font-size: 11.5px; margin-top: 2px; }
   .booking-action-buttons { display: flex; gap: 10px; flex-shrink: 0; }
+  .quick-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(5, 8, 12, 0.78);
+    backdrop-filter: blur(10px);
+  }
+  .quick-modal.is-open { display: flex; }
+  .quick-modal-dialog {
+    width: 100%;
+    max-width: 520px;
+    overflow: hidden;
+    border: 1px solid var(--color-border-bright);
+    border-radius: 18px;
+    background: linear-gradient(145deg, #171b23, #11151b);
+    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.025) inset;
+    animation: quick-modal-in 160ms ease-out;
+  }
+  @keyframes quick-modal-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .quick-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 22px 24px 18px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .quick-modal-heading { display: flex; gap: 13px; min-width: 0; }
+  .quick-modal-icon {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border: 1px solid var(--color-green-border);
+    border-radius: 12px;
+    background: var(--color-green-glow);
+    color: var(--color-green-400);
+  }
+  .quick-modal-title { margin: 0; color: var(--color-text-primary); font-size: 18px; font-weight: 750; }
+  .quick-modal-subtitle { margin-top: 4px; color: var(--color-text-tertiary); font-size: 12.5px; line-height: 1.45; }
+  .quick-modal-close {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border: 1px solid var(--color-border-bright);
+    border-radius: 9px;
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+  .quick-modal-close:hover { color: var(--color-text-primary); border-color: var(--color-green-border); }
+  .quick-modal-body { padding: 20px 24px 24px; }
+  .quick-modal-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 5px;
+    margin-bottom: 18px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: rgba(8, 11, 15, 0.55);
+  }
+  .quick-modal-tab {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-tertiary);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .quick-modal-tab.active {
+    border-color: var(--color-green-border);
+    background: var(--color-green-glow);
+    color: var(--color-green-400);
+    box-shadow: 0 0 16px rgba(34, 197, 94, 0.08);
+  }
+  .quick-modal-alert {
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 9px;
+    background: rgba(239,68,68,0.08);
+    color: #f87171;
+    font-size: 12.5px;
+  }
+  .quick-modal-note {
+    display: flex;
+    gap: 9px;
+    margin-bottom: 16px;
+    padding: 11px 12px;
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 9px;
+    background: rgba(59,130,246,0.06);
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .quick-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .quick-modal-actions .btn-primary { min-width: 150px; justify-content: center; }
   @media (max-width: 640px) {
     .booking-action-bar { bottom: 8px; padding: 12px; }
     .booking-action-copy { display: none; }
     .booking-action-buttons { width: 100%; }
     .booking-action-buttons .btn-primary { flex: 1; justify-content: center; }
+    .quick-modal { align-items: flex-end; padding: 10px; }
+    .quick-modal-dialog { max-width: none; border-radius: 18px 18px 12px 12px; }
+    .quick-modal-header { padding: 18px 18px 15px; }
+    .quick-modal-body { padding: 16px 18px 18px; }
+    .quick-modal-actions .btn { min-height: 44px; }
   }
 </style>
 <div class="page-header">
@@ -110,7 +231,7 @@
               <label class="form-label" for="{{ form.guest.id_for_label }}" style="margin-bottom:0;">Guest</label>
               <button type="button" id="open-quick-guest" style="background:none; border:none; cursor:pointer; font-size:12px; font-weight:600; color:var(--color-green-400); padding:2px 0; display:flex; align-items:center; gap:4px;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                New Guest
+                Add Guest or Vehicle
               </button>
             </div>
             {{ form.guest }}
@@ -123,7 +244,7 @@
       <div id="id-panel-plate" style="display:none;">
         <div style="margin-bottom:14px; padding:11px 14px; background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.22); border-radius:var(--radius-md); font-size:12.5px; color:var(--color-text-secondary); display:flex; align-items:center; gap:8px;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Walk-in Guest will be recorded. The number plate is the identity for this booking.
+          A walk-in record will be created automatically. The vehicle number identifies this booking.
         </div>
         <div class="form-group" style="margin-bottom:0;">
           <label class="form-label" style="margin-bottom:8px;">Number Plate</label>
@@ -317,7 +438,7 @@
     }
   };
 
-  // Sync plate input → vehicle_registration field + auto-select Walk-in Guest
+  // Keep the visible plate entry synchronized with the model field.
   if (plateInput) {
     plateInput.addEventListener('input', function() {
       var val = this.value.toUpperCase();
@@ -335,11 +456,11 @@
     });
   }
 
-  // Before submit: if plate mode is active, ensure Walk-in Guest is selected
+  // Before submit, validate and synchronize the selected identity mode.
   if (bookingForm) {
     bookingForm.addEventListener('submit', function(event) {
       var plateMode = identityModeInput && identityModeInput.value === 'plate';
-      if (plateMode && guestSelect) {
+      if (plateMode) {
         if (!plateInput || !plateInput.value.trim()) {
           var plateError = document.getElementById('plate-error');
           if (plateError) {
@@ -354,12 +475,7 @@
           }
           return;
         }
-        for (var i = 0; i < guestSelect.options.length; i++) {
-          if (guestSelect.options[i].textContent.indexOf('Walk-in') !== -1) {
-            guestSelect.value = guestSelect.options[i].value;
-            break;
-          }
-        }
+        if (guestSelect) guestSelect.value = '';
         if (vregField && plateInput) vregField.value = plateInput.value.trim().toUpperCase();
       } else if (vregField) {
         vregField.value = '';
@@ -620,63 +736,79 @@
 </script>
 
 <!-- Quick-create guest modal -->
-<div id="quick-guest-modal" style="display:none; position:fixed; inset:0; z-index:900; background:rgba(0,0,0,0.55); align-items:center; justify-content:center;">
-  <div style="background:var(--color-bg-card); border:1px solid var(--color-border); border-radius:var(--radius-lg); padding:28px; width:100%; max-width:400px; box-shadow:0 8px 32px rgba(0,0,0,0.4);">
-    <div style="font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); margin-bottom:4px;">New Guest</div>
-    <h3 style="font-size:18px; font-weight:700; color:var(--color-text-primary); margin:0 0 16px;">Quick Add Guest</h3>
-
-    <!-- Mode tabs -->
-    <div style="display:flex; gap:0; margin-bottom:20px; border:1px solid var(--color-border-bright); border-radius:var(--radius-md); overflow:hidden;">
-      <button type="button" id="qg-tab-guest" onclick="qgSetMode('guest')"
-        style="flex:1; padding:9px 0; font-size:12px; font-weight:700; border:none; cursor:pointer; transition:background 0.15s, color 0.15s; background:var(--color-green-500); color:#fff;">
-        Guest Details
-      </button>
-      <button type="button" id="qg-tab-vreg" onclick="qgSetMode('vreg')"
-        style="flex:1; padding:9px 0; font-size:12px; font-weight:700; border:none; cursor:pointer; transition:background 0.15s, color 0.15s; background:var(--color-bg-subtle); color:var(--color-text-secondary);">
-        Vehicle Reg
+<div id="quick-guest-modal" class="quick-modal" role="dialog" aria-modal="true" aria-labelledby="quick-modal-title" aria-hidden="true">
+  <div class="quick-modal-dialog" role="document">
+    <div class="quick-modal-header">
+      <div class="quick-modal-heading">
+        <div class="quick-modal-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        </div>
+        <div>
+          <h3 id="quick-modal-title" class="quick-modal-title">Add booking identity</h3>
+          <div class="quick-modal-subtitle">Create a guest profile, or identify a quick walk-in by vehicle number.</div>
+        </div>
+      </div>
+      <button type="button" id="qg-close" class="quick-modal-close" aria-label="Close dialog">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
 
-    <div id="qg-error" style="display:none; margin-bottom:14px; padding:10px 12px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;"></div>
+    <div class="quick-modal-body">
+      <div class="quick-modal-tabs" role="tablist" aria-label="Booking identity type">
+        <button type="button" id="qg-tab-guest" class="quick-modal-tab active" role="tab" aria-selected="true" aria-controls="qg-panel-guest" onclick="qgSetMode('guest')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Guest profile
+        </button>
+        <button type="button" id="qg-tab-vreg" class="quick-modal-tab" role="tab" aria-selected="false" aria-controls="qg-panel-vreg" onclick="qgSetMode('vreg')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h12M7 15h2m6 0h2"/></svg>
+          Vehicle number
+        </button>
+      </div>
 
-    <!-- Guest details panel -->
-    <div id="qg-panel-guest">
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="qg-first-name">First Name</label>
-          <input id="qg-first-name" type="text" autocomplete="given-name" style="width:100%;">
-          <div id="qg-err-first-name" class="form-error" style="display:none;"></div>
+      <div id="qg-error" class="quick-modal-alert" role="alert" style="display:none;"></div>
+
+      <div id="qg-panel-guest" role="tabpanel" aria-labelledby="qg-tab-guest">
+        <div class="quick-modal-note">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+          Use this for returning guests or anyone who needs a searchable guest record.
+        </div>
+        <div class="grid-2" style="gap:12px;">
+          <div class="form-group">
+            <label class="form-label" for="qg-first-name">First Name</label>
+            <input id="qg-first-name" type="text" autocomplete="given-name" style="width:100%;">
+            <div id="qg-err-first-name" class="form-error" style="display:none;"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="qg-last-name">Last Name</label>
+            <input id="qg-last-name" type="text" autocomplete="family-name" style="width:100%;">
+            <div id="qg-err-last-name" class="form-error" style="display:none;"></div>
+          </div>
         </div>
         <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="qg-last-name">Last Name</label>
-          <input id="qg-last-name" type="text" autocomplete="family-name" style="width:100%;">
-          <div id="qg-err-last-name" class="form-error" style="display:none;"></div>
+          <label class="form-label" for="qg-phone">Phone Number</label>
+          <input id="qg-phone" type="tel" autocomplete="tel" placeholder="e.g. +27 79 123 4567" style="width:100%;">
+          <div id="qg-err-phone" class="form-error" style="display:none;"></div>
+        </div>
+        <div class="quick-modal-actions">
+          <button type="button" id="qg-cancel" class="btn btn-ghost">Cancel</button>
+          <button type="button" id="qg-save" class="btn btn-primary">Create &amp; select guest</button>
         </div>
       </div>
-      <div class="form-group" style="margin-bottom:20px;">
-        <label class="form-label" for="qg-phone">Phone Number</label>
-        <input id="qg-phone" type="tel" autocomplete="tel" style="width:100%;">
-        <div id="qg-err-phone" class="form-error" style="display:none;"></div>
-      </div>
-      <div style="display:flex; gap:10px;">
-        <button type="button" id="qg-save" class="btn btn-primary" style="flex:1; justify-content:center;">Save Guest</button>
-        <button type="button" id="qg-cancel" class="btn btn-ghost">Cancel</button>
-      </div>
-    </div>
 
-    <!-- Vehicle reg panel -->
-    <div id="qg-panel-vreg" style="display:none;">
-      <div style="margin-bottom:10px; padding:10px 12px; background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.2); border-radius:var(--radius-md); font-size:12.5px; color:var(--color-text-secondary);">
-        Walk-in Guest will be selected automatically. Only the plate number is recorded.
-      </div>
-      <div class="form-group" style="margin-bottom:20px;">
-        <label class="form-label" for="qg-vreg">Number Plate</label>
-        <input id="qg-vreg" type="text" placeholder="e.g. CA 123-456" autocomplete="off"
-          style="width:100%; text-transform:uppercase; font-family:var(--font-mono, monospace); font-size:16px; font-weight:700; letter-spacing:0.06em;">
-      </div>
-      <div style="display:flex; gap:10px;">
-        <button type="button" id="qg-vreg-save" class="btn btn-primary" style="flex:1; justify-content:center;">Use This Plate</button>
-        <button type="button" id="qg-vreg-cancel" class="btn btn-ghost">Cancel</button>
+      <div id="qg-panel-vreg" role="tabpanel" aria-labelledby="qg-tab-vreg" style="display:none;">
+        <div class="quick-modal-note">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+          Best for fast walk-ins. The booking will use the vehicle number instead of creating a guest profile.
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="qg-vreg">Vehicle Number</label>
+          <input id="qg-vreg" type="text" placeholder="e.g. YSR 142 GP" autocomplete="off" maxlength="20"
+            style="width:100%; text-transform:uppercase; text-align:center; font-family:var(--font-mono, monospace); font-size:20px; font-weight:800; letter-spacing:0.08em; padding:13px;">
+        </div>
+        <div class="quick-modal-actions">
+          <button type="button" id="qg-vreg-cancel" class="btn btn-ghost">Cancel</button>
+          <button type="button" id="qg-vreg-save" class="btn btn-primary">Use vehicle number</button>
+        </div>
       </div>
     </div>
   </div>
@@ -688,19 +820,24 @@
   var openBtn     = document.getElementById('open-quick-guest');
   var saveBtn     = document.getElementById('qg-save');
   var cancelBtn   = document.getElementById('qg-cancel');
+  var closeBtn    = document.getElementById('qg-close');
   var vregSaveBtn = document.getElementById('qg-vreg-save');
   var vregCancelBtn = document.getElementById('qg-vreg-cancel');
   var guestSelect = document.getElementById('{{ form.guest.id_for_label }}');
   var vregField   = document.getElementById('{{ form.vehicle_registration.id_for_label }}');
+  var plateInput  = document.getElementById('plate-input');
+  var lastFocusedElement = null;
 
   window.qgSetMode = function(mode) {
     var isGuest = mode === 'guest';
     document.getElementById('qg-panel-guest').style.display = isGuest ? '' : 'none';
     document.getElementById('qg-panel-vreg').style.display  = isGuest ? 'none' : '';
-    document.getElementById('qg-tab-guest').style.background = isGuest ? 'var(--color-green-500)' : 'var(--color-bg-subtle)';
-    document.getElementById('qg-tab-guest').style.color      = isGuest ? '#fff' : 'var(--color-text-secondary)';
-    document.getElementById('qg-tab-vreg').style.background  = isGuest ? 'var(--color-bg-subtle)' : 'var(--color-green-500)';
-    document.getElementById('qg-tab-vreg').style.color       = isGuest ? 'var(--color-text-secondary)' : '#fff';
+    document.getElementById('qg-panel-guest').setAttribute('aria-hidden', isGuest ? 'false' : 'true');
+    document.getElementById('qg-panel-vreg').setAttribute('aria-hidden', isGuest ? 'true' : 'false');
+    document.getElementById('qg-tab-guest').classList.toggle('active', isGuest);
+    document.getElementById('qg-tab-vreg').classList.toggle('active', !isGuest);
+    document.getElementById('qg-tab-guest').setAttribute('aria-selected', isGuest ? 'true' : 'false');
+    document.getElementById('qg-tab-vreg').setAttribute('aria-selected', isGuest ? 'false' : 'true');
     document.getElementById('qg-error').style.display = 'none';
     if (!isGuest) setTimeout(function() { document.getElementById('qg-vreg').focus(); }, 50);
   };
@@ -716,11 +853,19 @@
       if (el) { el.style.display = 'none'; el.textContent = ''; }
     });
     qgSetMode('guest');
-    modal.style.display = 'flex';
-    document.getElementById('qg-first-name').focus();
+    lastFocusedElement = document.activeElement;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    setTimeout(function() { document.getElementById('qg-first-name').focus(); }, 50);
   }
 
-  function closeModal() { modal.style.display = 'none'; }
+  function closeModal() {
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    if (lastFocusedElement) lastFocusedElement.focus();
+  }
 
   function saveGuest() {
     var firstName = document.getElementById('qg-first-name').value.trim();
@@ -740,7 +885,7 @@
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)[1]
+        'X-CSRFToken': document.querySelector('#booking-form [name="csrfmiddlewaretoken"]').value
       },
       body: JSON.stringify({ first_name: firstName, last_name: lastName, phone: phone })
     })
@@ -757,6 +902,9 @@
           guestSelect.appendChild(opt);
         }
         guestSelect.value = r.data.id;
+        if (window.setIdentityMode) window.setIdentityMode('guest');
+        if (vregField) vregField.value = '';
+        if (plateInput) plateInput.value = '';
         closeModal();
       } else {
         if (r.data.errors) {
@@ -779,7 +927,7 @@
     })
     .finally(function() {
       saveBtn.disabled    = false;
-      saveBtn.textContent = 'Save Guest';
+      saveBtn.textContent = 'Create & select guest';
     });
   }
 
@@ -791,24 +939,27 @@
       errEl.style.display = 'block';
       return;
     }
-    // Select the Walk-in Guest (first option with value, or option whose text contains Walk-in)
-    for (var i = 0; i < guestSelect.options.length; i++) {
-      if (guestSelect.options[i].textContent.indexOf('Walk-in') !== -1) {
-        guestSelect.value = guestSelect.options[i].value;
-        break;
-      }
-    }
     if (vregField) vregField.value = plate;
+    if (plateInput) {
+      plateInput.value = plate;
+      plateInput.dispatchEvent(new Event('input'));
+    }
+    if (window.setIdentityMode) window.setIdentityMode('plate');
     closeModal();
+    if (plateInput) plateInput.focus();
   }
 
   if (openBtn)      openBtn.addEventListener('click', openModal);
   if (cancelBtn)    cancelBtn.addEventListener('click', closeModal);
+  if (closeBtn)     closeBtn.addEventListener('click', closeModal);
   if (saveBtn)      saveBtn.addEventListener('click', saveGuest);
   if (vregSaveBtn)  vregSaveBtn.addEventListener('click', saveVreg);
   if (vregCancelBtn)vregCancelBtn.addEventListener('click', closeModal);
 
   modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+  });
 
   ['qg-first-name', 'qg-last-name', 'qg-phone'].forEach(function(id) {
     var el = document.getElementById(id);
