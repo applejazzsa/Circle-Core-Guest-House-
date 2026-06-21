@@ -535,7 +535,10 @@ class BookingFlowTest(CircleCoreTenantTestCase):
         self.assertIn('id="booking-form"', content)
         self.assertFalse(response.context["form"].fields["guest"].queryset.filter(is_generic=True).exists())
         self.assertEqual(response.context["form"]["identity_mode"].value(), "walk_in")
+        self.assertEqual(response.context["form"]["booking_duration_type"].value(), "1_hour")
         self.assertIn("Walk-in guest selected", content)
+        self.assertIn('id="rate-picker-button"', content)
+        self.assertIn('role="listbox"', content)
 
     def test_quick_identity_modal_is_accessible_and_updates_main_modes(self):
         response = self.client.get(reverse("core:booking_add"))
@@ -638,6 +641,7 @@ class BookingFlowTest(CircleCoreTenantTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Enter the vehicle number plate.")
         self.assertContains(response, 'value="plate"', html=False)
+        self.assertEqual(response.context["form"]["booking_duration_type"].value(), "daily")
         self.assertFalse(Booking.objects.filter(room=self.room).exists())
 
     def test_checkin_changes_status(self):

@@ -1979,7 +1979,7 @@ def booking_add(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    initial = {}
+    initial = {"booking_duration_type": "1_hour"}
     locked_room = None
     active_prop, property_rooms = _property_rooms(request)
     guest_id = request.GET.get("guest")

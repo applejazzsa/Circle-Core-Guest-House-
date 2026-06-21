@@ -23,6 +23,82 @@
   .booking-action-title { color: var(--color-text-primary); font-size: 14px; font-weight: 700; }
   .booking-action-help { color: var(--color-text-tertiary); font-size: 11.5px; margin-top: 2px; }
   .booking-action-buttons { display: flex; gap: 10px; flex-shrink: 0; }
+  .rate-picker { position: relative; width: 100%; }
+  .rate-picker-button {
+    width: 100%;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 12px;
+    border: 1px solid var(--color-border-bright);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+  .rate-picker-button:hover,
+  .rate-picker-button[aria-expanded="true"] {
+    border-color: var(--color-green-500);
+    background: var(--color-bg-elevated);
+    box-shadow: var(--shadow-input-focus);
+  }
+  .rate-picker-button:disabled { cursor: not-allowed; opacity: 0.65; }
+  .rate-picker-icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border: 1px solid var(--color-green-border);
+    border-radius: 9px;
+    background: var(--color-green-glow);
+    color: var(--color-green-400);
+  }
+  .rate-picker-copy { min-width: 0; flex: 1; }
+  .rate-picker-duration { display: block; font-size: 13.5px; font-weight: 700; color: var(--color-text-primary); }
+  .rate-picker-price { display: block; margin-top: 1px; font-family: var(--font-mono); font-size: 11.5px; color: var(--color-green-400); }
+  .rate-picker-chevron { color: var(--color-text-tertiary); transition: transform 0.15s; }
+  .rate-picker-button[aria-expanded="true"] .rate-picker-chevron { transform: rotate(180deg); }
+  .rate-picker-menu {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 7px);
+    z-index: 80;
+    display: none;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid var(--color-border-bright);
+    border-radius: 12px;
+    background: #151922;
+    box-shadow: 0 18px 46px rgba(0,0,0,0.58), 0 0 0 1px rgba(255,255,255,0.025) inset;
+  }
+  .rate-picker-menu.is-open { display: block; animation: rate-menu-in 120ms ease-out; }
+  @keyframes rate-menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .rate-picker-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 11px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    text-align: left;
+  }
+  .rate-picker-option:hover,
+  .rate-picker-option:focus { outline: none; background: var(--color-bg-elevated); color: var(--color-text-primary); }
+  .rate-picker-option.is-selected { border-color: var(--color-green-border); background: var(--color-green-glow); color: var(--color-text-primary); }
+  .rate-picker-option-duration { font-size: 13px; font-weight: 700; }
+  .rate-picker-option-price { font-family: var(--font-mono); font-size: 12px; color: var(--color-green-400); }
+  .rate-native-select { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; opacity: 0 !important; pointer-events: none !important; }
   .quick-modal {
     position: fixed;
     inset: 0;
@@ -188,12 +264,12 @@
       <div class="section-label" style="margin-bottom:16px;">Booking Type</div>
       <div class="grid-3" style="gap:10px;" id="booking-type-cards">
         <label class="booking-type-label" style="cursor:pointer; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); background:var(--color-bg-subtle); padding:14px 16px; transition:border-color 0.15s, background 0.15s;">
-          <input type="radio" name="booking_type_mode" value="hourly" style="display:none;">
+          <input type="radio" name="booking_type_mode" value="hourly" style="display:none;" checked>
           <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary);">Hourly</div>
           <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:3px;">Short stay</div>
         </label>
         <label class="booking-type-label" style="cursor:pointer; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); background:var(--color-bg-subtle); padding:14px 16px; transition:border-color 0.15s, background 0.15s;">
-          <input type="radio" name="booking_type_mode" value="daily" style="display:none;" checked>
+          <input type="radio" name="booking_type_mode" value="daily" style="display:none;">
           <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary);">Daily</div>
           <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:3px;">Per night</div>
         </label>
@@ -343,10 +419,23 @@
           {% if form.booking_end_time.errors %}<div class="form-error">{{ form.booking_end_time.errors.0 }}</div>{% endif %}
         </div>
         <div class="form-group">
-          <label class="form-label" for="rate_choice_select">Rate</label>
-          <select id="rate_choice_select"></select>
+          <label class="form-label" for="rate-picker-button">Duration &amp; Rate</label>
+          <div class="rate-picker" id="rate-picker">
+            <button type="button" id="rate-picker-button" class="rate-picker-button" aria-haspopup="listbox" aria-expanded="false" aria-controls="rate-picker-menu">
+              <span class="rate-picker-icon" aria-hidden="true">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              </span>
+              <span class="rate-picker-copy">
+                <span id="rate-picker-duration" class="rate-picker-duration">Select a duration</span>
+                <span id="rate-picker-price" class="rate-picker-price">Choose a configured rate</span>
+              </span>
+              <svg class="rate-picker-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div id="rate-picker-menu" class="rate-picker-menu" role="listbox" aria-label="Available durations and rates"></div>
+            <select id="rate_choice_select" class="rate-native-select" tabindex="-1" aria-hidden="true"></select>
+          </div>
           <div style="display:none;">{{ form.rate_per_night }}</div>
-          <div class="form-hint" id="rate-help">Rates come from the selected room setup.</div>
+          <div class="form-hint" id="rate-help">Only configured rates for the selected booking type are shown.</div>
           {% if form.rate_per_night.errors %}<div class="form-error">{{ form.rate_per_night.errors.0 }}</div>{% endif %}
         </div>
         <div class="form-group">
@@ -417,6 +506,11 @@
   const roomSelect    = document.getElementById('{{ form.room.id_for_label }}');
   const rateInput     = document.getElementById('{{ form.rate_per_night.id_for_label }}');
   const rateChoice    = document.getElementById('rate_choice_select');
+  const ratePicker    = document.getElementById('rate-picker');
+  const ratePickerButton = document.getElementById('rate-picker-button');
+  const ratePickerMenu = document.getElementById('rate-picker-menu');
+  const ratePickerDuration = document.getElementById('rate-picker-duration');
+  const ratePickerPrice = document.getElementById('rate-picker-price');
   const durationSelect= document.getElementById('{{ form.booking_duration_type.id_for_label }}');
   const checkInInput  = document.getElementById('{{ form.check_in_date.id_for_label }}');
   const checkOutInput = document.getElementById('{{ form.check_out_date.id_for_label }}');
@@ -558,9 +652,9 @@
     '2_hours': '2 Hours',
     '3_hours': '3 Hours',
     '5_hours': '5 Hours',
-    'daily': 'Night',
+    'daily': 'Per Night',
     '24_hours': '24 Hours',
-    'weekly': 'Week'
+    'weekly': 'Per Week'
   };
 
   const HOURLY_DURATIONS = ['1_hour', '2_hours', '3_hours', '5_hours'];
@@ -619,6 +713,72 @@
     return DURATIONS_BY_MODE[activeMode()] || DURATIONS_BY_MODE.daily;
   }
 
+  function formattedRate(price) {
+    const amount = Number(price || 0);
+    return 'R ' + amount.toFixed(2);
+  }
+
+  function closeRatePicker() {
+    if (!ratePickerMenu || !ratePickerButton) return;
+    ratePickerMenu.classList.remove('is-open');
+    ratePickerButton.setAttribute('aria-expanded', 'false');
+  }
+
+  function openRatePicker() {
+    if (!ratePickerMenu || !ratePickerButton || ratePickerButton.disabled) return;
+    ratePickerMenu.classList.add('is-open');
+    ratePickerButton.setAttribute('aria-expanded', 'true');
+  }
+
+  function renderRatePicker() {
+    if (!rateChoice || !ratePickerMenu || !ratePickerButton) return;
+    ratePickerMenu.innerHTML = '';
+    const validOptions = Array.from(rateChoice.options).filter(function(option) { return option.value; });
+
+    if (!validOptions.length) {
+      ratePickerButton.disabled = true;
+      ratePickerDuration.textContent = 'No rate configured';
+      ratePickerPrice.textContent = 'Add a rate in the selected room setup';
+      closeRatePicker();
+      return;
+    }
+
+    ratePickerButton.disabled = false;
+    validOptions.forEach(function(option) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'rate-picker-option';
+      item.setAttribute('role', 'option');
+      item.dataset.value = option.value;
+      const selected = option.value === rateChoice.value;
+      item.setAttribute('aria-selected', selected ? 'true' : 'false');
+      item.classList.toggle('is-selected', selected);
+
+      const duration = document.createElement('span');
+      duration.className = 'rate-picker-option-duration';
+      duration.textContent = RATE_LABELS[option.value] || option.textContent;
+      const price = document.createElement('span');
+      price.className = 'rate-picker-option-price';
+      price.textContent = formattedRate(option.dataset.price);
+      item.appendChild(duration);
+      item.appendChild(price);
+
+      item.addEventListener('click', function() {
+        rateChoice.value = option.value;
+        applySelectedRate();
+        closeRatePicker();
+        ratePickerButton.focus();
+      });
+      ratePickerMenu.appendChild(item);
+    });
+
+    const selected = rateChoice.options[rateChoice.selectedIndex];
+    if (selected && selected.value) {
+      ratePickerDuration.textContent = RATE_LABELS[selected.value] || selected.textContent;
+      ratePickerPrice.textContent = formattedRate(selected.dataset.price);
+    }
+  }
+
   function populateRateChoices() {
     const roomId = roomSelect ? roomSelect.value : '';
     const prices = ROOM_PRICES[roomId] || {};
@@ -644,6 +804,7 @@
       option.textContent = 'No configured rate for this room';
       rateChoice.appendChild(option);
       if (rateInput) rateInput.value = '';
+      renderRatePicker();
       return;
     }
 
@@ -661,6 +822,7 @@
     if (rateInput) rateInput.value = selected.dataset.price || '';
     syncModeFromRate(rateChoice.value);
     updateHourlyEnd();
+    renderRatePicker();
   }
 
   function syncModeFromRate(duration) {
@@ -734,6 +896,39 @@
 
   if (roomSelect)    roomSelect.addEventListener('change', populateRateChoices);
   if (rateChoice)    rateChoice.addEventListener('change', applySelectedRate);
+  if (ratePickerButton) {
+    ratePickerButton.addEventListener('click', function() {
+      const opening = !ratePickerMenu.classList.contains('is-open');
+      if (opening) openRatePicker(); else closeRatePicker();
+    });
+    ratePickerButton.addEventListener('keydown', function(event) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        openRatePicker();
+        const selected = ratePickerMenu.querySelector('.is-selected') || ratePickerMenu.querySelector('.rate-picker-option');
+        if (selected) selected.focus();
+      }
+    });
+  }
+  if (ratePickerMenu) {
+    ratePickerMenu.addEventListener('keydown', function(event) {
+      const options = Array.from(ratePickerMenu.querySelectorAll('.rate-picker-option'));
+      const index = options.indexOf(document.activeElement);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeRatePicker();
+        ratePickerButton.focus();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const direction = event.key === 'ArrowDown' ? 1 : -1;
+        const next = Math.max(0, Math.min(options.length - 1, index + direction));
+        if (options[next]) options[next].focus();
+      }
+    });
+  }
+  document.addEventListener('click', function(event) {
+    if (ratePicker && !ratePicker.contains(event.target)) closeRatePicker();
+  });
   if (durationSelect)durationSelect.addEventListener('change', function() { populateRateChoices(); updateHourlyEnd(); });
   if (checkInInput)  checkInInput.addEventListener('change', handleCheckInChange);
   if (weeksInput)    weeksInput.addEventListener('change', updateWeeklyCheckout);
@@ -747,6 +942,9 @@
   } else if (initialDuration === 'weekly') {
     const wk = document.querySelector('[name="booking_type_mode"][value="weekly"]');
     if (wk) wk.checked = true;
+  } else {
+    const daily = document.querySelector('[name="booking_type_mode"][value="daily"]');
+    if (daily) daily.checked = true;
   }
   setMode(activeMode(), false);
   setIdentityMode('{{ form.identity_mode.value|default:"walk_in"|escapejs }}');
