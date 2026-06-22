@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block title %}Spa Appointment — Circle Core{% endblock %}
+
+{% block content %}
+<div style="max-width:960px; margin:0 auto;">
+
+  <a href="{% url 'core:spa_appointment_list' %}" style="font-size:12px; color:var(--color-text-tertiary); text-decoration:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:18px;">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    Appointments
+  </a>
+
+  <div style="display:grid; grid-template-columns:1fr 300px; gap:20px; align-items:start;">
+
+    <!-- Main detail card -->
+    <div>
+      <div class="card" style="padding:28px; margin-bottom:16px;">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:22px;">
+          <div>
+            <h1 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--color-text-primary); margin:0 0 6px;">{{ appt.service.name }}</h1>
+            <div style="font-size:13px; color:var(--color-text-tertiary);">{{ appt.service.duration_minutes }} min · {{ appt.service.get_category_display }}</div>
+          </div>
+          {% if appt.status == 'completed' %}<span class="badge-lg" style="background:rgba(34,197,94,0.12); color:var(--color-green-400);">Completed</span>
+          {% elif appt.status == 'in_progress' %}<span class="badge-lg" style="background:rgba(59,130,246,0.12); color:#60a5fa;">In Progress</span>
+          {% elif appt.status == 'confirmed' %}<span class="badge-lg" style="background:rgba(34,197,94,0.08); color:var(--color-green-500);">Confirmed</span>
+          {% elif appt.status == 'cancelled' %}<span class="badge-lg" style="background:rgba(239,68,68,0.1); color:#f87171;">Cancelled</span>
+          {% elif appt.status == 'no_show' %}<span class="badge-lg" style="background:rgba(107,114,128,0.15); color:#9ca3af;">No Show</span>
+          {% else %}<span class="badge-lg" style="background:rgba(245,158,11,0.1); color:#fbbf24;">Pending</span>{% endif %}
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
+          <div>
+            <div class="detail-label">Guest</div>
+            <div class="detail-value">{{ appt.display_guest_name }}</div>
+            {% if appt.guest_phone %}<div style="font-size:12px; color:var(--color-text-tertiary); margin-top:2px;">{{ appt.guest_phone }}</div>{% endif %}
+            {% if appt.guest %}<a href="{% url 'core:spa_client_profile' appt.guest.pk %}" style="font-size:11.5px; color:var(--color-green-400); text-decoration:none; margin-top:3px; display:inline-block;">View spa profile →</a>{% endif %}
+          </div>
+          <div>
+            <div class="detail-label">Scheduled</div>
+            <div class="detail-value">{{ appt.scheduled_date|date:"d F Y" }} at {{ appt.scheduled_time|time:"H:i" }}</div>
+          </div>
+          <div>
+            <div class="detail-label">Therapist</div>
+            <div class="detail-value">{{ appt.display_therapist }}</div>
+          </div>
+          <div>
+            <div class="detail-label">Room</div>
+            <div class="detail-value">{{ appt.treatment_room.name|default:"—" }}</div>
+          </div>
+          <div>
+            <div class="detail-label">Price Charged</div>
+            <div class="detail-value" style="font-weight:700; color:var(--color-text-primary);">R {{ appt.price_charged|floatformat:2 }}</div>
+          </div>
+          <div>
+            <div class="detail-label">Payment</div>
+            <div class="detail-value">
+              {% if appt.payment_status == 'paid' %}<span style="color:var(--color-green-400); font-weight:600;">Paid</span>
+              {% elif appt.payment_status == 'deposit_paid' %}<span style="color:#60a5fa; font-weight:600;">Deposit Paid</span>
+              {% elif appt.payment_status == 'refunded' %}<span style="color:#9ca3af; font-weight:600;">Refunded</span>
+              {% else %}<span style="color:#fbbf24; font-weight:600;">Unpaid</span>{% endif %}
+              {% if appt.payment_method %} · {{ appt.get_payment_method_display }}{% endif %}
+            </div>
+          </div>
+          {% if appt.package %}
+          <div>
+            <div class="detail-label">Package</div>
+            <div class="detail-value">{{ appt.package.name }}</div>
+          </div>
+          {% endif %}
+          {% if appt.voucher %}
+          <div>
+            <div class="detail-label">Voucher Used</div>
+            <div class="detail-value" style="font-family:var(--font-mono); color:var(--color-green-400);">{{ appt.voucher.code }}</div>
+          </div>
+          {% endif %}
+          <div>
+            <div class="detail-label">Linked Booking</div>
+            <div class="detail-value">
+              {% if appt.booking %}<a href="{% url 'core:booking_detail' appt.booking.pk %}" style="color:var(--color-green-400); text-decoration:none;">{{ appt.booking.reference }}</a>{% else %}—{% endif %}
+            </div>
+          </div>
+        </div>
+
+        {% if appt.tip_amount or appt.commission_amount %}
+        <div style="margin-top:18px; padding:14px 18px; background:var(--color-bg-elevated); border-radius:var(--radius-md); border:1px solid var(--color-border); display:flex; gap:24px; flex-wrap:wrap;">
+          {% if appt.tip_amount %}
+          <div>
+            <div class="detail-label" style="color:#a78bfa;">Gratuity / Tip</div>
+            <div style="font-size:16px; font-weight:700; color:#c084fc;">R {{ appt.tip_amount|floatformat:2 }}</div>
+          </div>
+          {% endif %}
+          {% if appt.commission_amount %}
+          <div>
+            <div class="detail-label" style="color:#fbbf24;">Therapist Commission</div>
+            <div style="font-size:16px; font-weight:700; color:#f59e0b;">R {{ appt.commission_amount|floatformat:2 }}</div>
+          </div>
+          {% endif %}
+          {% if appt.tip_amount or appt.price_charged %}
+          <div>
+            <div class="detail-label">Total Collected</div>
+            <div style="font-size:16px; font-weight:700; color:var(--color-green-400);">R {{ appt.total_charged|floatformat:2 }}</div>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if appt.notes %}
+        <div style="margin-top:20px; padding-top:18px; border-top:1px solid var(--color-border);">
+          <div class="detail-label">Appointment Notes</div>
+          <p style="font-size:13.5px; color:var(--color-text-secondary); margin:6px 0 0; line-height:1.6;">{{ appt.notes }}</p>
+        </div>
+        {% endif %}
+
+        {% if appt.consultation_notes %}
+        <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--color-border);">
+          <div class="detail-label">Consultation Notes</div>
+          <p style="font-size:13px; color:var(--color-text-secondary); margin:6px 0 0; line-height:1.6; font-style:italic;">{{ appt.consultation_notes }}</p>
+        </div>
+        {% endif %}
+
+        {% if appt.completed_at %}
+        <div style="margin-top:14px; font-size:12px; color:var(--color-text-tertiary);">Completed at {{ appt.completed_at|date:"d M Y H:i" }}</div>
+        {% endif %}
+      </div>
+
+      <!-- PDF links -->
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+        <a href="{% url 'core:spa_appointment_receipt' appt.pk %}" target="_blank" class="btn btn-ghost btn-sm">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+          Receipt
+        </a>
+        {% if appt.assigned_therapist %}
+        <a href="{% url 'core:spa_therapist_day_sheet' appt.assigned_therapist.pk %}?date={{ appt.scheduled_date|date:'Y-m-d' }}" target="_blank" class="btn btn-ghost btn-sm">Day Sheet</a>
+        {% endif %}
+        {% if appt.status not in 'completed,cancelled,no_show' %}
+        <a href="{% url 'core:spa_appointment_edit' appt.pk %}" class="btn btn-ghost btn-sm">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit
+        </a>
+        {% endif %}
+      </div>
+
+      <!-- Guest history panel -->
+      {% if past_appointments %}
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div style="padding:14px 20px; border-bottom:1px solid var(--color-border);">
+          <div style="font-size:12px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">{{ appt.display_guest_name }}'s Spa History</div>
+        </div>
+        {% for past in past_appointments %}
+        <a href="{% url 'core:spa_appointment_detail' past.pk %}" style="display:flex; align-items:center; gap:12px; padding:11px 20px; border-bottom:1px solid var(--color-border); text-decoration:none;">
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:13px; font-weight:600; color:var(--color-text-primary);">{{ past.service.name }}</div>
+            <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:1px;">{{ past.scheduled_date|date:"d M Y" }} · {{ past.display_therapist }}</div>
+          </div>
+          <div style="font-size:13px; font-weight:700; color:var(--color-text-secondary);">R {{ past.price_charged|floatformat:0 }}</div>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Actions + payment panel -->
+    <div>
+
+      <!-- Status actions -->
+      <div class="card" style="padding:20px; margin-bottom:14px;">
+        <h3 style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:var(--color-text-tertiary); margin:0 0 14px;">Appointment Actions</h3>
+        {% if appt.status == 'pending' %}
+        <form method="post" style="margin-bottom:8px;">{% csrf_token %}<input type="hidden" name="action" value="confirm"><button type="submit" class="btn btn-primary" style="width:100%;">Confirm Appointment</button></form>
+        <form method="post" style="margin-bottom:8px;">{% csrf_token %}<input type="hidden" name="action" value="cancel"><button type="submit" class="btn btn-ghost" style="width:100%; color:#f87171;">Cancel</button></form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="no_show"><button type="submit" class="btn btn-ghost" style="width:100%; color:var(--color-text-tertiary);">No Show</button></form>
+        {% elif appt.status == 'confirmed' %}
+        <form method="post" style="margin-bottom:8px;">{% csrf_token %}<input type="hidden" name="action" value="start"><button type="submit" class="btn btn-primary" style="width:100%;">Start Treatment</button></form>
+        <form method="post" style="margin-bottom:8px;">{% csrf_token %}<input type="hidden" name="action" value="cancel"><button type="submit" class="btn btn-ghost" style="width:100%; color:#f87171;">Cancel</button></form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="no_show"><button type="submit" class="btn btn-ghost" style="width:100%; color:var(--color-text-tertiary);">No Show</button></form>
+        {% elif appt.status == 'in_progress' %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="complete"><button type="submit" class="btn btn-primary" style="width:100%;">Complete Treatment</button></form>
+        {% elif appt.status == 'completed' %}
+        {% if payment_totals.balance_due <= 0 %}
+        <div style="text-align:center; padding:12px 0; font-size:13px; color:var(--color-green-400); font-weight:600;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle; margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>
+          Fully Settled
+        </div>
+        {% endif %}
+        {% else %}
+        <p style="font-size:13px; color:var(--color-text-tertiary); margin:0; text-align:center;">No actions available</p>
+        {% endif %}
+      </div>
+
+      <!-- Payment summary + Record Payment -->
+      <div class="card" style="padding:0; overflow:hidden; margin-bottom:14px;">
+        <div style="padding:14px 18px; border-bottom:1px solid var(--color-border); display:flex; align-items:center; justify-content:space-between;">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary);">Payments</div>
+          {% if payment_totals.balance_due > 0 %}
+          <a href="{% url 'core:spa_payment_add' appt.pk %}" class="btn btn-primary btn-sm">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Record Payment
+          </a>
+          {% endif %}
+        </div>
+
+        <!-- Totals bar -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid var(--color-border);">
+          <div style="padding:12px 16px; border-right:1px solid var(--color-border);">
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-green-400); margin-bottom:3px;">Paid</div>
+            <div style="font-size:16px; font-weight:800; font-family:var(--font-mono); color:var(--color-green-400);">R {{ payment_totals.total_paid|floatformat:2 }}</div>
+          </div>
+          <div style="padding:12px 16px;">
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:{% if payment_totals.balance_due > 0 %}#f87171{% else %}var(--color-green-400){% endif %}; margin-bottom:3px;">Balance</div>
+            <div style="font-size:16px; font-weight:800; font-family:var(--font-mono); color:{% if payment_totals.balance_due > 0 %}#f87171{% else %}var(--color-green-400){% endif %};">R {{ payment_totals.balance_due|floatformat:2 }}</div>
+          </div>
+        </div>
+
+        <!-- Payment records -->
+        {% if payments %}
+          {% for p in payments %}
+          <div style="display:flex; align-items:center; gap:10px; padding:11px 16px; border-bottom:1px solid var(--color-border);">
+            <div style="flex:1; min-width:0;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:13px; font-weight:700; color:var(--color-text-primary);">R {{ p.amount|floatformat:2 }}</span>
+                <span style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px;
+                  {% if p.payment_type == 'Deposit' %}background:rgba(99,102,241,0.12);color:#818cf8;
+                  {% else %}background:rgba(34,197,94,0.1);color:var(--color-green-400);{% endif %}">
+                  {{ p.payment_type }}
+                </span>
+              </div>
+              <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:2px;">{{ p.payment_method }} · {{ p.payment_date|date:"d M Y" }}</div>
+              {% if p.reference %}<div style="font-size:10.5px; color:var(--color-text-tertiary); font-family:var(--font-mono);">{{ p.reference }}</div>{% endif %}
+            </div>
+            <form method="post" action="{% url 'core:spa_payment_delete' appt.pk p.pk %}" onsubmit="return confirm('Delete this payment? Owner PIN will be required.');">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--color-text-tertiary);" title="Delete payment">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              </button>
+            </form>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div style="padding:20px 16px; text-align:center; font-size:12.5px; color:var(--color-text-tertiary);">No payments recorded yet.</div>
+        {% endif %}
+      </div>
+
+      <!-- Tip / gratuity recording -->
+      {% if appt.status == 'completed' and not appt.tip_amount %}
+      <div class="card" style="padding:16px 18px; margin-bottom:14px;">
+        <h3 style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#a78bfa; margin:0 0 10px;">Record Gratuity</h3>
+        <form method="post">
+          {% csrf_token %}<input type="hidden" name="action" value="record_tip">
+          <div style="display:flex; gap:8px;">
+            <input type="number" name="tip_amount" placeholder="0.00" step="0.01" min="0" class="form-input" style="flex:1; padding:7px 10px; font-size:13px;">
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          </div>
+        </form>
+      </div>
+      {% elif appt.tip_amount %}
+      <div class="card" style="padding:14px 18px; margin-bottom:14px; border:1px solid rgba(167,139,250,0.3);">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#a78bfa; margin-bottom:3px;">Gratuity Recorded</div>
+        <div style="font-size:18px; font-weight:800; color:#c084fc;">R {{ appt.tip_amount|floatformat:2 }}</div>
+      </div>
+      {% endif %}
+
+      <!-- Commission -->
+      {% if appt.commission_amount %}
+      <div class="card" style="padding:14px 18px; margin-bottom:14px; border:1px solid rgba(245,158,11,0.25);">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#f59e0b; margin-bottom:3px;">Therapist Commission</div>
+        <div style="font-size:18px; font-weight:800; color:#fbbf24;">R {{ appt.commission_amount|floatformat:2 }}</div>
+        {% if appt.assigned_therapist %}<div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:2px;">{{ appt.assigned_therapist.name }} · {{ appt.assigned_therapist.commission_pct }}%</div>{% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Guest profile summary -->
+      {% if appt.guest %}
+      {% with profile=appt.guest.spa_profile %}
+      {% if profile %}
+      <div class="card" style="padding:16px 18px;">
+        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary); margin-bottom:10px;">Client Profile</div>
+        {% if profile.allergies %}<div style="margin-bottom:6px;"><div style="font-size:10px; font-weight:700; color:#f87171; text-transform:uppercase; letter-spacing:0.07em;">Allergies</div><div style="font-size:12.5px; color:var(--color-text-primary);">{{ profile.allergies }}</div></div>{% endif %}
+        {% if profile.contraindications %}<div style="margin-bottom:6px;"><div style="font-size:10px; font-weight:700; color:#f87171; text-transform:uppercase; letter-spacing:0.07em;">Contraindications</div><div style="font-size:12.5px; color:var(--color-text-primary);">{{ profile.contraindications }}</div></div>{% endif %}
+        {% if profile.pressure_preference %}<div style="margin-bottom:6px;"><div style="font-size:10px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.07em;">Pressure Pref.</div><div style="font-size:12.5px; color:var(--color-text-primary);">{{ profile.get_pressure_preference_display }}</div></div>{% endif %}
+        {% if profile.preferred_therapist %}<div><div style="font-size:10px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.07em;">Preferred Therapist</div><div style="font-size:12.5px; color:var(--color-text-primary);">{{ profile.preferred_therapist.name }}</div></div>{% endif %}
+        <a href="{% url 'core:spa_client_profile' appt.guest.pk %}" style="font-size:11.5px; color:var(--color-green-400); text-decoration:none; display:block; margin-top:10px;">Full profile →</a>
+      </div>
+      {% endif %}
+      {% endwith %}
+      {% endif %}
+
+    </div>
+
+  </div>
+</div>
+
+<style>
+.detail-label { font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:3px; }
+.detail-value { font-size:13.5px; color:var(--color-text-secondary); font-weight:500; }
+.badge-lg { font-size:11.5px; font-weight:700; padding:5px 12px; border-radius:999px; white-space:nowrap; flex-shrink:0; }
+.form-input { display:block; width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); color:var(--color-text-primary); font-family:var(--font-body); transition:border-color .15s; box-sizing:border-box; }
+.form-input:focus { outline:none; border-color:var(--color-green-500); }
+</style>
+{% endblock %}

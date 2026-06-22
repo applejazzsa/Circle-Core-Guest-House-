@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ package.name }} — Circle Core{% endblock %}
+{% block content %}
+<div style="max-width:900px; margin:0 auto;">
+  <a href="{% url 'core:spa_packages' %}" style="font-size:12px; color:var(--color-text-tertiary); text-decoration:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:16px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>Packages</a>
+
+  <div style="display:grid; grid-template-columns:1fr 300px; gap:20px; align-items:start;">
+    <div>
+      <div class="card" style="padding:24px; margin-bottom:16px;">
+        <h1 style="font-family:var(--font-display); font-size:20px; font-weight:800; margin:0 0 4px;">{{ package.name }}</h1>
+        <div style="font-size:22px; font-weight:800; color:var(--color-green-400); margin-bottom:10px;">R {{ package.package_price|floatformat:2 }}</div>
+        {% if package.description %}<p style="font-size:13.5px; color:var(--color-text-secondary); margin:0 0 14px; line-height:1.6;">{{ package.description }}</p>{% endif %}
+        <!-- Edit form -->
+        <form method="post">
+          {% csrf_token %}<input type="hidden" name="action" value="update">
+          {% for field in form %}
+          <div style="margin-bottom:13px;">
+            <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-secondary); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.07em;">{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}<p style="font-size:12px; color:#f87171; margin:3px 0 0;">{{ error }}</p>{% endfor %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+        </form>
+      </div>
+
+      <!-- Services in package -->
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div style="padding:16px 20px; border-bottom:1px solid var(--color-border); display:flex; align-items:center; justify-content:space-between;">
+          <h2 style="font-size:14px; font-weight:700; color:var(--color-text-primary); margin:0;">Included Services</h2>
+        </div>
+        {% for item in package.items.all %}
+        <div style="display:flex; align-items:center; gap:12px; padding:13px 20px; border-bottom:1px solid var(--color-border);">
+          <div style="flex:1;">
+            <div style="font-size:13.5px; font-weight:600; color:var(--color-text-primary);">{{ item.service.name }}</div>
+            <div style="font-size:12px; color:var(--color-text-tertiary);">{{ item.service.duration_minutes }} min · R {{ item.service.price|floatformat:2 }}</div>
+          </div>
+          <form method="post">{% csrf_token %}<input type="hidden" name="action" value="remove_service"><input type="hidden" name="item_pk" value="{{ item.pk }}">
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--color-text-tertiary);" title="Remove" onclick="return confirm('Remove from package?');">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </form>
+        </div>
+        {% empty %}
+        <div style="padding:30px; text-align:center; color:var(--color-text-tertiary); font-size:13px;">No services added yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Add service -->
+    <div class="card" style="padding:20px; position:sticky; top:80px;">
+      <h3 style="font-size:13px; font-weight:700; color:var(--color-text-primary); margin:0 0 14px;">Add Service to Package</h3>
+      {% if services %}
+      <form method="post">
+        {% csrf_token %}<input type="hidden" name="action" value="add_service">
+        <select name="service_id" class="form-input" style="margin-bottom:10px;">
+          <option value="">— Select service —</option>
+          {% for svc in services %}
+          <option value="{{ svc.pk }}">{{ svc.name }} ({{ svc.duration_minutes }}m · R{{ svc.price|floatformat:0 }})</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">Add</button>
+      </form>
+      {% else %}
+      <p style="font-size:12px; color:var(--color-text-tertiary);">All active services are already in this package.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<style>.form-input{display:block;width:100%;background:var(--color-bg-subtle);border:1px solid var(--color-border-bright);border-radius:var(--radius-md);padding:8px 12px;color:var(--color-text-primary);font-size:13px;font-family:var(--font-body);transition:border-color .15s;box-sizing:border-box;}.form-input:focus{outline:none;border-color:var(--color-green-500);}</style>
+{% endblock %}

@@ -7,7 +7,11 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from PIL import Image, UnidentifiedImageError
 
-from .models import Booking, BookingRefund, Expense, Guest, GuestHouseSettings, Payment, Room, StaffProfile
+from .models import (
+    Booking, BookingRefund, Expense, Guest, GuestHouseSettings, InventoryItem, Payment, Room,
+    SpaAppointment, SpaClientProfile, SpaPackage, SpaPackageItem, SpaPayment, SpaService,
+    SpaServiceProduct, SpaTherapist, SpaTreatmentRoom, SpaVoucher, SpaWaitlist, StaffProfile,
+)
 
 
 PREMIUM_FIELD_CLASSES = (
@@ -611,3 +615,230 @@ class ExpenseForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.update({"class": PREMIUM_FIELD_CLASSES})
+
+
+class SpaServiceForm(forms.ModelForm):
+    class Meta:
+        model = SpaService
+        fields = ["name", "category", "description", "duration_minutes", "price", "is_active"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+
+
+class SpaAppointmentForm(forms.ModelForm):
+    class Meta:
+        model = SpaAppointment
+        fields = [
+            "service", "guest", "booking", "guest_name", "guest_phone",
+            "assigned_therapist", "therapist", "treatment_room", "package",
+            "scheduled_date", "scheduled_time",
+            "price_charged", "tip_amount", "payment_status",
+            "consultation_notes", "notes",
+        ]
+        widgets = {
+            "scheduled_date": forms.DateInput(attrs={"type": "date"}),
+            "scheduled_time": forms.TimeInput(attrs={"type": "time"}),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+            "consultation_notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, prop=None, exclude_pk=None, **kwargs):
+        self._prop = prop
+        self._exclude_pk = exclude_pk
+        super().__init__(*args, **kwargs)
+        if prop:
+            self.fields["service"].queryset = SpaService.objects.filter(prop=prop, is_active=True)
+            self.fields["guest"].queryset = Guest.objects.filter(prop=prop)
+            self.fields["booking"].queryset = Booking.objects.filter(prop=prop).order_by("-created_at")
+            self.fields["assigned_therapist"].queryset = SpaTherapist.objects.filter(prop=prop, is_active=True)
+            self.fields["treatment_room"].queryset = SpaTreatmentRoom.objects.filter(prop=prop, is_active=True)
+            self.fields["package"].queryset = SpaPackage.objects.filter(prop=prop, is_active=True)
+        optional = ["guest", "booking", "guest_name", "guest_phone", "therapist",
+                    "assigned_therapist", "treatment_room", "package", "tip_amount",
+                    "consultation_notes"]
+        for f in optional:
+            self.fields[f].required = False
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+
+    def clean(self):
+        cleaned = super().clean()
+        service = cleaned.get("service")
+        therapist = cleaned.get("assigned_therapist")
+        room = cleaned.get("treatment_room")
+        date = cleaned.get("scheduled_date")
+        time = cleaned.get("scheduled_time")
+        if not (service and date and time):
+            return cleaned
+        import datetime
+        start_dt = datetime.datetime.combine(date, time)
+        duration = datetime.timedelta(minutes=service.duration_minutes)
+        end_dt = start_dt + duration
+        qs = SpaAppointment.objects.filter(
+            prop=self._prop, scheduled_date=date,
+            status__in=["pending", "confirmed", "in_progress"],
+        )
+        if self._exclude_pk:
+            qs = qs.exclude(pk=self._exclude_pk)
+        for appt in qs.select_related("service"):
+            a_start = datetime.datetime.combine(date, appt.scheduled_time)
+            a_end = a_start + datetime.timedelta(minutes=appt.service.duration_minutes)
+            overlaps = start_dt < a_end and end_dt > a_start
+            if overlaps and therapist and appt.assigned_therapist_id == therapist.pk:
+                raise forms.ValidationError(
+                    f"{therapist.name} already has an appointment from "
+                    f"{appt.scheduled_time.strftime('%H:%M')} to {a_end.strftime('%H:%M')}."
+                )
+            if overlaps and room and appt.treatment_room_id == room.pk:
+                raise forms.ValidationError(
+                    f"{room.name} is already booked from "
+                    f"{appt.scheduled_time.strftime('%H:%M')} to {a_end.strftime('%H:%M')}."
+                )
+        return cleaned
+
+
+class SpaTherapistForm(forms.ModelForm):
+    class Meta:
+        model = SpaTherapist
+        fields = ["name", "phone", "email", "specialties", "commission_pct", "notes", "is_active"]
+        widgets = {
+            "specialties": forms.Textarea(attrs={"rows": 2}),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+
+
+class SpaTreatmentRoomForm(forms.ModelForm):
+    class Meta:
+        model = SpaTreatmentRoom
+        fields = ["name", "description", "is_active"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+
+
+class SpaPackageForm(forms.ModelForm):
+    class Meta:
+        model = SpaPackage
+        fields = ["name", "description", "package_price", "is_active"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+
+
+class SpaVoucherForm(forms.ModelForm):
+    class Meta:
+        model = SpaVoucher
+        fields = ["value", "issued_to_name", "issued_to_email", "issued_to_phone",
+                  "valid_from", "valid_until", "notes"]
+        widgets = {
+            "valid_from": forms.DateInput(attrs={"type": "date"}),
+            "valid_until": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["issued_to_email"].required = False
+        self.fields["issued_to_phone"].required = False
+        self.fields["valid_until"].required = False
+        self.fields["notes"].required = False
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+
+
+class SpaWaitlistForm(forms.ModelForm):
+    class Meta:
+        model = SpaWaitlist
+        fields = ["service", "preferred_therapist", "preferred_date",
+                  "guest", "guest_name", "guest_phone", "guest_email", "notes"]
+        widgets = {
+            "preferred_date": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, prop=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if prop:
+            self.fields["service"].queryset = SpaService.objects.filter(prop=prop, is_active=True)
+            self.fields["preferred_therapist"].queryset = SpaTherapist.objects.filter(prop=prop, is_active=True)
+            self.fields["guest"].queryset = Guest.objects.filter(prop=prop)
+        optional = ["service", "preferred_therapist", "preferred_date", "guest",
+                    "guest_name", "guest_phone", "guest_email", "notes"]
+        for f in optional:
+            self.fields[f].required = False
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+
+
+class SpaClientProfileForm(forms.ModelForm):
+    class Meta:
+        model = SpaClientProfile
+        fields = ["allergies", "contraindications", "skin_type", "pressure_preference",
+                  "preferred_therapist", "general_notes"]
+        widgets = {
+            "allergies": forms.Textarea(attrs={"rows": 2}),
+            "contraindications": forms.Textarea(attrs={"rows": 2}),
+            "general_notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, prop=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if prop:
+            self.fields["preferred_therapist"].queryset = SpaTherapist.objects.filter(prop=prop, is_active=True)
+        optional = ["allergies", "contraindications", "skin_type", "pressure_preference",
+                    "preferred_therapist", "general_notes"]
+        for f in optional:
+            self.fields[f].required = False
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+
+
+class SpaServiceProductForm(forms.ModelForm):
+    class Meta:
+        model = SpaServiceProduct
+        fields = ["inventory_item", "quantity_used"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+
+
+class SpaPaymentForm(forms.ModelForm):
+    class Meta:
+        model = SpaPayment
+        fields = ["amount", "payment_date", "payment_method", "payment_type", "reference", "notes"]
+        widgets = {
+            "payment_date": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": PREMIUM_FIELD_CLASSES})
+        self.fields["payment_method"].choices = SpaPayment.PAYMENT_METHOD_CHOICES
+        self.fields["payment_method"].initial = "Cash"
+        self.fields["payment_type"].choices = SpaPayment.PAYMENT_TYPE_CHOICES
+        self.fields["payment_type"].initial = "Payment"
+
+    def clean_amount(self):
+        amount = self.cleaned_data["amount"]
+        if amount <= 0:
+            raise forms.ValidationError("Payment amount must be greater than zero.")
+        return amount

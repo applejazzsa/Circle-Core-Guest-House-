@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Spa & Wellness — Circle Core{% endblock %}
+
+{% block content %}
+<div style="max-width:1200px; margin:0 auto;">
+
+  <!-- Header -->
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px;">
+    <div>
+      <h1 style="font-family:var(--font-display); font-size:22px; font-weight:800; color:var(--color-text-primary); margin:0 0 4px;">Spa &amp; Wellness</h1>
+      <p style="font-size:13px; color:var(--color-text-tertiary); margin:0;">{{ today|date:"l, d F Y" }}</p>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="{% url 'core:spa_schedule' %}" class="btn btn-ghost btn-sm">Schedule</a>
+      <a href="{% url 'core:spa_therapists' %}" class="btn btn-ghost btn-sm">Therapists</a>
+      <a href="{% url 'core:spa_vouchers' %}" class="btn btn-ghost btn-sm">Vouchers</a>
+      <a href="{% url 'core:spa_waitlist' %}" class="btn btn-ghost btn-sm">Waitlist</a>
+      <a href="{% url 'core:spa_reports' %}" class="btn btn-ghost btn-sm">Reports</a>
+      <a href="{% url 'core:spa_services' %}" class="btn btn-ghost btn-sm">Services</a>
+      <a href="{% url 'core:spa_appointment_list' %}" class="btn btn-ghost btn-sm">All Appointments</a>
+      <a href="{% url 'core:spa_appointment_add' %}" class="btn btn-primary btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Book
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:16px; margin-bottom:28px;">
+    <div class="card" style="padding:20px;">
+      <div style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); font-weight:600; margin-bottom:8px;">Today's Bookings</div>
+      <div style="font-size:32px; font-weight:800; font-family:var(--font-display); color:var(--color-text-primary);">{{ total_today }}</div>
+    </div>
+    <div class="card" style="padding:20px;">
+      <div style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); font-weight:600; margin-bottom:8px;">Completed Today</div>
+      <div style="font-size:32px; font-weight:800; font-family:var(--font-display); color:var(--color-green-400);">{{ completed_today }}</div>
+    </div>
+    <div class="card" style="padding:20px;">
+      <div style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); font-weight:600; margin-bottom:8px;">Revenue Today</div>
+      <div style="font-size:32px; font-weight:800; font-family:var(--font-display); color:var(--color-text-primary);">R {{ revenue_today|floatformat:2 }}</div>
+    </div>
+    <div class="card" style="padding:20px;">
+      <div style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-text-tertiary); font-weight:600; margin-bottom:8px;">Active Services</div>
+      <div style="font-size:32px; font-weight:800; font-family:var(--font-display); color:var(--color-text-primary);">{{ services_count }}</div>
+    </div>
+  </div>
+
+  <!-- Quick links row -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px,1fr)); gap:12px; margin-bottom:24px;">
+    <a href="{% url 'core:spa_schedule' %}" class="card" style="padding:16px; text-decoration:none; text-align:center; transition:border-color .15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor=''">
+      <div style="font-size:20px; margin-bottom:6px;">🗓️</div>
+      <div style="font-size:12px; font-weight:700; color:var(--color-text-primary);">Day Schedule</div>
+    </a>
+    <a href="{% url 'core:spa_therapists' %}" class="card" style="padding:16px; text-decoration:none; text-align:center; transition:border-color .15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor=''">
+      <div style="font-size:20px; margin-bottom:6px;">💆</div>
+      <div style="font-size:12px; font-weight:700; color:var(--color-text-primary);">Therapists</div>
+    </a>
+    <a href="{% url 'core:spa_packages' %}" class="card" style="padding:16px; text-decoration:none; text-align:center; transition:border-color .15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor=''">
+      <div style="font-size:20px; margin-bottom:6px;">🎁</div>
+      <div style="font-size:12px; font-weight:700; color:var(--color-text-primary);">Packages</div>
+    </a>
+    <a href="{% url 'core:spa_vouchers' %}" class="card" style="padding:16px; text-decoration:none; text-align:center; transition:border-color .15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor=''">
+      <div style="font-size:20px; margin-bottom:6px;">🏷️</div>
+      <div style="font-size:12px; font-weight:700; color:var(--color-text-primary);">Gift Vouchers</div>
+    </a>
+    <a href="{% url 'core:spa_waitlist' %}" class="card" style="padding:16px; text-decoration:none; text-align:center; transition:border-color .15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor=''">
+      <div style="font-size:20px; margin-bottom:6px;">📋</div>
+      <div style="font-size:12px; font-weight:700; color:var(--color-text-primary);">Waitlist</div>
+    </a>
+    <a href="{% url 'core:spa_reports' %}" class="card" style="padding:16px; text-decoration:none; text-align:center; transition:border-color .15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor=''">
+      <div style="font-size:20px; margin-bottom:6px;">📊</div>
+      <div style="font-size:12px; font-weight:700; color:var(--color-text-primary);">Revenue Reports</div>
+    </a>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+
+    <!-- Today's schedule -->
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:18px 20px 14px; border-bottom:1px solid var(--color-border);">
+        <h2 style="font-size:14px; font-weight:700; color:var(--color-text-primary); margin:0;">Today's Schedule</h2>
+      </div>
+      {% if appointments_today %}
+      <div style="divide-y:var(--color-border);">
+        {% for appt in appointments_today %}
+        <a href="{% url 'core:spa_appointment_detail' appt.pk %}" style="display:flex; align-items:center; gap:14px; padding:14px 20px; text-decoration:none; transition:background 0.12s; border-bottom:1px solid var(--color-border);" onmouseover="this.style.background='var(--color-bg-elevated)'" onmouseout="this.style.background='transparent'">
+          <div style="min-width:52px; text-align:center;">
+            <div style="font-size:15px; font-weight:700; color:var(--color-text-primary);">{{ appt.scheduled_time|time:"H:i" }}</div>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:13px; font-weight:600; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ appt.display_guest_name }}</div>
+            <div style="font-size:12px; color:var(--color-text-tertiary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ appt.service.name }} · {{ appt.service.duration_minutes }} min</div>
+          </div>
+          {% if appt.status == 'completed' %}
+          <span style="font-size:10px; font-weight:700; padding:3px 8px; border-radius:999px; background:rgba(34,197,94,0.12); color:var(--color-green-400);">Done</span>
+          {% elif appt.status == 'in_progress' %}
+          <span style="font-size:10px; font-weight:700; padding:3px 8px; border-radius:999px; background:rgba(59,130,246,0.12); color:#60a5fa;">Active</span>
+          {% elif appt.status == 'confirmed' %}
+          <span style="font-size:10px; font-weight:700; padding:3px 8px; border-radius:999px; background:rgba(34,197,94,0.08); color:var(--color-green-500);">Confirmed</span>
+          {% elif appt.status == 'cancelled' %}
+          <span style="font-size:10px; font-weight:700; padding:3px 8px; border-radius:999px; background:rgba(239,68,68,0.1); color:#f87171;">Cancelled</span>
+          {% else %}
+          <span style="font-size:10px; font-weight:700; padding:3px 8px; border-radius:999px; background:rgba(245,158,11,0.1); color:#fbbf24;">Pending</span>
+          {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="padding:40px 20px; text-align:center;">
+        <div style="font-size:32px; margin-bottom:10px;">🧖</div>
+        <p style="color:var(--color-text-tertiary); font-size:13.5px; margin:0 0 14px;">No appointments today</p>
+        <a href="{% url 'core:spa_appointment_add' %}?date={{ today|date:'Y-m-d' }}" class="btn btn-primary btn-sm">Book one now</a>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Upcoming appointments -->
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:18px 20px 14px; border-bottom:1px solid var(--color-border);">
+        <h2 style="font-size:14px; font-weight:700; color:var(--color-text-primary); margin:0;">Upcoming</h2>
+      </div>
+      {% if upcoming %}
+      {% for appt in upcoming %}
+      <a href="{% url 'core:spa_appointment_detail' appt.pk %}" style="display:flex; align-items:center; gap:14px; padding:14px 20px; text-decoration:none; transition:background 0.12s; border-bottom:1px solid var(--color-border);" onmouseover="this.style.background='var(--color-bg-elevated)'" onmouseout="this.style.background='transparent'">
+        <div style="min-width:72px;">
+          <div style="font-size:11px; font-weight:600; color:var(--color-text-tertiary);">{{ appt.scheduled_date|date:"d M" }}</div>
+          <div style="font-size:13px; font-weight:700; color:var(--color-text-primary);">{{ appt.scheduled_time|time:"H:i" }}</div>
+        </div>
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:13px; font-weight:600; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ appt.display_guest_name }}</div>
+          <div style="font-size:12px; color:var(--color-text-tertiary);">{{ appt.service.name }}</div>
+        </div>
+        <div style="font-size:12.5px; font-weight:600; color:var(--color-text-secondary);">R {{ appt.price_charged|floatformat:0 }}</div>
+      </a>
+      {% endfor %}
+      {% else %}
+      <div style="padding:40px 20px; text-align:center;">
+        <p style="color:var(--color-text-tertiary); font-size:13.5px; margin:0;">No upcoming appointments</p>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

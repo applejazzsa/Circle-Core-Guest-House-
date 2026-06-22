@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Spa Reports — Circle Core{% endblock %}
+{% block content %}
+<div style="max-width:1100px; margin:0 auto;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+    <div>
+      <a href="{% url 'core:spa_dashboard' %}" style="font-size:12px; color:var(--color-text-tertiary); text-decoration:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>Spa &amp; Wellness</a>
+      <h1 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--color-text-primary); margin:0;">Spa Revenue Reports</h1>
+    </div>
+    <form method="get" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <input type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" class="form-input" style="width:140px; padding:7px 10px; font-size:13px;">
+      <span style="color:var(--color-text-tertiary); font-size:13px;">to</span>
+      <input type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" class="form-input" style="width:140px; padding:7px 10px; font-size:13px;">
+      <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+      <a href="{% url 'core:spa_reports' %}" class="btn btn-ghost btn-sm">Reset</a>
+    </form>
+  </div>
+
+  <!-- Summary KPIs -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:14px; margin-bottom:24px;">
+    <div class="card" style="padding:18px 20px; text-align:center;">
+      <div style="font-size:22px; font-weight:800; color:var(--color-green-400);">R {{ totals.revenue|floatformat:0 }}</div>
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary); margin-top:3px;">Total Revenue</div>
+    </div>
+    <div class="card" style="padding:18px 20px; text-align:center;">
+      <div style="font-size:22px; font-weight:800; color:var(--color-text-primary);">{{ totals.appointments }}</div>
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary); margin-top:3px;">Appointments</div>
+    </div>
+    <div class="card" style="padding:18px 20px; text-align:center;">
+      <div style="font-size:22px; font-weight:800; color:#c084fc;">R {{ totals.tips|floatformat:0 }}</div>
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary); margin-top:3px;">Tips Collected</div>
+    </div>
+    <div class="card" style="padding:18px 20px; text-align:center;">
+      <div style="font-size:22px; font-weight:800; color:#f59e0b;">R {{ totals.commissions|floatformat:0 }}</div>
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary); margin-top:3px;">Commissions</div>
+    </div>
+    <div class="card" style="padding:18px 20px; text-align:center;">
+      <div style="font-size:22px; font-weight:800; color:#60a5fa;">R {{ totals.avg_ticket|floatformat:0 }}</div>
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary); margin-top:3px;">Avg Ticket</div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px;">
+    <!-- Top services -->
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:16px 20px; border-bottom:1px solid var(--color-border);">
+        <h2 style="font-size:13px; font-weight:700; color:var(--color-text-primary); margin:0;">Revenue by Service</h2>
+      </div>
+      {% if services_breakdown %}
+      {% for row in services_breakdown %}
+      <div style="display:flex; align-items:center; gap:12px; padding:11px 20px; border-bottom:1px solid var(--color-border);">
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:13px; font-weight:600; color:var(--color-text-primary);">{{ row.service__name }}</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary);">{{ row.count }} appointment{{ row.count|pluralize }}</div>
+        </div>
+        <div style="font-size:14px; font-weight:700; color:var(--color-green-400);">R {{ row.revenue|floatformat:0 }}</div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div style="padding:30px; text-align:center; color:var(--color-text-tertiary); font-size:13px;">No data for period.</div>
+      {% endif %}
+    </div>
+
+    <!-- Therapist breakdown -->
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:16px 20px; border-bottom:1px solid var(--color-border);">
+        <h2 style="font-size:13px; font-weight:700; color:var(--color-text-primary); margin:0;">Therapist Performance</h2>
+      </div>
+      {% if therapist_breakdown %}
+      {% for row in therapist_breakdown %}
+      <div style="display:flex; align-items:center; gap:12px; padding:11px 20px; border-bottom:1px solid var(--color-border);">
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:13px; font-weight:600; color:var(--color-text-primary);">{{ row.assigned_therapist__name|default:"Unassigned" }}</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary);">{{ row.count }} appt{{ row.count|pluralize }} · Commission: R {{ row.commissions|floatformat:0 }}</div>
+        </div>
+        <div style="font-size:14px; font-weight:700; color:var(--color-green-400);">R {{ row.revenue|floatformat:0 }}</div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div style="padding:30px; text-align:center; color:var(--color-text-tertiary); font-size:13px;">No data for period.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Completed appointments table -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:16px 20px; border-bottom:1px solid var(--color-border); display:flex; align-items:center; justify-content:space-between;">
+      <h2 style="font-size:13px; font-weight:700; color:var(--color-text-primary); margin:0;">Completed Appointments</h2>
+      <span style="font-size:12px; color:var(--color-text-tertiary);">{{ appointments|length }} record{{ appointments|length|pluralize }}</span>
+    </div>
+    {% if appointments %}
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="border-bottom:1px solid var(--color-border);">
+          <th style="padding:10px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em; white-space:nowrap;">Date</th>
+          <th style="padding:10px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Guest</th>
+          <th style="padding:10px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Service</th>
+          <th style="padding:10px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Therapist</th>
+          <th style="padding:10px 16px; text-align:right; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Charged</th>
+          <th style="padding:10px 16px; text-align:right; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Tip</th>
+          <th style="padding:10px 16px; text-align:right; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Commission</th>
+        </tr></thead>
+        <tbody>
+        {% for appt in appointments %}
+        <tr style="border-bottom:1px solid var(--color-border);">
+          <td style="padding:11px 16px; font-size:12.5px; color:var(--color-text-secondary); white-space:nowrap;">{{ appt.scheduled_date|date:"d M Y" }}</td>
+          <td style="padding:11px 16px; font-size:13px; color:var(--color-text-primary);">{{ appt.display_guest_name }}</td>
+          <td style="padding:11px 16px; font-size:12.5px; color:var(--color-text-secondary);">{{ appt.service.name }}</td>
+          <td style="padding:11px 16px; font-size:12.5px; color:var(--color-text-secondary);">{{ appt.display_therapist }}</td>
+          <td style="padding:11px 16px; text-align:right; font-size:13px; font-weight:600; color:var(--color-text-primary);">R {{ appt.price_charged|floatformat:2 }}</td>
+          <td style="padding:11px 16px; text-align:right; font-size:12.5px; color:#c084fc;">{% if appt.tip_amount %}R {{ appt.tip_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td style="padding:11px 16px; text-align:right; font-size:12.5px; color:#f59e0b;">{% if appt.commission_amount %}R {{ appt.commission_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:40px; text-align:center; color:var(--color-text-tertiary); font-size:13px;">No completed appointments in this period.</div>
+    {% endif %}
+  </div>
+</div>
+<style>.form-input{background:var(--color-bg-subtle);border:1px solid var(--color-border-bright);border-radius:var(--radius-md);color:var(--color-text-primary);font-size:13px;font-family:var(--font-body);}.form-input:focus{outline:none;border-color:var(--color-green-500);}</style>
+{% endblock %}

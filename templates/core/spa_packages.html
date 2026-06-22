@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Spa Packages — Circle Core{% endblock %}
+{% block content %}
+<div style="max-width:1000px; margin:0 auto;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+    <div>
+      <a href="{% url 'core:spa_dashboard' %}" style="font-size:12px; color:var(--color-text-tertiary); text-decoration:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>Spa &amp; Wellness</a>
+      <h1 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--color-text-primary); margin:0;">Treatment Packages</h1>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 340px; gap:24px; align-items:start;">
+    <div>
+      {% for pkg in packages %}
+      <div class="card" style="padding:20px; margin-bottom:14px; {% if not pkg.is_active %}opacity:0.5;{% endif %}">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px;">
+          <div>
+            <div style="font-size:15px; font-weight:700; color:var(--color-text-primary);">{{ pkg.name }}{% if not pkg.is_active %} <span style="font-size:10px; color:var(--color-text-tertiary);">(inactive)</span>{% endif %}</div>
+            {% if pkg.description %}<div style="font-size:12.5px; color:var(--color-text-tertiary); margin-top:3px;">{{ pkg.description }}</div>{% endif %}
+          </div>
+          <div style="text-align:right; flex-shrink:0;">
+            <div style="font-size:20px; font-weight:800; color:var(--color-green-400);">R {{ pkg.package_price|floatformat:0 }}</div>
+            {% if pkg.total_individual_price != pkg.package_price %}
+            <div style="font-size:11px; color:var(--color-text-tertiary); text-decoration:line-through;">R {{ pkg.total_individual_price|floatformat:0 }} individually</div>
+            {% endif %}
+          </div>
+        </div>
+        {% if pkg.items.all %}
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;">
+          {% for item in pkg.items.all %}
+          <span style="font-size:11px; font-weight:600; padding:3px 10px; background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:999px; color:var(--color-text-secondary);">{{ item.service.name }} ({{ item.service.duration_minutes }}m)</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div style="display:flex; gap:8px;">
+          <a href="{% url 'core:spa_package_detail' pkg.pk %}" class="btn btn-ghost btn-sm">Manage</a>
+          {% if pkg.is_active %}
+          <form method="post" action="{% url 'core:spa_package_delete' pkg.pk %}" onsubmit="return confirm('Deactivate this package?');">{% csrf_token %}
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--color-text-tertiary);">Deactivate</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <div class="card" style="padding:50px; text-align:center;">
+        <div style="font-size:36px; margin-bottom:12px;">🎁</div>
+        <p style="color:var(--color-text-tertiary); margin:0;">No packages yet. Create your first on the right.</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="card" style="padding:22px; position:sticky; top:80px;">
+      <h3 style="font-size:14px; font-weight:700; color:var(--color-text-primary); margin:0 0 18px;">Create Package</h3>
+      <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+        <div style="margin-bottom:13px;">
+          <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-secondary); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.07em;">{{ field.label }}{% if field.field.required %} <span style="color:#f87171;">*</span>{% endif %}</label>
+          {{ field }}
+          {% for error in field.errors %}<p style="font-size:12px; color:#f87171; margin:3px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+        <p style="font-size:11px; color:var(--color-text-tertiary); margin:8px 0 12px;">After creating, open the package to add services to it.</p>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Create Package</button>
+      </form>
+    </div>
+  </div>
+</div>
+<style>.form-input{display:block;width:100%;background:var(--color-bg-subtle);border:1px solid var(--color-border-bright);border-radius:var(--radius-md);padding:8px 12px;color:var(--color-text-primary);font-size:13px;font-family:var(--font-body);transition:border-color .15s;box-sizing:border-box;}.form-input:focus{outline:none;border-color:var(--color-green-500);}</style>
+{% endblock %}

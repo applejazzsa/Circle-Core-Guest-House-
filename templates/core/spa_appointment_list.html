@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Spa Appointments — Circle Core{% endblock %}
+
+{% block content %}
+<div style="max-width:1100px; margin:0 auto;">
+
+  <!-- Header -->
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+    <div>
+      <a href="{% url 'core:spa_dashboard' %}" style="font-size:12px; color:var(--color-text-tertiary); text-decoration:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:6px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Spa &amp; Wellness
+      </a>
+      <h1 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--color-text-primary); margin:0;">All Appointments</h1>
+    </div>
+    <a href="{% url 'core:spa_appointment_add' %}" class="btn btn-primary btn-sm">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Book Appointment
+    </a>
+  </div>
+
+  <!-- Filters -->
+  <form method="get" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:flex-end;">
+    <div>
+      <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-tertiary); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.08em;">Status</label>
+      <select name="status" onchange="this.form.submit()" style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:7px 12px; color:var(--color-text-primary); font-size:13px; cursor:pointer;">
+        <option value="">All statuses</option>
+        {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-tertiary); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.08em;">From</label>
+      <input type="date" name="date_from" value="{{ date_from }}" style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:7px 12px; color:var(--color-text-primary); font-size:13px;">
+    </div>
+    <div>
+      <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-tertiary); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.08em;">To</label>
+      <input type="date" name="date_to" value="{{ date_to }}" style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:7px 12px; color:var(--color-text-primary); font-size:13px;">
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Filter</button>
+    {% if status_filter or date_from or date_to %}
+    <a href="{% url 'core:spa_appointment_list' %}" class="btn btn-ghost btn-sm" style="color:var(--color-text-tertiary);">Clear</a>
+    {% endif %}
+  </form>
+
+  <!-- Table -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    {% if appointments %}
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--color-border);">
+          <th style="padding:12px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Date &amp; Time</th>
+          <th style="padding:12px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Guest</th>
+          <th style="padding:12px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Service</th>
+          <th style="padding:12px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Therapist</th>
+          <th style="padding:12px 16px; text-align:right; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Price</th>
+          <th style="padding:12px 16px; text-align:center; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Status</th>
+          <th style="padding:12px 16px; text-align:center; font-size:11px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em;">Payment</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for appt in appointments %}
+        <tr onclick="window.location='{% url 'core:spa_appointment_detail' appt.pk %}'" style="border-bottom:1px solid var(--color-border); cursor:pointer; transition:background 0.12s;" onmouseover="this.style.background='var(--color-bg-elevated)'" onmouseout="this.style.background='transparent'">
+          <td style="padding:13px 16px;">
+            <div style="font-size:13px; font-weight:600; color:var(--color-text-primary);">{{ appt.scheduled_date|date:"d M Y" }}</div>
+            <div style="font-size:12px; color:var(--color-text-tertiary);">{{ appt.scheduled_time|time:"H:i" }}</div>
+          </td>
+          <td style="padding:13px 16px; font-size:13px; color:var(--color-text-primary); font-weight:500;">{{ appt.display_guest_name }}</td>
+          <td style="padding:13px 16px;">
+            <div style="font-size:13px; color:var(--color-text-primary);">{{ appt.service.name }}</div>
+            <div style="font-size:12px; color:var(--color-text-tertiary);">{{ appt.service.duration_minutes }} min</div>
+          </td>
+          <td style="padding:13px 16px; font-size:13px; color:var(--color-text-secondary);">{{ appt.therapist|default:"—" }}</td>
+          <td style="padding:13px 16px; text-align:right; font-size:13px; font-weight:600; color:var(--color-text-primary);">R {{ appt.price_charged|floatformat:2 }}</td>
+          <td style="padding:13px 16px; text-align:center;">
+            {% if appt.status == 'completed' %}
+            <span class="badge" style="background:rgba(34,197,94,0.12); color:var(--color-green-400);">Completed</span>
+            {% elif appt.status == 'in_progress' %}
+            <span class="badge" style="background:rgba(59,130,246,0.12); color:#60a5fa;">In Progress</span>
+            {% elif appt.status == 'confirmed' %}
+            <span class="badge" style="background:rgba(34,197,94,0.08); color:var(--color-green-500);">Confirmed</span>
+            {% elif appt.status == 'cancelled' %}
+            <span class="badge" style="background:rgba(239,68,68,0.1); color:#f87171;">Cancelled</span>
+            {% elif appt.status == 'no_show' %}
+            <span class="badge" style="background:rgba(107,114,128,0.15); color:#9ca3af;">No Show</span>
+            {% else %}
+            <span class="badge" style="background:rgba(245,158,11,0.1); color:#fbbf24;">Pending</span>
+            {% endif %}
+          </td>
+          <td style="padding:13px 16px; text-align:center;">
+            {% if appt.payment_status == 'paid' %}
+            <span class="badge" style="background:rgba(34,197,94,0.12); color:var(--color-green-400);">Paid</span>
+            {% elif appt.payment_status == 'deposit_paid' %}
+            <span class="badge" style="background:rgba(59,130,246,0.1); color:#60a5fa;">Deposit</span>
+            {% elif appt.payment_status == 'refunded' %}
+            <span class="badge" style="background:rgba(107,114,128,0.15); color:#9ca3af;">Refunded</span>
+            {% else %}
+            <span class="badge" style="background:rgba(245,158,11,0.1); color:#fbbf24;">Unpaid</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:60px 20px; text-align:center;">
+      <div style="font-size:36px; margin-bottom:12px;">🧖</div>
+      <p style="color:var(--color-text-tertiary); font-size:13.5px; margin:0 0 16px;">No appointments found</p>
+      <a href="{% url 'core:spa_appointment_add' %}" class="btn btn-primary btn-sm">Book first appointment</a>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+.badge { font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; display:inline-block; }
+</style>
+{% endblock %}

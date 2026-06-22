@@ -185,6 +185,42 @@
     </a>
     {% endif %}
 
+    {% if plan and plan.feature_spa %}
+    <a href="{% url 'core:spa_dashboard' %}" class="nav-item {% if 'spa' in u %}active{% endif %}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22c5.421 0 9-3.579 9-9 0-2.5-1-4.5-2.5-6.5S15 3 12 2c0 0-1 4-4 6s-5 3-5 5c0 5.421 3.579 9 9 9z"/>
+        <path d="M12 22V12M12 12c0-2 1-4 3-6"/>
+      </svg>
+      Spa &amp; Wellness
+    </a>
+    <a href="{% url 'core:spa_schedule' %}" class="nav-item nav-sub {% if 'spa_schedule' in u %}active{% endif %}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Schedule
+    </a>
+    <a href="{% url 'core:spa_appointment_list' %}" class="nav-item nav-sub {% if 'spa_appointments' in u %}active{% endif %}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      Appointments
+    </a>
+    <a href="{% url 'core:spa_therapists' %}" class="nav-item nav-sub {% if 'spa_therapist' in u %}active{% endif %}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      Therapists
+    </a>
+    <a href="{% url 'core:spa_vouchers' %}" class="nav-item nav-sub {% if 'spa_voucher' in u %}active{% endif %}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="22" height="13" rx="2"/><polyline points="1,10 23,10"/></svg>
+      Gift Vouchers
+    </a>
+    <a href="{% url 'core:spa_reports' %}" class="nav-item nav-sub {% if 'spa_reports' in u %}active{% endif %}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Reports
+    </a>
+    {% elif not is_cleaner %}
+    <a href="{% url 'core:subscription_upgrade' %}?feature=spa" class="nav-item nav-item-locked">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.421 0 9-3.579 9-9 0-2.5-1-4.5-2.5-6.5S15 3 12 2c0 0-1 4-4 6s-5 3-5 5c0 5.421 3.579 9 9 9z"/></svg>
+      Spa &amp; Wellness
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto; opacity:0.35"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    </a>
+    {% endif %}
+
     {% if not is_cleaner %}
     <div class="nav-group-label">Finance</div>
 
@@ -514,6 +550,7 @@
 .nav-item.active svg { color: var(--color-green-400); }
 .nav-item-locked { opacity: 0.4; cursor: default; }
 .nav-item-locked:hover { background: none; color: var(--color-text-tertiary); }
+.nav-sub { padding-left: 28px; font-size: 12px; opacity: 0.88; }
 .nav-group-label {
   font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--color-text-tertiary);

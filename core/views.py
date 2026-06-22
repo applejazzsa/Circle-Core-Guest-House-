@@ -1,4 +1,4 @@
-import datetime
+﻿import datetime
 import json
 import calendar
 import csv
@@ -28,7 +28,14 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from .forms import BookingForm, BookingRefundForm, ExpenseForm, GuestForm, GuestHouseSettingsForm, PaymentForm, RoomForm, StaffPinSetupForm, validate_image_upload
+from .forms import (
+    BookingForm, BookingRefundForm, ExpenseForm, GuestForm, GuestHouseSettingsForm,
+    PaymentForm, RoomForm,
+    SpaAppointmentForm, SpaClientProfileForm, SpaPackageForm, SpaPaymentForm, SpaServiceForm,
+    SpaServiceProductForm, SpaTherapistForm, SpaTreatmentRoomForm, SpaVoucherForm,
+    SpaWaitlistForm,
+    StaffPinSetupForm, validate_image_upload,
+)
 from .models import (
     AuditLog,
     Booking,
@@ -43,9 +50,21 @@ from .models import (
     InventoryCategory,
     InventoryItem,
     InventoryTransaction,
+    RoomInventoryAssignment,
     MaintenanceRequest,
     Payment,
     Room,
+    SpaAppointment,
+    SpaClientProfile,
+    SpaPackage,
+    SpaPackageItem,
+    SpaPayment,
+    SpaService,
+    SpaServiceProduct,
+    SpaTherapist,
+    SpaTreatmentRoom,
+    SpaVoucher,
+    SpaWaitlist,
     StaffProfile,
     Subscription,
     SubscriptionPlan,
@@ -63,7 +82,7 @@ from .pdf_utils import generate_pdf
 from .pdf_documents import render_booking_invoice_pdf, render_payment_receipt_pdf
 from .subscriptions import trial_end
 from django.contrib.auth.models import User as AuthUser
-from .roles import assign_role, is_cleaner, is_owner, STAFF_ROLES
+from .roles import assign_role, can_manage_system, is_cleaner, is_owner, STAFF_ROLES
 
 
 SENSITIVE_DISCOUNT_AMOUNT = Decimal("50.00")
@@ -263,8 +282,8 @@ def notifications_feed(request):
             "id": f"checkout-{b.pk}",
             "type": "checkout",
             "title": "Checkout Due Today",
-            "body": f"{b.guest.full_name} · {b.room.name} — scheduled checkout today",
-            "icon": "🔔",
+            "body": f"{b.guest.full_name} Â· {b.room.name} — scheduled checkout today",
+            "icon": "checkout",
         })
 
     # Bookings checking IN today not yet checked in
@@ -277,8 +296,8 @@ def notifications_feed(request):
             "id": f"checkin-{b.pk}",
             "type": "checkin",
             "title": "Guest Arriving Today",
-            "body": f"{b.guest.full_name} · {b.room.name} — check-in expected today",
-            "icon": "🏨",
+            "body": f"{b.guest.full_name} Â· {b.room.name} — check-in expected today",
+            "icon": "ðŸ¨",
         })
 
     # Rooms needing cleaning
@@ -289,7 +308,7 @@ def notifications_feed(request):
             "type": "needs_cleaning",
             "title": "Room Needs Cleaning",
             "body": f"{r.name} — needs to be cleaned",
-            "icon": "🧹",
+            "icon": "ðŸ§¹",
         })
 
     # Rooms cleaned in the last 2 hours (proof uploaded recently)
@@ -306,7 +325,7 @@ def notifications_feed(request):
             "type": "cleaned",
             "title": "Room Ready",
             "body": f"{r.name} — cleaning complete, room is ready",
-            "icon": "✅",
+            "icon": "âœ…",
         })
 
     return JsonResponse({"alerts": alerts})
@@ -3054,11 +3073,11 @@ def plans_page(request):
         annual_monthly = (plan.annual_price / Decimal("12")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         annual_savings = ((plan.monthly_price * Decimal("12")) - plan.annual_price).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         if plan.max_rooms < 999:
-            limit = f"Up to {plan.max_rooms} rooms · {plan.max_users} user"
+            limit = f"Up to {plan.max_rooms} rooms Â· {plan.max_users} user"
             if plan.max_users != 1:
                 limit += "s"
         else:
-            limit = "Unlimited rooms · Unlimited users"
+            limit = "Unlimited rooms Â· Unlimited users"
         plan_cards.append(
             {
                 "plan": plan,
@@ -3754,7 +3773,7 @@ def inventory_categories(request):
     )
 
 
-# ── Command Center impersonation entry point ──────────────────────────────────
+# â"€â"€ Command Center impersonation entry point â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 def command_enter(request):
     """
@@ -3801,3 +3820,902 @@ def command_enter(request):
             pass  # audit failure must not block impersonation
 
     return redirect("/")
+
+
+
+
+# â"€â"€â"€ SPA & WELLNESS â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+
+def _spa_blocked(request):
+    plan = getattr(request, "subscription_plan", None)
+    if plan and not plan.feature_spa:
+        return redirect(f"{reverse('core:subscription_upgrade')}?feature=spa")
+    return None
+
+
+def _deduct_spa_inventory(appointment):
+    """Deduct inventory products consumed by this appointment's service."""
+    try:
+        for sp in SpaServiceProduct.objects.select_related("inventory_item").filter(service=appointment.service):
+            item = sp.inventory_item
+            qty = sp.quantity_used
+            if item.current_stock >= qty:
+                item.current_stock -= qty
+                item.save(update_fields=["current_stock"])
+                InventoryTransaction.objects.create(
+                    item=item,
+                    transaction_type="out",
+                    quantity=qty,
+                    notes=f"Spa treatment: {appointment.service.name} — {appointment.display_guest_name}",
+                    performed_by=appointment.created_by,
+                )
+    except Exception:
+        pass  # never crash the appointment flow
+
+
+# â"€â"€â"€ Dashboard â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_dashboard(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    today = timezone.localdate()
+    appointments_today = SpaAppointment.objects.select_related("service", "guest", "assigned_therapist").filter(
+        prop=active_prop, scheduled_date=today
+    )
+    upcoming = SpaAppointment.objects.select_related("service", "guest").filter(
+        prop=active_prop, scheduled_date__gt=today, status__in=["pending", "confirmed"]
+    ).order_by("scheduled_date", "scheduled_time")[:10]
+    total_today = appointments_today.count()
+    completed_today = appointments_today.filter(status="completed").count()
+    revenue_today = (
+        appointments_today.filter(status="completed", payment_status="paid")
+        .aggregate(total=Sum("price_charged"))["total"] or Decimal("0.00")
+    )
+    services_count = SpaService.objects.filter(prop=active_prop, is_active=True).count()
+    therapists_count = SpaTherapist.objects.filter(prop=active_prop, is_active=True).count()
+    waitlist_count = SpaWaitlist.objects.filter(prop=active_prop, status="waiting").count()
+    return render(request, "core/spa_dashboard.html", {
+        "appointments_today": appointments_today.order_by("scheduled_time"),
+        "upcoming": upcoming,
+        "total_today": total_today,
+        "completed_today": completed_today,
+        "revenue_today": revenue_today,
+        "services_count": services_count,
+        "therapists_count": therapists_count,
+        "waitlist_count": waitlist_count,
+        "today": today,
+    })
+
+
+# â"€â"€â"€ Appointments â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_appointment_list(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    status_filter = request.GET.get("status", "")
+    date_from = request.GET.get("date_from", "")
+    date_to = request.GET.get("date_to", "")
+    therapist_filter = request.GET.get("therapist", "")
+    qs = SpaAppointment.objects.select_related("service", "guest", "assigned_therapist").filter(prop=active_prop)
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    if date_from:
+        qs = qs.filter(scheduled_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(scheduled_date__lte=date_to)
+    if therapist_filter:
+        qs = qs.filter(assigned_therapist_id=therapist_filter)
+    qs = qs.order_by("-scheduled_date", "scheduled_time")
+    therapists = SpaTherapist.objects.filter(prop=active_prop, is_active=True)
+    return render(request, "core/spa_appointment_list.html", {
+        "appointments": qs,
+        "status_filter": status_filter,
+        "date_from": date_from,
+        "date_to": date_to,
+        "therapist_filter": therapist_filter,
+        "therapists": therapists,
+        "status_choices": SpaAppointment.STATUS_CHOICES,
+    })
+
+
+@login_required
+def spa_appointment_add(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    initial = {}
+    if request.GET.get("date"):
+        initial["scheduled_date"] = request.GET["date"]
+    if request.GET.get("therapist"):
+        initial["assigned_therapist"] = request.GET["therapist"]
+    form = SpaAppointmentForm(request.POST or None, prop=active_prop, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        appt = form.save(commit=False)
+        appt.prop = active_prop
+        appt.created_by = request.user
+        if not appt.price_charged and appt.service_id:
+            appt.price_charged = appt.service.price
+        appt.save()
+        messages.success(request, "Spa appointment booked.")
+        return redirect("core:spa_appointment_detail", pk=appt.pk)
+    return render(request, "core/spa_appointment_form.html", {
+        "form": form, "title": "Book Spa Appointment",
+    })
+
+
+@login_required
+def spa_appointment_edit(request, pk):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    appt = get_object_or_404(SpaAppointment, pk=pk, prop=active_prop)
+    form = SpaAppointmentForm(request.POST or None, instance=appt, prop=active_prop, exclude_pk=appt.pk)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Appointment updated.")
+        return redirect("core:spa_appointment_detail", pk=appt.pk)
+    return render(request, "core/spa_appointment_form.html", {
+        "form": form, "title": "Edit Appointment", "appt": appt,
+    })
+
+
+@login_required
+def spa_appointment_detail(request, pk):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    appt = get_object_or_404(
+        SpaAppointment.objects.select_related(
+            "service", "guest", "booking", "created_by",
+            "assigned_therapist", "treatment_room", "package", "voucher"
+        ),
+        pk=pk, prop=active_prop
+    )
+    client_profile = None
+    past_appointments = []
+    if appt.guest:
+        client_profile = SpaClientProfile.objects.filter(guest=appt.guest).first()
+        past_appointments = SpaAppointment.objects.filter(
+            guest=appt.guest, prop=active_prop, status="completed"
+        ).exclude(pk=pk).order_by("-scheduled_date")[:5]
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "confirm":
+            appt.status = "confirmed"
+            appt.save(update_fields=["status"])
+            messages.success(request, "Appointment confirmed.")
+        elif action == "start":
+            appt.status = "in_progress"
+            appt.save(update_fields=["status"])
+            messages.success(request, "Treatment started.")
+        elif action == "complete":
+            appt.status = "completed"
+            appt.completed_at = timezone.now()
+            if appt.assigned_therapist and appt.assigned_therapist.commission_pct:
+                appt.commission_amount = (
+                    appt.price_charged * appt.assigned_therapist.commission_pct / 100
+                ).quantize(Decimal("0.01"))
+            appt.save(update_fields=["status", "completed_at", "commission_amount"])
+            _deduct_spa_inventory(appt)
+            messages.success(request, "Treatment completed.")
+        elif action == "cancel":
+            appt.status = "cancelled"
+            appt.save(update_fields=["status"])
+            messages.success(request, "Appointment cancelled.")
+        elif action == "no_show":
+            appt.status = "no_show"
+            appt.save(update_fields=["status"])
+            messages.success(request, "Marked as no-show.")
+        elif action == "mark_paid":
+            appt.payment_status = "paid"
+            appt.save(update_fields=["payment_status"])
+            if appt.voucher:
+                appt.voucher.redeemed_at = timezone.now()
+                appt.voucher.save(update_fields=["redeemed_at"])
+            messages.success(request, "Payment recorded.")
+        elif action == "record_tip":
+            try:
+                tip = Decimal(request.POST.get("tip_amount", "0"))
+                appt.tip_amount = tip
+                appt.save(update_fields=["tip_amount"])
+                messages.success(request, f"Tip of R{tip:.2f} recorded.")
+            except Exception:
+                messages.error(request, "Invalid tip amount.")
+        return redirect("core:spa_appointment_detail", pk=appt.pk)
+    return render(request, "core/spa_appointment_detail.html", {
+        "appt": appt,
+        "client_profile": client_profile,
+        "past_appointments": past_appointments,
+        "payment_totals": appt.payment_totals(),
+        "payments": appt.spa_payments.all().order_by("-payment_date", "-recorded_at"),
+    })
+
+
+# â"€â"€â"€ Services â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_services(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    if not can_manage_system(request.user):
+        messages.error(request, "Only owners and operators can manage spa services.")
+        return redirect("core:spa_dashboard")
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    services = SpaService.objects.filter(prop=active_prop)
+    form = SpaServiceForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        svc = form.save(commit=False)
+        svc.prop = active_prop
+        svc.save()
+        messages.success(request, f"Service '{svc.name}' added.")
+        return redirect("core:spa_services")
+    return render(request, "core/spa_services.html", {
+        "services": services, "form": form,
+        "category_choices": SpaService.CATEGORY_CHOICES,
+    })
+
+
+@login_required
+def spa_service_edit(request, pk):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    if not can_manage_system(request.user):
+        messages.error(request, "Only owners and operators can manage spa services.")
+        return redirect("core:spa_dashboard")
+    active_prop = get_active_property(request)
+    svc = get_object_or_404(SpaService, pk=pk, prop=active_prop)
+    products = SpaServiceProduct.objects.select_related("inventory_item").filter(service=svc)
+    product_form = SpaServiceProductForm(request.POST or None)
+    form = SpaServiceForm(request.POST or None, instance=svc)
+    if request.method == "POST":
+        action = request.POST.get("action", "edit")
+        if action == "add_product" and product_form.is_valid():
+            sp = product_form.save(commit=False)
+            sp.service = svc
+            try:
+                sp.save()
+                messages.success(request, "Product linked.")
+            except Exception:
+                messages.error(request, "That product is already linked to this service.")
+            return redirect("core:spa_service_edit", pk=svc.pk)
+        if action == "remove_product":
+            item_pk = request.POST.get("item_pk")
+            SpaServiceProduct.objects.filter(service=svc, inventory_item_id=item_pk).delete()
+            messages.success(request, "Product removed.")
+            return redirect("core:spa_service_edit", pk=svc.pk)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Service updated.")
+            return redirect("core:spa_services")
+    return render(request, "core/spa_service_edit.html", {
+        "form": form, "svc": svc, "products": products, "product_form": product_form,
+    })
+
+
+@login_required
+def spa_service_delete(request, pk):
+    if not can_manage_system(request.user):
+        messages.error(request, "Permission denied.")
+        return redirect("core:spa_services")
+    active_prop = get_active_property(request)
+    svc = get_object_or_404(SpaService, pk=pk, prop=active_prop)
+    if request.method == "POST":
+        svc.is_active = False
+        svc.save(update_fields=["is_active"])
+        messages.success(request, f"Service '{svc.name}' deactivated.")
+    return redirect("core:spa_services")
+
+
+# â"€â"€â"€ Therapists â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_therapists(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    if not can_manage_system(request.user):
+        messages.error(request, "Only owners and operators can manage therapists.")
+        return redirect("core:spa_dashboard")
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    therapists = SpaTherapist.objects.filter(prop=active_prop)
+    form = SpaTherapistForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        t = form.save(commit=False)
+        t.prop = active_prop
+        t.save()
+        messages.success(request, f"Therapist '{t.name}' added.")
+        return redirect("core:spa_therapists")
+    return render(request, "core/spa_therapists.html", {
+        "therapists": therapists, "form": form,
+    })
+
+
+@login_required
+def spa_therapist_edit(request, pk):
+    if not can_manage_system(request.user):
+        messages.error(request, "Permission denied.")
+        return redirect("core:spa_therapists")
+    active_prop = get_active_property(request)
+    therapist = get_object_or_404(SpaTherapist, pk=pk, prop=active_prop)
+    form = SpaTherapistForm(request.POST or None, instance=therapist)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Therapist updated.")
+        return redirect("core:spa_therapists")
+    return render(request, "core/spa_appointment_form.html", {
+        "form": form, "title": f"Edit Therapist — {therapist.name}",
+    })
+
+
+@login_required
+def spa_therapist_delete(request, pk):
+    if not can_manage_system(request.user):
+        messages.error(request, "Permission denied.")
+        return redirect("core:spa_therapists")
+    active_prop = get_active_property(request)
+    therapist = get_object_or_404(SpaTherapist, pk=pk, prop=active_prop)
+    if request.method == "POST":
+        therapist.is_active = False
+        therapist.save(update_fields=["is_active"])
+        messages.success(request, f"Therapist '{therapist.name}' deactivated.")
+    return redirect("core:spa_therapists")
+
+
+# â"€â"€â"€ Treatment Rooms â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_treatment_rooms(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    if not can_manage_system(request.user):
+        messages.error(request, "Permission denied.")
+        return redirect("core:spa_dashboard")
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    rooms = SpaTreatmentRoom.objects.filter(prop=active_prop)
+    form = SpaTreatmentRoomForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        r = form.save(commit=False)
+        r.prop = active_prop
+        r.save()
+        messages.success(request, f"Room '{r.name}' added.")
+        return redirect("core:spa_treatment_rooms")
+    return render(request, "core/spa_treatment_rooms.html", {
+        "rooms": rooms, "form": form,
+    })
+
+
+@login_required
+def spa_treatment_room_edit(request, pk):
+    if not can_manage_system(request.user):
+        messages.error(request, "Permission denied.")
+        return redirect("core:spa_treatment_rooms")
+    active_prop = get_active_property(request)
+    room = get_object_or_404(SpaTreatmentRoom, pk=pk, prop=active_prop)
+    form = SpaTreatmentRoomForm(request.POST or None, instance=room)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Room updated.")
+        return redirect("core:spa_treatment_rooms")
+    return render(request, "core/spa_appointment_form.html", {
+        "form": form, "title": f"Edit Room — {room.name}",
+    })
+
+
+@login_required
+def spa_treatment_room_delete(request, pk):
+    if not can_manage_system(request.user):
+        messages.error(request, "Permission denied.")
+        return redirect("core:spa_treatment_rooms")
+    active_prop = get_active_property(request)
+    room = get_object_or_404(SpaTreatmentRoom, pk=pk, prop=active_prop)
+    if request.method == "POST":
+        room.is_active = False
+        room.save(update_fields=["is_active"])
+        messages.success(request, f"Room '{room.name}' deactivated.")
+    return redirect("core:spa_treatment_rooms")
+
+
+# â"€â"€â"€ Packages â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_packages(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    if not can_manage_system(request.user):
+        messages.error(request, "Permission denied.")
+        return redirect("core:spa_dashboard")
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    packages = SpaPackage.objects.filter(prop=active_prop).prefetch_related("items__service")
+    form = SpaPackageForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        pkg = form.save(commit=False)
+        pkg.prop = active_prop
+        pkg.save()
+        messages.success(request, f"Package '{pkg.name}' created.")
+        return redirect("core:spa_package_detail", pk=pkg.pk)
+    return render(request, "core/spa_packages.html", {
+        "packages": packages, "form": form,
+    })
+
+
+@login_required
+def spa_package_detail(request, pk):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    if not can_manage_system(request.user):
+        messages.error(request, "Permission denied.")
+        return redirect("core:spa_packages")
+    active_prop = get_active_property(request)
+    package = get_object_or_404(SpaPackage.objects.prefetch_related("items__service"), pk=pk, prop=active_prop)
+    services = SpaService.objects.filter(prop=active_prop, is_active=True).exclude(
+        pk__in=package.items.values_list("service_id", flat=True)
+    )
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "add_service":
+            svc_id = request.POST.get("service_id")
+            if svc_id:
+                svc = get_object_or_404(SpaService, pk=svc_id, prop=active_prop)
+                order = package.items.count()
+                SpaPackageItem.objects.get_or_create(package=package, service=svc, defaults={"order": order})
+                messages.success(request, f"'{svc.name}' added to package.")
+        elif action == "remove_service":
+            item_pk = request.POST.get("item_pk")
+            SpaPackageItem.objects.filter(pk=item_pk, package=package).delete()
+            messages.success(request, "Service removed from package.")
+        elif action == "update":
+            form = SpaPackageForm(request.POST, instance=package)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Package updated.")
+        return redirect("core:spa_package_detail", pk=package.pk)
+    form = SpaPackageForm(instance=package)
+    return render(request, "core/spa_package_detail.html", {
+        "package": package, "form": form, "services": services,
+    })
+
+
+@login_required
+def spa_package_delete(request, pk):
+    if not can_manage_system(request.user):
+        messages.error(request, "Permission denied.")
+        return redirect("core:spa_packages")
+    active_prop = get_active_property(request)
+    package = get_object_or_404(SpaPackage, pk=pk, prop=active_prop)
+    if request.method == "POST":
+        package.is_active = False
+        package.save(update_fields=["is_active"])
+        messages.success(request, f"Package '{package.name}' deactivated.")
+    return redirect("core:spa_packages")
+
+
+# â"€â"€â"€ Vouchers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_vouchers(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    if not can_manage_system(request.user):
+        messages.error(request, "Permission denied.")
+        return redirect("core:spa_dashboard")
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    vouchers = SpaVoucher.objects.filter(prop=active_prop)
+    form = SpaVoucherForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        v = form.save(commit=False)
+        v.prop = active_prop
+        v.issued_by = request.user
+        v.save()
+        messages.success(request, f"Voucher {v.code} issued for R{v.value}.")
+        return redirect("core:spa_vouchers")
+    return render(request, "core/spa_vouchers.html", {
+        "vouchers": vouchers, "form": form,
+    })
+
+
+@login_required
+def spa_voucher_redeem(request, pk):
+    """Attach a voucher to an appointment as payment."""
+    active_prop = get_active_property(request)
+    voucher = get_object_or_404(SpaVoucher, pk=pk, prop=active_prop)
+    appt_pk = request.POST.get("appointment_id")
+    if not appt_pk:
+        messages.error(request, "No appointment selected.")
+        return redirect("core:spa_vouchers")
+    appt = get_object_or_404(SpaAppointment, pk=appt_pk, prop=active_prop)
+    if not voucher.is_usable:
+        messages.error(request, "This voucher is expired, redeemed, or inactive.")
+        return redirect("core:spa_appointment_detail", pk=appt.pk)
+    appt.voucher = voucher
+    appt.payment_status = "paid"
+    appt.save(update_fields=["voucher", "payment_status"])
+    voucher.redeemed_at = timezone.now()
+    voucher.save(update_fields=["redeemed_at"])
+    messages.success(request, f"Voucher {voucher.code} applied to appointment.")
+    return redirect("core:spa_appointment_detail", pk=appt.pk)
+
+
+# â"€â"€â"€ Waitlist â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_waitlist(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    entries = SpaWaitlist.objects.select_related("service", "preferred_therapist", "guest").filter(
+        prop=active_prop, status__in=["waiting", "notified"]
+    )
+    form = SpaWaitlistForm(request.POST or None, prop=active_prop)
+    if request.method == "POST":
+        action = request.POST.get("action", "add")
+        if action == "add" and form.is_valid():
+            entry = form.save(commit=False)
+            entry.prop = active_prop
+            entry.save()
+            messages.success(request, "Added to waitlist.")
+            return redirect("core:spa_waitlist")
+        if action == "notify":
+            entry_pk = request.POST.get("entry_pk")
+            entry = get_object_or_404(SpaWaitlist, pk=entry_pk, prop=active_prop)
+            entry.status = "notified"
+            entry.save(update_fields=["status"])
+            messages.success(request, f"{entry.display_guest_name} marked as notified.")
+            return redirect("core:spa_waitlist")
+        if action == "book":
+            entry_pk = request.POST.get("entry_pk")
+            entry = get_object_or_404(SpaWaitlist, pk=entry_pk, prop=active_prop)
+            entry.status = "booked"
+            entry.save(update_fields=["status"])
+            messages.success(request, f"{entry.display_guest_name} marked as booked.")
+            return redirect("core:spa_waitlist")
+        if action == "remove":
+            entry_pk = request.POST.get("entry_pk")
+            entry = get_object_or_404(SpaWaitlist, pk=entry_pk, prop=active_prop)
+            entry.status = "expired"
+            entry.save(update_fields=["status"])
+            messages.success(request, "Entry removed from waitlist.")
+            return redirect("core:spa_waitlist")
+    return render(request, "core/spa_waitlist.html", {
+        "entries": entries, "form": form,
+    })
+
+
+# â"€â"€â"€ Schedule (visual day-view) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_schedule(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    today = timezone.localdate()
+    date_str = request.GET.get("date", str(today))
+    try:
+        import datetime
+        schedule_date = datetime.date.fromisoformat(date_str)
+    except ValueError:
+        schedule_date = today
+
+    prev_date = schedule_date - datetime.timedelta(days=1)
+    next_date = schedule_date + datetime.timedelta(days=1)
+
+    therapists = SpaTherapist.objects.filter(prop=active_prop, is_active=True)
+    appointments = SpaAppointment.objects.select_related(
+        "service", "guest", "assigned_therapist", "treatment_room"
+    ).filter(prop=active_prop, scheduled_date=schedule_date)
+
+    # Build per-therapist list of (therapist, appointments_for_therapist) pairs
+    appt_by_therapist = {t.pk: [] for t in therapists}
+    unassigned = []
+    for appt in appointments:
+        if appt.assigned_therapist_id and appt.assigned_therapist_id in appt_by_therapist:
+            appt_by_therapist[appt.assigned_therapist_id].append(appt)
+        else:
+            unassigned.append(appt)
+    # Convert to list of (therapist, appt_list) tuples for template iteration
+    therapist_columns = [(t, appt_by_therapist[t.pk]) for t in therapists]
+
+    hour_range = list(range(7, 22))
+
+    return render(request, "core/spa_schedule.html", {
+        "schedule_date": schedule_date,
+        "prev_date": prev_date,
+        "next_date": next_date,
+        "therapist_columns": therapist_columns,
+        "unassigned": unassigned,
+        "hour_range": hour_range,
+        "appointments": appointments,
+        "today": today,
+        "has_therapists": bool(therapists),
+    })
+
+
+# â"€â"€â"€ Reports â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_reports(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    today = timezone.localdate()
+    month_start = today.replace(day=1)
+
+    period = request.GET.get("period", "month")
+    if period == "week":
+        import datetime
+        start = today - datetime.timedelta(days=today.weekday())
+        end = today
+    elif period == "year":
+        start = today.replace(month=1, day=1)
+        end = today
+    else:
+        start = month_start
+        end = today
+
+    base_qs = SpaAppointment.objects.filter(prop=active_prop, scheduled_date__range=[start, end])
+
+    total_booked = base_qs.count()
+    total_completed = base_qs.filter(status="completed").count()
+    total_cancelled = base_qs.filter(status="cancelled").count()
+    total_no_show = base_qs.filter(status="no_show").count()
+    conversion_rate = round(total_completed / total_booked * 100, 1) if total_booked else 0
+
+    revenue = base_qs.filter(status="completed", payment_status="paid").aggregate(
+        total=Sum("price_charged"), tips=Sum("tip_amount")
+    )
+    total_revenue = revenue["total"] or Decimal("0.00")
+    total_tips = revenue["tips"] or Decimal("0.00")
+
+    by_service = (
+        base_qs.filter(status="completed")
+        .values("service__name")
+        .annotate(count=Count("pk"), revenue=Sum("price_charged"))
+        .order_by("-count")[:8]
+    )
+
+    by_therapist = (
+        base_qs.filter(status="completed", assigned_therapist__isnull=False)
+        .values("assigned_therapist__name")
+        .annotate(count=Count("pk"), revenue=Sum("price_charged"), commission=Sum("commission_amount"))
+        .order_by("-revenue")
+    )
+
+    by_category = (
+        base_qs.filter(status="completed")
+        .values("service__category")
+        .annotate(count=Count("pk"), revenue=Sum("price_charged"))
+        .order_by("-revenue")
+    )
+
+    return render(request, "core/spa_reports.html", {
+        "period": period,
+        "start": start,
+        "end": end,
+        "total_booked": total_booked,
+        "total_completed": total_completed,
+        "total_cancelled": total_cancelled,
+        "total_no_show": total_no_show,
+        "conversion_rate": conversion_rate,
+        "total_revenue": total_revenue,
+        "total_tips": total_tips,
+        "by_service": by_service,
+        "by_therapist": by_therapist,
+        "by_category": by_category,
+        "category_labels": dict(SpaService.CATEGORY_CHOICES),
+    })
+
+
+# â"€â"€â"€ Client Profiles â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_client_profile(request, guest_pk):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+    guest = get_object_or_404(Guest, pk=guest_pk, prop=active_prop)
+    profile, _ = SpaClientProfile.objects.get_or_create(guest=guest)
+    past_appointments = SpaAppointment.objects.select_related("service", "assigned_therapist").filter(
+        guest=guest, prop=active_prop
+    ).order_by("-scheduled_date")
+    form = SpaClientProfileForm(request.POST or None, instance=profile, prop=active_prop)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, f"Spa profile updated for {guest.full_name}.")
+        return redirect("core:spa_client_profile", guest_pk=guest.pk)
+    return render(request, "core/spa_client_profile.html", {
+        "guest": guest,
+        "profile": profile,
+        "form": form,
+        "past_appointments": past_appointments,
+    })
+
+
+# â"€â"€â"€ PDF: Day sheet â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_therapist_day_sheet(request, therapist_pk):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    active_prop = get_active_property(request)
+    therapist = get_object_or_404(SpaTherapist, pk=therapist_pk, prop=active_prop)
+    import datetime
+    date_str = request.GET.get("date", str(timezone.localdate()))
+    try:
+        sheet_date = datetime.date.fromisoformat(date_str)
+    except ValueError:
+        sheet_date = timezone.localdate()
+    appointments = SpaAppointment.objects.select_related("service", "guest").filter(
+        assigned_therapist=therapist, prop=active_prop, scheduled_date=sheet_date
+    ).order_by("scheduled_time")
+    settings_obj = GuestHouseSettings.objects.first()
+    return render(request, "core/spa_day_sheet.html", {
+        "therapist": therapist,
+        "sheet_date": sheet_date,
+        "appointments": appointments,
+        "settings": settings_obj,
+        "prop": active_prop,
+    })
+
+
+# â"€â"€â"€ PDF: Spa Receipt â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+@login_required
+def spa_appointment_receipt(request, pk):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    active_prop = get_active_property(request)
+    appt = get_object_or_404(
+        SpaAppointment.objects.select_related("service", "guest", "assigned_therapist"),
+        pk=pk, prop=active_prop
+    )
+    settings_obj = GuestHouseSettings.objects.first()
+    return render(request, "core/spa_receipt.html", {
+        "appt": appt,
+        "payments": appt.spa_payments.all(),
+        "payment_totals": appt.payment_totals(),
+        "settings": settings_obj,
+        "prop": active_prop,
+        "now": timezone.now(),
+    })
+
+
+@login_required
+def spa_payment_add(request, pk):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    active_prop = get_active_property(request)
+    appt = get_object_or_404(
+        SpaAppointment.objects.select_related("service", "guest", "assigned_therapist"),
+        pk=pk, prop=active_prop,
+    )
+
+    if request.method == "POST":
+        form = SpaPaymentForm(request.POST)
+        if form.is_valid():
+            payment = form.save(commit=False)
+            if _is_date_locked(payment.payment_date):
+                return _locked_day_response(request, payment.payment_date, "core:spa_appointment_detail", pk=appt.pk)
+            payment.appointment = appt
+            totals = appt.payment_totals()
+            balance_due = totals["balance_due"]
+            tendered = payment.amount
+
+            if tendered <= 0:
+                form.add_error("amount", "Amount must be greater than zero.")
+            elif balance_due <= 0:
+                form.add_error("amount", "This appointment has no outstanding balance.")
+            else:
+                recorded_amount = tendered
+                change = Decimal("0.00")
+                if tendered > balance_due:
+                    recorded_amount = balance_due
+                    change = tendered - balance_due
+                payment.amount = recorded_amount
+                payment.save()
+                _audit(
+                    request, "create", payment,
+                    after=_model_snapshot(payment, ["amount", "payment_method", "payment_type", "reference"]),
+                )
+                if change > 0:
+                    messages.success(request, f"Payment of R{recorded_amount:.2f} recorded. Change to give: R{change:.2f}.")
+                elif recorded_amount < balance_due:
+                    messages.success(request, f"Partial payment of R{recorded_amount:.2f} recorded. Balance remaining: R{balance_due - recorded_amount:.2f}.")
+                else:
+                    messages.success(request, "Payment recorded. Appointment fully settled.")
+                return redirect("core:spa_appointment_detail", pk=appt.pk)
+    else:
+        form = SpaPaymentForm(initial={
+            "payment_date": timezone.localdate(),
+            "payment_method": "Cash",
+            "payment_type": "Payment",
+        })
+
+    return render(request, "core/spa_payment_add.html", {
+        "appt": appt,
+        "form": form,
+        "payment_totals": appt.payment_totals(),
+    })
+
+
+@login_required
+def spa_payment_delete(request, pk, payment_id):
+    active_prop = get_active_property(request)
+    appt = get_object_or_404(SpaAppointment, pk=pk, prop=active_prop)
+    payment = get_object_or_404(SpaPayment, pk=payment_id, appointment=appt)
+    if _is_date_locked(payment.payment_date):
+        return _locked_day_response(request, payment.payment_date, "core:spa_appointment_detail", pk=appt.pk)
+    if request.method == "POST":
+        approver = _manager_approval(request, "Delete spa payment")
+        if not approver:
+            messages.error(request, "Owner approval is required to delete a payment.")
+            return redirect("core:spa_appointment_detail", pk=appt.pk)
+        before = _model_snapshot(payment, ["amount", "payment_method", "payment_type", "reference", "payment_date"])
+        payment.delete()
+        _audit(request, "delete", payment, before=before, reason="Spa payment deleted", approved_by=approver)
+        messages.success(request, "Payment deleted.")
+    return redirect("core:spa_appointment_detail", pk=appt.pk)

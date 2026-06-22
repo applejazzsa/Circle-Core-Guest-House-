@@ -873,6 +873,7 @@ class SubscriptionPlan(models.Model):
     feature_custom_pdf_branding = models.BooleanField(default=False)
     feature_maintenance_requests = models.BooleanField(default=False)
     feature_priority_support = models.BooleanField(default=False)
+    feature_spa = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["monthly_price"]
@@ -1174,3 +1175,492 @@ class TrialEngagement(models.Model):
 
     def __str__(self):
         return f"Engagement — {self.health_score} (logins:{self.login_count} bookings:{self.bookings_added})"
+
+
+class SpaService(models.Model):
+    CATEGORY_CHOICES = [
+        ("massage", "Massage"),
+        ("facial", "Facial"),
+        ("body", "Body Treatment"),
+        ("nail", "Nail Care"),
+        ("hair", "Hair"),
+        ("hydrotherapy", "Hydrotherapy"),
+        ("wellness", "Wellness & Meditation"),
+        ("other", "Other"),
+    ]
+
+    prop = models.ForeignKey(
+        "Property",
+        on_delete=models.CASCADE,
+        related_name="spa_services",
+    )
+    name = models.CharField(max_length=200)
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default="massage")
+    description = models.TextField(blank=True)
+    duration_minutes = models.PositiveIntegerField(default=60, help_text="Duration in minutes")
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["category", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.duration_minutes} min)"
+
+
+class SpaAppointment(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("confirmed", "Confirmed"),
+        ("in_progress", "In Progress"),
+        ("completed", "Completed"),
+        ("cancelled", "Cancelled"),
+        ("no_show", "No Show"),
+    ]
+    PAYMENT_STATUS_CHOICES = [
+        ("unpaid", "Unpaid"),
+        ("deposit_paid", "Deposit Paid"),
+        ("paid", "Paid"),
+        ("refunded", "Refunded"),
+    ]
+
+    prop = models.ForeignKey(
+        "Property",
+        on_delete=models.CASCADE,
+        related_name="spa_appointments",
+    )
+    service = models.ForeignKey(
+        SpaService,
+        on_delete=models.PROTECT,
+        related_name="appointments",
+    )
+    guest = models.ForeignKey(
+        "Guest",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="spa_appointments",
+    )
+    booking = models.ForeignKey(
+        "Booking",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="spa_appointments",
+        help_text="Link to room booking (optional)",
+    )
+    guest_name = models.CharField(max_length=200, blank=True, help_text="Walk-in guest name (if no guest profile)")
+    guest_phone = models.CharField(max_length=30, blank=True)
+    therapist = models.CharField(max_length=200, blank=True, help_text="Name of therapist")
+    scheduled_date = models.DateField()
+    scheduled_time = models.TimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    price_charged = models.DecimalField(max_digits=10, decimal_places=2, help_text="Actual price charged")
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default="unpaid")
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="spa_appointments_created",
+    )
+    assigned_therapist = models.ForeignKey(
+        "SpaTherapist",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appointments",
+    )
+    treatment_room = models.ForeignKey(
+        "SpaTreatmentRoom",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appointments",
+    )
+    package = models.ForeignKey(
+        "SpaPackage",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appointments",
+    )
+    voucher = models.ForeignKey(
+        "SpaVoucher",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appointments",
+    )
+    tip_amount = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
+    commission_amount = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    consultation_notes = models.TextField(blank=True)
+    reminder_sent = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["scheduled_date", "scheduled_time"]
+
+    @property
+    def display_guest_name(self):
+        if self.guest:
+            return self.guest.full_name
+        return self.guest_name or "Walk-in"
+
+    @property
+    def scheduled_datetime(self):
+        import datetime
+        return datetime.datetime.combine(self.scheduled_date, self.scheduled_time)
+
+    @property
+    def display_therapist(self):
+        if self.assigned_therapist_id:
+            return self.assigned_therapist.name
+        return self.therapist or "Unassigned"
+
+    @property
+    def total_charged(self):
+        total = (self.price_charged or Decimal("0")) + (self.tip_amount or Decimal("0"))
+        voucher_val = self.voucher.value if self.voucher and self.voucher.value else Decimal("0")
+        return max(total - voucher_val, Decimal("0"))
+
+    def payment_totals(self):
+        payments = self.spa_payments.all()
+        total_paid = payments.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        deposit_paid = payments.filter(payment_type="Deposit").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        balance_due = max((self.price_charged or Decimal("0")) - total_paid, Decimal("0.00"))
+        return {
+            "total_paid": total_paid,
+            "deposit_paid": deposit_paid,
+            "balance_due": balance_due,
+        }
+
+    def recalculate_payment_status(self):
+        totals = self.payment_totals()
+        if totals["balance_due"] <= 0:
+            self.payment_status = "paid"
+        elif totals["deposit_paid"] > 0:
+            self.payment_status = "deposit_paid"
+        else:
+            self.payment_status = "unpaid"
+        self.save(update_fields=["payment_status"])
+
+    def __str__(self):
+        return f"{self.service.name} — {self.display_guest_name} on {self.scheduled_date}"
+
+
+class SpaPayment(models.Model):
+    PAYMENT_METHOD_CHOICES = [
+        ("Cash", "Cash"),
+        ("EFT", "EFT"),
+        ("Card", "Card"),
+        ("SnapScan", "SnapScan"),
+        ("Zapper", "Zapper"),
+        ("Bank Deposit", "Bank Deposit"),
+        ("Other", "Other"),
+    ]
+    PAYMENT_TYPE_CHOICES = [
+        ("Payment", "Payment"),
+        ("Deposit", "Deposit"),
+    ]
+
+    appointment = models.ForeignKey(
+        "SpaAppointment",
+        on_delete=models.CASCADE,
+        related_name="spa_payments",
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_date = models.DateField(default=timezone.localdate)
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
+    payment_type = models.CharField(max_length=20, choices=PAYMENT_TYPE_CHOICES, default="Payment")
+    reference = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-payment_date", "-recorded_at"]
+
+    def __str__(self):
+        return f"SPA-{self.appointment_id} — {self.payment_type} R{self.amount}"
+
+    def _generate_reference(self):
+        today = timezone.now().strftime("%Y%m%d")
+        for index in range(1, 10000):
+            ref = f"SPA-PAY-{today}-{index:04d}"
+            if not SpaPayment.objects.filter(reference=ref).exists():
+                return ref
+        return f"SPA-PAY-{today}-{uuid.uuid4().hex[:8].upper()}"
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            self.reference = self._generate_reference()
+        super().save(*args, **kwargs)
+        self.appointment.recalculate_payment_status()
+
+    def delete(self, *args, **kwargs):
+        appt = self.appointment
+        result = super().delete(*args, **kwargs)
+        appt.recalculate_payment_status()
+        return result
+
+
+class SpaTherapist(models.Model):
+    WORKING_DAY_CHOICES = [
+        ("Mon", "Monday"),
+        ("Tue", "Tuesday"),
+        ("Wed", "Wednesday"),
+        ("Thu", "Thursday"),
+        ("Fri", "Friday"),
+        ("Sat", "Saturday"),
+        ("Sun", "Sunday"),
+    ]
+
+    prop = models.ForeignKey(
+        "Property",
+        on_delete=models.CASCADE,
+        related_name="spa_therapists",
+    )
+    name = models.CharField(max_length=200)
+    phone = models.CharField(max_length=30, blank=True)
+    email = models.EmailField(blank=True)
+    specialties = models.TextField(blank=True, help_text="Services this therapist specialises in")
+    commission_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal("0.00"),
+        help_text="Commission percentage (e.g. 15 = 15%)",
+    )
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class SpaTreatmentRoom(models.Model):
+    prop = models.ForeignKey(
+        "Property",
+        on_delete=models.CASCADE,
+        related_name="spa_treatment_rooms",
+    )
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class SpaPackage(models.Model):
+    prop = models.ForeignKey(
+        "Property",
+        on_delete=models.CASCADE,
+        related_name="spa_packages",
+    )
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    package_price = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    @property
+    def service_count(self):
+        return self.items.count()
+
+    @property
+    def total_individual_price(self):
+        return sum(item.service.price for item in self.items.select_related("service").all())
+
+    def __str__(self):
+        return self.name
+
+
+class SpaPackageItem(models.Model):
+    package = models.ForeignKey(SpaPackage, on_delete=models.CASCADE, related_name="items")
+    service = models.ForeignKey(SpaService, on_delete=models.CASCADE, related_name="package_items")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "pk"]
+
+    def __str__(self):
+        return f"{self.package.name} — {self.service.name}"
+
+
+class SpaVoucher(models.Model):
+    prop = models.ForeignKey(
+        "Property",
+        on_delete=models.CASCADE,
+        related_name="spa_vouchers",
+    )
+    code = models.CharField(max_length=20, unique=True, editable=False)
+    value = models.DecimalField(max_digits=10, decimal_places=2)
+    issued_to_name = models.CharField(max_length=200)
+    issued_to_email = models.EmailField(blank=True)
+    issued_to_phone = models.CharField(max_length=30, blank=True)
+    issued_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="spa_vouchers_issued",
+    )
+    valid_from = models.DateField()
+    valid_until = models.DateField(null=True, blank=True)
+    redeemed_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @property
+    def is_redeemed(self):
+        return self.redeemed_at is not None
+
+    @property
+    def is_expired(self):
+        if self.valid_until and timezone.localdate() > self.valid_until:
+            return True
+        return False
+
+    @property
+    def is_usable(self):
+        return self.is_active and not self.is_redeemed and not self.is_expired
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            import secrets
+            import string
+            alphabet = string.ascii_uppercase + string.digits
+            self.code = "SPA-" + "".join(secrets.choice(alphabet) for _ in range(8))
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.code} — R{self.value} for {self.issued_to_name}"
+
+
+class SpaWaitlist(models.Model):
+    STATUS_CHOICES = [
+        ("waiting", "Waiting"),
+        ("notified", "Notified"),
+        ("booked", "Booked"),
+        ("expired", "Expired"),
+    ]
+
+    prop = models.ForeignKey(
+        "Property",
+        on_delete=models.CASCADE,
+        related_name="spa_waitlist",
+    )
+    service = models.ForeignKey(
+        SpaService,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="waitlist_entries",
+    )
+    preferred_therapist = models.ForeignKey(
+        SpaTherapist,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="waitlist_entries",
+    )
+    preferred_date = models.DateField(null=True, blank=True)
+    guest = models.ForeignKey(
+        "Guest",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="spa_waitlist",
+    )
+    guest_name = models.CharField(max_length=200, blank=True)
+    guest_phone = models.CharField(max_length=30, blank=True)
+    guest_email = models.EmailField(blank=True)
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="waiting")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @property
+    def display_guest_name(self):
+        if self.guest:
+            return self.guest.full_name
+        return self.guest_name or "Unknown"
+
+    def __str__(self):
+        return f"Waitlist — {self.display_guest_name} for {self.service}"
+
+
+class SpaClientProfile(models.Model):
+    SKIN_TYPE_CHOICES = [
+        ("normal", "Normal"),
+        ("dry", "Dry"),
+        ("oily", "Oily"),
+        ("combination", "Combination"),
+        ("sensitive", "Sensitive"),
+    ]
+    PRESSURE_CHOICES = [
+        ("light", "Light"),
+        ("medium", "Medium"),
+        ("firm", "Firm"),
+        ("deep", "Deep Tissue"),
+    ]
+
+    guest = models.OneToOneField(
+        "Guest",
+        on_delete=models.CASCADE,
+        related_name="spa_profile",
+    )
+    allergies = models.TextField(blank=True)
+    contraindications = models.TextField(blank=True, help_text="Medical conditions or medications to be aware of")
+    skin_type = models.CharField(max_length=20, choices=SKIN_TYPE_CHOICES, blank=True)
+    pressure_preference = models.CharField(max_length=20, choices=PRESSURE_CHOICES, blank=True)
+    preferred_therapist = models.ForeignKey(
+        SpaTherapist,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="preferred_by_clients",
+    )
+    general_notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Spa Profile — {self.guest}"
+
+
+class SpaServiceProduct(models.Model):
+    service = models.ForeignKey(
+        SpaService,
+        on_delete=models.CASCADE,
+        related_name="product_usage",
+    )
+    inventory_item = models.ForeignKey(
+        "InventoryItem",
+        on_delete=models.CASCADE,
+        related_name="spa_service_usage",
+    )
+    quantity_used = models.DecimalField(
+        max_digits=8, decimal_places=3, default=Decimal("1.000"),
+        help_text="Quantity of this product consumed per treatment",
+    )
+
+    class Meta:
+        unique_together = [("service", "inventory_item")]
+
+    def __str__(self):
+        return f"{self.service.name} uses {self.quantity_used} × {self.inventory_item.name}"

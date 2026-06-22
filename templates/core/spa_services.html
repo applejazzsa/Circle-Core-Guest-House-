@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Spa Services — Circle Core{% endblock %}
+
+{% block content %}
+<div style="max-width:1000px; margin:0 auto;">
+
+  <!-- Header -->
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+    <div>
+      <a href="{% url 'core:spa_dashboard' %}" style="font-size:12px; color:var(--color-text-tertiary); text-decoration:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:6px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Spa &amp; Wellness
+      </a>
+      <h1 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--color-text-primary); margin:0;">Service Catalog</h1>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 360px; gap:24px; align-items:start;">
+
+    <!-- Services list -->
+    <div>
+      {% regroup services by get_category_display as by_category %}
+      {% for group in by_category %}
+      <div style="margin-bottom:24px;">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:var(--color-text-tertiary); margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--color-border);">{{ group.grouper }}</div>
+        <div class="card" style="padding:0; overflow:hidden;">
+          {% for svc in group.list %}
+          <div style="display:flex; align-items:center; gap:16px; padding:14px 18px; border-bottom:1px solid var(--color-border); {% if not svc.is_active %}opacity:0.45;{% endif %}">
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:600; color:var(--color-text-primary);">{{ svc.name }}{% if not svc.is_active %} <span style="font-size:10px; color:var(--color-text-tertiary); font-weight:400;">(inactive)</span>{% endif %}</div>
+              {% if svc.description %}<div style="font-size:12px; color:var(--color-text-tertiary); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ svc.description }}</div>{% endif %}
+              <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:3px;">{{ svc.duration_minutes }} min</div>
+            </div>
+            <div style="font-size:16px; font-weight:700; color:var(--color-text-primary); white-space:nowrap;">R {{ svc.price|floatformat:0 }}</div>
+            <div style="display:flex; gap:6px; flex-shrink:0;">
+              <a href="{% url 'core:spa_service_edit' svc.pk %}" class="btn btn-ghost btn-sm" title="Edit">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </a>
+              {% if svc.is_active %}
+              <form method="post" action="{% url 'core:spa_service_delete' svc.pk %}" onsubmit="return confirm('Deactivate this service?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost btn-sm" title="Deactivate" style="color:var(--color-text-tertiary);">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% empty %}
+      <div class="card" style="padding:50px 20px; text-align:center;">
+        <div style="font-size:36px; margin-bottom:12px;">💆</div>
+        <p style="color:var(--color-text-tertiary); font-size:13.5px; margin:0;">No services yet. Add your first treatment on the right.</p>
+      </div>
+      {% endregroup %}
+    </div>
+
+    <!-- Add service form -->
+    <div class="card" style="padding:22px; position:sticky; top:80px;">
+      <h3 style="font-size:14px; font-weight:700; color:var(--color-text-primary); margin:0 0 18px;">Add New Service</h3>
+      <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-secondary); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.07em;">
+            {{ field.label }}{% if field.field.required %} <span style="color:#f87171;">*</span>{% endif %}
+          </label>
+          {{ field }}
+          {% for error in field.errors %}
+          <p style="font-size:12px; color:#f87171; margin:3px 0 0;">{{ error }}</p>
+          {% endfor %}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary" style="width:100%; margin-top:8px;">Add Service</button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.form-input, select.form-input, textarea.form-input {
+  display: block;
+  width: 100%;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-bright);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: var(--font-body);
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.form-input:focus { outline: none; border-color: var(--color-green-500); }
+select.form-input option { background: var(--color-bg-surface); }
+</style>
+{% endblock %}

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Day Sheet — {{ therapist.name }} — {{ sheet_date|date:"d M Y" }}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #111; background: #fff; padding: 30px 40px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #111; }
+  .header-left h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .header-left p { font-size: 13px; color: #555; margin-top: 4px; }
+  .header-right { text-align: right; }
+  .header-right .prop { font-size: 13px; font-weight: 700; }
+  .header-right .date { font-size: 18px; font-weight: 800; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  th { padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #555; border-bottom: 1px solid #ccc; }
+  td { padding: 10px 10px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+  .time { font-weight: 700; white-space: nowrap; }
+  .guest { font-weight: 600; }
+  .service { color: #333; }
+  .notes { font-size: 11.5px; color: #666; margin-top: 3px; font-style: italic; }
+  .status-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .status-confirmed { background: #d1fae5; color: #065f46; }
+  .status-pending { background: #fef3c7; color: #92400e; }
+  .status-completed { background: #e0e7ff; color: #3730a3; }
+  .summary { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px 20px; margin-bottom: 20px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .summary-item label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #555; margin-bottom: 3px; }
+  .summary-item span { font-size: 18px; font-weight: 800; }
+  .footer { font-size: 11px; color: #999; text-align: center; padding-top: 16px; border-top: 1px solid #e5e5e5; margin-top: 20px; }
+  .notes-col { max-width: 220px; }
+  @media print {
+    body { padding: 15px 20px; }
+    .no-print { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="no-print" style="margin-bottom:20px;">
+  <button onclick="window.print()" style="padding:8px 18px; background:#111; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:13px; font-weight:700; margin-right:8px;">Print / Save PDF</button>
+  <a href="{% url 'core:spa_schedule' %}?date={{ sheet_date|date:'Y-m-d' }}" style="font-size:13px; color:#555; text-decoration:none;">← Back to Schedule</a>
+</div>
+
+<div class="header">
+  <div class="header-left">
+    <h1>Therapist Day Sheet</h1>
+    <p>{{ therapist.name }}{% if therapist.specialties %} · {{ therapist.specialties }}{% endif %}</p>
+  </div>
+  <div class="header-right">
+    <div class="prop">{{ prop.name }}</div>
+    <div class="date">{{ sheet_date|date:"l, d F Y" }}</div>
+  </div>
+</div>
+
+<div class="summary">
+  <div class="summary-grid">
+    <div class="summary-item"><label>Appointments</label><span>{{ appointments|length }}</span></div>
+    <div class="summary-item"><label>Total Revenue</label><span>R {{ total_revenue|floatformat:0 }}</span></div>
+    <div class="summary-item"><label>Total Hours</label><span>{{ total_minutes|floatformat:0 }}m</span></div>
+    <div class="summary-item"><label>Commission</label><span>R {{ total_commission|floatformat:0 }}</span></div>
+  </div>
+</div>
+
+{% if appointments %}
+<table>
+  <thead>
+    <tr>
+      <th style="width:60px;">Time</th>
+      <th style="width:45px;">Dur.</th>
+      <th>Guest</th>
+      <th>Service</th>
+      <th>Room</th>
+      <th style="width:70px; text-align:right;">Price</th>
+      <th class="notes-col">Notes / Consultation</th>
+      <th style="width:75px; text-align:center;">Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for appt in appointments %}
+    <tr>
+      <td class="time">{{ appt.scheduled_time|time:"H:i" }}</td>
+      <td>{{ appt.service.duration_minutes }}m</td>
+      <td class="guest">
+        {{ appt.display_guest_name }}
+        {% if appt.guest.phone %}<div style="font-size:11px; color:#666;">{{ appt.guest.phone }}</div>{% endif %}
+      </td>
+      <td class="service">{{ appt.service.name }}</td>
+      <td style="font-size:12px; color:#555;">{{ appt.treatment_room.name|default:"—" }}</td>
+      <td style="text-align:right; font-weight:600;">R {{ appt.price_charged|floatformat:0 }}</td>
+      <td class="notes-col">
+        {% if appt.consultation_notes %}<div style="font-size:11.5px; color:#444;">{{ appt.consultation_notes }}</div>{% endif %}
+        {% if appt.guest.spa_profile.allergies %}<div class="notes" style="color:#b91c1c;">⚠ {{ appt.guest.spa_profile.allergies }}</div>{% endif %}
+        {% if appt.guest.spa_profile.pressure_preference %}<div class="notes">Pressure: {{ appt.guest.spa_profile.get_pressure_preference_display }}</div>{% endif %}
+      </td>
+      <td style="text-align:center;">
+        <span class="status-badge status-{{ appt.status }}">{{ appt.get_status_display }}</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="text-align:center; color:#999; padding:30px;">No appointments scheduled for this day.</p>
+{% endif %}
+
+<div class="footer">
+  Printed {{ now|date:"d M Y H:i" }} · {{ prop.name }} · Confidential
+</div>
+</body>
+</html>

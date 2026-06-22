@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Spa Therapists — Circle Core{% endblock %}
+{% block content %}
+<div style="max-width:1000px; margin:0 auto;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+    <div>
+      <a href="{% url 'core:spa_dashboard' %}" style="font-size:12px; color:var(--color-text-tertiary); text-decoration:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:6px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Spa &amp; Wellness
+      </a>
+      <h1 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--color-text-primary); margin:0;">Therapists</h1>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 360px; gap:24px; align-items:start;">
+    <div>
+      {% if therapists %}
+      <div class="card" style="padding:0; overflow:hidden;">
+        {% for t in therapists %}
+        <div style="display:flex; align-items:center; gap:16px; padding:16px 20px; border-bottom:1px solid var(--color-border); {% if not t.is_active %}opacity:0.45;{% endif %}">
+          <div style="width:40px; height:40px; border-radius:50%; background:var(--color-green-glow); border:1px solid var(--color-green-border); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px; font-weight:700; color:var(--color-green-400);">{{ t.name|first|upper }}</div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:14px; font-weight:600; color:var(--color-text-primary);">{{ t.name }}{% if not t.is_active %} <span style="font-size:10px; color:var(--color-text-tertiary);">(inactive)</span>{% endif %}</div>
+            {% if t.specialties %}<div style="font-size:12px; color:var(--color-text-tertiary); margin-top:2px;">{{ t.specialties }}</div>{% endif %}
+            <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">Commission: {{ t.commission_pct }}%{% if t.phone %} · {{ t.phone }}{% endif %}</div>
+          </div>
+          <div style="display:flex; gap:6px; flex-shrink:0;">
+            <a href="{% url 'core:spa_therapist_day_sheet' t.pk %}" class="btn btn-ghost btn-sm" title="Day Sheet">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+            </a>
+            <a href="{% url 'core:spa_therapist_edit' t.pk %}" class="btn btn-ghost btn-sm" title="Edit">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </a>
+            {% if t.is_active %}
+            <form method="post" action="{% url 'core:spa_therapist_delete' t.pk %}" onsubmit="return confirm('Deactivate {{ t.name }}?');">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--color-text-tertiary);" title="Deactivate">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card" style="padding:50px; text-align:center;">
+        <div style="font-size:36px; margin-bottom:12px;">💆</div>
+        <p style="color:var(--color-text-tertiary); margin:0;">No therapists yet. Add your first on the right.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card" style="padding:22px; position:sticky; top:80px;">
+      <h3 style="font-size:14px; font-weight:700; color:var(--color-text-primary); margin:0 0 18px;">Add Therapist</h3>
+      <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+        <div style="margin-bottom:13px;">
+          <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-secondary); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.07em;">{{ field.label }}{% if field.field.required %} <span style="color:#f87171;">*</span>{% endif %}</label>
+          {{ field }}
+          {% for error in field.errors %}<p style="font-size:12px; color:#f87171; margin:3px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary" style="width:100%; margin-top:6px;">Add Therapist</button>
+      </form>
+    </div>
+  </div>
+</div>
+<style>.form-input,.form-input select,.form-input textarea{display:block;width:100%;background:var(--color-bg-subtle);border:1px solid var(--color-border-bright);border-radius:var(--radius-md);padding:8px 12px;color:var(--color-text-primary);font-size:13px;font-family:var(--font-body);transition:border-color .15s;box-sizing:border-box;}.form-input:focus{outline:none;border-color:var(--color-green-500);}</style>
+{% endblock %}

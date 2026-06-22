@@ -98,4 +98,40 @@ urlpatterns = [
     path("bookings/<int:pk>/cancel/", views.booking_cancel, name="booking_cancel"),
     # Command Center impersonation entry
     path("command-enter/", views.command_enter, name="command_enter"),
+    # Spa & Wellness — dashboard
+    path("spa/", views.spa_dashboard, name="spa_dashboard"),
+    path("spa/schedule/", views.spa_schedule, name="spa_schedule"),
+    path("spa/reports/", views.spa_reports, name="spa_reports"),
+    # Appointments
+    path("spa/appointments/", views.spa_appointment_list, name="spa_appointment_list"),
+    path("spa/appointments/add/", views.spa_appointment_add, name="spa_appointment_add"),
+    path("spa/appointments/<int:pk>/", views.spa_appointment_detail, name="spa_appointment_detail"),
+    path("spa/appointments/<int:pk>/edit/", views.spa_appointment_edit, name="spa_appointment_edit"),
+    path("spa/appointments/<int:pk>/receipt/", views.spa_appointment_receipt, name="spa_appointment_receipt"),
+    path("spa/appointments/<int:pk>/payment/add/", views.spa_payment_add, name="spa_payment_add"),
+    path("spa/appointments/<int:pk>/payment/<int:payment_id>/delete/", views.spa_payment_delete, name="spa_payment_delete"),
+    # Services
+    path("spa/services/", views.spa_services, name="spa_services"),
+    path("spa/services/<int:pk>/edit/", views.spa_service_edit, name="spa_service_edit"),
+    path("spa/services/<int:pk>/delete/", views.spa_service_delete, name="spa_service_delete"),
+    # Therapists
+    path("spa/therapists/", views.spa_therapists, name="spa_therapists"),
+    path("spa/therapists/<int:pk>/edit/", views.spa_therapist_edit, name="spa_therapist_edit"),
+    path("spa/therapists/<int:pk>/delete/", views.spa_therapist_delete, name="spa_therapist_delete"),
+    path("spa/therapists/<int:therapist_pk>/day-sheet/", views.spa_therapist_day_sheet, name="spa_therapist_day_sheet"),
+    # Treatment Rooms
+    path("spa/rooms/", views.spa_treatment_rooms, name="spa_treatment_rooms"),
+    path("spa/rooms/<int:pk>/edit/", views.spa_treatment_room_edit, name="spa_treatment_room_edit"),
+    path("spa/rooms/<int:pk>/delete/", views.spa_treatment_room_delete, name="spa_treatment_room_delete"),
+    # Packages
+    path("spa/packages/", views.spa_packages, name="spa_packages"),
+    path("spa/packages/<int:pk>/", views.spa_package_detail, name="spa_package_detail"),
+    path("spa/packages/<int:pk>/delete/", views.spa_package_delete, name="spa_package_delete"),
+    # Vouchers
+    path("spa/vouchers/", views.spa_vouchers, name="spa_vouchers"),
+    path("spa/vouchers/<int:pk>/redeem/", views.spa_voucher_redeem, name="spa_voucher_redeem"),
+    # Waitlist
+    path("spa/waitlist/", views.spa_waitlist, name="spa_waitlist"),
+    # Client Profiles
+    path("spa/clients/<int:guest_pk>/", views.spa_client_profile, name="spa_client_profile"),
 ]
