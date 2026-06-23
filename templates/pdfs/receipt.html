@@ -46,7 +46,9 @@
         <p class="amount">{{ settings.currency }} {{ payment.amount }}</p>
         <table>
             <tr><td>Guest name</td><td>{{ booking.guest.full_name }}</td></tr>
+            {% if booking.vehicle_registration %}<tr><td>Vehicle number plate</td><td><strong>{{ booking.vehicle_registration }}</strong></td></tr>{% endif %}
             <tr><td>Booking reference</td><td><strong>{{ booking.booking_reference }}</strong></td></tr>
+            <tr><td>Payment type</td><td>{{ payment.payment_type }}</td></tr>
             <tr><td>Payment method</td><td>{{ payment.payment_method }}</td></tr>
             <tr><td>Payment date</td><td>{{ payment.payment_date|date:"d M Y" }}</td></tr>
             <tr><td>Reference</td><td>{{ payment.reference|default:"-" }}</td></tr>

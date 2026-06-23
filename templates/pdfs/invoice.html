@@ -216,9 +216,12 @@
         <div class="box-title">Bill To</div>
         <div class="name-line">{{ booking.guest.full_name }}</div>
         <table class="detail-table">
+          {% if booking.vehicle_registration %}<tr><td class="detail-label">Number plate</td><td class="detail-value">{{ booking.vehicle_registration }}</td></tr>{% endif %}
+          {% if not booking.guest.is_vehicle_profile %}
           <tr><td class="detail-label">Phone</td><td class="detail-value">{{ booking.guest.phone|default:"N/A" }}</td></tr>
           {% if booking.guest.email %}<tr><td class="detail-label">Email</td><td class="detail-value">{{ booking.guest.email }}</td></tr>{% endif %}
           {% if booking.guest.id_passport_number %}<tr><td class="detail-label">ID/Passport</td><td class="detail-value">{{ booking.guest.id_passport_number }}</td></tr>{% endif %}
+          {% endif %}
         </table>
       </td>
       <td class="box-spacer"></td>

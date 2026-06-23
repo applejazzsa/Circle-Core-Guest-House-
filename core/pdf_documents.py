@@ -160,9 +160,13 @@ def render_booking_invoice_pdf(booking, settings, payment_totals, vat_amount=Dec
     left_x = margin + 12
     right_x = margin + box_w + 26
     _draw_text(c, booking.guest.full_name, left_x, y - 42, 13, TEXT, "Helvetica-Bold")
-    _draw_text(c, "Phone", left_x, y - 62, 9, SLATE)
-    _draw_text(c, booking.guest.phone or "N/A", left_x + 70, y - 62, 9, TEXT, "Helvetica-Bold")
-    if getattr(booking.guest, "email", ""):
+    if booking.vehicle_registration:
+        _draw_text(c, "Number plate", left_x, y - 62, 9, SLATE)
+        _draw_text(c, booking.vehicle_registration, left_x + 70, y - 62, 9, TEXT, "Helvetica-Bold")
+    else:
+        _draw_text(c, "Phone", left_x, y - 62, 9, SLATE)
+        _draw_text(c, booking.guest.phone or "N/A", left_x + 70, y - 62, 9, TEXT, "Helvetica-Bold")
+    if getattr(booking.guest, "email", "") and not booking.vehicle_registration:
         _draw_text(c, "Email", left_x, y - 78, 9, SLATE)
         _draw_text(c, booking.guest.email, left_x + 70, y - 78, 9, TEXT, "Helvetica-Bold")
 
@@ -284,12 +288,17 @@ def render_payment_receipt_pdf(booking, payment, settings, receipt_number, balan
     y -= 88
     rows = [
         ("Guest", booking.guest.full_name),
+    ]
+    if booking.vehicle_registration:
+        rows.append(("Vehicle number plate", booking.vehicle_registration))
+    rows.extend([
         ("Booking reference", booking.booking_reference),
         ("Room", booking.room.name),
+        ("Payment type", payment.payment_type),
         ("Payment method", payment.payment_method),
         ("Payment reference", payment.reference or "-"),
         ("Balance after payment", _money(settings, balance_after_payment)),
-    ]
+    ])
     row_h = 28
     for label, value in rows:
         c.setStrokeColor(BORDER)

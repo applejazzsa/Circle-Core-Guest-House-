@@ -63,14 +63,13 @@
   .rate-picker-chevron { color: var(--color-text-tertiary); transition: transform 0.15s; }
   .rate-picker-button[aria-expanded="true"] .rate-picker-chevron { transform: rotate(180deg); }
   .rate-picker-menu {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: calc(100% + 7px);
-    z-index: 80;
     display: none;
-    max-height: 280px;
+    width: 100%;
+    max-height: 220px;
+    margin-top: 7px;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
     padding: 6px;
     border: 1px solid var(--color-border-bright);
     border-radius: 12px;
@@ -99,6 +98,9 @@
   .rate-picker-option-duration { font-size: 13px; font-weight: 700; }
   .rate-picker-option-price { font-family: var(--font-mono); font-size: 12px; color: var(--color-green-400); }
   .rate-native-select { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; opacity: 0 !important; pointer-events: none !important; }
+  @media (max-width: 640px) {
+    .rate-picker-menu { max-height: 190px; }
+  }
   .quick-modal {
     position: fixed;
     inset: 0;
@@ -1025,7 +1027,7 @@
       <div id="qg-panel-vreg" role="tabpanel" aria-labelledby="qg-tab-vreg" style="display:none;">
         <div class="quick-modal-note">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
-          Best for fast walk-ins. The booking will use the vehicle number instead of creating a guest profile.
+          Best for fast walk-ins. The vehicle number is saved as a reusable customer profile with its own booking history.
         </div>
         <div class="form-group" style="margin-bottom:0;">
           <label class="form-label" for="qg-vreg">Vehicle Number</label>

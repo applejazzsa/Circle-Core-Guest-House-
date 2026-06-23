@@ -18,7 +18,7 @@ from django.core.paginator import Paginator
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
-from django.db.models import Count, DecimalField, F, OuterRef, Q, Subquery, Sum, Value
+from django.db.models import Case, Count, DecimalField, F, IntegerField, OuterRef, Q, Subquery, Sum, Value, When
 from django.db.models.deletion import ProtectedError
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect, render
@@ -30,7 +30,7 @@ from django.views.decorators.http import require_POST
 
 from .forms import (
     BookingForm, BookingRefundForm, ExpenseForm, GuestForm, GuestHouseSettingsForm,
-    PaymentForm, RoomForm,
+    PaymentForm, PaymentTenderFormSet, SplitPaymentDetailsForm, RoomForm,
     SpaAppointmentForm, SpaClientProfileForm, SpaPackageForm, SpaPaymentForm, SpaServiceForm,
     SpaServiceProductForm, SpaTherapistForm, SpaTreatmentRoomForm, SpaVoucherForm,
     SpaWaitlistForm,
@@ -267,38 +267,66 @@ def _api_property_from_request(request, payload=None):
 
 @login_required
 def notifications_feed(request):
-    today = timezone.localdate()
-    now = timezone.now()
+    now = timezone.localtime()
+    recent_cutoff = now - datetime.timedelta(minutes=10)
     active_prop = get_active_property(request)
     alerts = []
 
-    # Bookings checking out today still Checked In
-    checkouts_due = (
+    # A short-lived event alert after a booking is created.
+    recently_created = (
         Booking.objects.select_related("guest", "room")
-        .filter(room__prop=active_prop, check_out_date=today, status="Checked In")
+        .filter(room__prop=active_prop, created_at__gte=recent_cutoff)
+        .order_by("created_at")
     )
-    for b in checkouts_due:
+    for booking in recently_created:
         alerts.append({
-            "id": f"checkout-{b.pk}",
-            "type": "checkout",
-            "title": "Checkout Due Today",
-            "body": f"{b.guest.full_name} Â· {b.room.name} — scheduled checkout today",
-            "icon": "checkout",
+            "id": f"booking-created-{booking.pk}",
+            "type": "booking_created",
+            "title": "Booking Created",
+            "body": f"{booking.guest.full_name} \u00b7 {booking.room.name} \u2014 {booking.booking_reference}",
         })
 
-    # Bookings checking IN today not yet checked in
-    checkins_due = (
+    # A short-lived event alert after reception checks the guest in.
+    recently_checked_in = (
         Booking.objects.select_related("guest", "room")
-        .filter(room__prop=active_prop, check_in_date=today, status__in=["Pending", "Confirmed"])
+        .filter(
+            room__prop=active_prop,
+            status="Checked In",
+            check_in_time__gte=recent_cutoff,
+        )
+        .order_by("check_in_time")
     )
-    for b in checkins_due:
+    for booking in recently_checked_in:
         alerts.append({
-            "id": f"checkin-{b.pk}",
-            "type": "checkin",
-            "title": "Guest Arriving Today",
-            "body": f"{b.guest.full_name} Â· {b.room.name} — check-in expected today",
-            "icon": "ðŸ¨",
+            "id": f"booking-checked-in-{booking.pk}",
+            "type": "checked_in",
+            "title": "Guest Checked In",
+            "body": f"{booking.guest.full_name} \u00b7 {booking.room.name}",
         })
+
+    # Checkout reminder appears only during the five minutes before checkout.
+    settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+    checked_in_bookings = Booking.objects.select_related("guest", "room").filter(
+        room__prop=active_prop,
+        status="Checked In",
+    )
+    current_timezone = timezone.get_current_timezone()
+    for booking in checked_in_bookings:
+        if booking.is_hourly:
+            _, checkout_naive = booking._booking_window()
+        else:
+            checkout_naive = datetime.datetime.combine(booking.check_out_date, settings_obj.check_out_time)
+        if not checkout_naive:
+            continue
+        checkout_at = timezone.make_aware(checkout_naive, current_timezone)
+        reminder_at = checkout_at - datetime.timedelta(minutes=5)
+        if reminder_at <= now < checkout_at:
+            alerts.append({
+                "id": f"checkout-reminder-{booking.pk}-{checkout_at.isoformat()}",
+                "type": "checkout_reminder",
+                "title": "Checkout in 5 Minutes",
+                "body": f"{booking.guest.full_name} \u00b7 {booking.room.name} \u2014 checkout at {checkout_at.strftime('%H:%M')}",
+            })
 
     # Rooms needing cleaning
     dirty_rooms = Room.objects.filter(prop=active_prop, cleaning_status="Needs Cleaning")
@@ -307,25 +335,7 @@ def notifications_feed(request):
             "id": f"cleaning-{r.pk}",
             "type": "needs_cleaning",
             "title": "Room Needs Cleaning",
-            "body": f"{r.name} — needs to be cleaned",
-            "icon": "ðŸ§¹",
-        })
-
-    # Rooms cleaned in the last 2 hours (proof uploaded recently)
-    two_hours_ago = now - datetime.timedelta(hours=2)
-    recently_cleaned_room_ids = set(
-        CleaningProof.objects.filter(
-            room__prop=active_prop,
-            created_at__gte=two_hours_ago,
-        ).values_list("room_id", flat=True)
-    )
-    for r in Room.objects.filter(prop=active_prop, pk__in=recently_cleaned_room_ids, cleaning_status="Clean"):
-        alerts.append({
-            "id": f"cleaned-{r.pk}-{today}",
-            "type": "cleaned",
-            "title": "Room Ready",
-            "body": f"{r.name} — cleaning complete, room is ready",
-            "icon": "âœ…",
+            "body": f"{r.name} \u2014 needs to be cleaned",
         })
 
     return JsonResponse({"alerts": alerts})
@@ -937,6 +947,30 @@ def room_list(request):
     rooms = Room.objects.filter(prop=active_prop) if active_prop else Room.objects.none()
     if status_filter:
         rooms = rooms.filter(status=status_filter)
+    rooms = list(rooms)
+    room_ids = [room.pk for room in rooms]
+    displayed_bookings = (
+        Booking.objects.select_related("guest", "room")
+        .filter(
+            room_id__in=room_ids,
+            status__in=["Checked In", "Confirmed", "Pending"],
+            check_out_date__gte=timezone.localdate(),
+        )
+        .annotate(
+            display_priority=Case(
+                When(status="Checked In", then=Value(0)),
+                When(status="Confirmed", then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("room_id", "display_priority", "check_in_date", "booking_start_time", "created_at")
+    )
+    booking_by_room = {}
+    for booking in displayed_bookings:
+        booking_by_room.setdefault(booking.room_id, booking)
+    for room in rooms:
+        room.display_booking = booking_by_room.get(room.pk)
     base_qs = Room.objects.filter(prop=active_prop) if active_prop else Room.objects.none()
     status_counts = {
         "Available": base_qs.filter(status="Available").count(),
@@ -972,7 +1006,7 @@ def room_add(request):
             "rooms",
         )
     if request.method == "POST":
-        form = RoomForm(request.POST)
+        form = RoomForm(request.POST, prop=active_prop)
         if form.is_valid():
             room = form.save(commit=False)
             room.prop = active_prop
@@ -980,7 +1014,7 @@ def room_add(request):
             messages.success(request, "Room added successfully.")
             return redirect("core:room_list")
     else:
-        form = RoomForm()
+        form = RoomForm(prop=active_prop)
     return render(request, "core/room_form.html", {"form": form, "title": "Add Room"})
 
 
@@ -992,13 +1026,13 @@ def room_edit(request, pk):
     active_prop = get_active_property(request)
     room = get_object_or_404(Room, pk=pk, prop=active_prop)
     if request.method == "POST":
-        form = RoomForm(request.POST, instance=room)
+        form = RoomForm(request.POST, instance=room, prop=active_prop)
         if form.is_valid():
             form.save()
             messages.success(request, "Room updated successfully.")
             return redirect("core:room_list")
     else:
-        form = RoomForm(instance=room)
+        form = RoomForm(instance=room, prop=active_prop)
     return render(
         request,
         "core/room_form.html",
@@ -1620,6 +1654,7 @@ def guest_list(request):
             Q(first_name__icontains=query)
             | Q(last_name__icontains=query)
             | Q(phone__icontains=query)
+            | Q(vehicle_registration__icontains=query)
         )
     paginator = Paginator(guests, 50)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -2106,6 +2141,8 @@ def booking_detail(request, pk):
         refund.balance_after = running_balance
     latest_payment = payments[-1] if payments else None
     payment_totals = booking.payment_totals()
+    deposit_received = min(max(payment_totals["net_paid"], Decimal("0.00")), booking.deposit_required)
+    deposit_outstanding = max(booking.deposit_required - deposit_received, Decimal("0.00"))
     subtotal = booking.rate_per_night if booking.is_hourly else booking.rate_per_night * Decimal(max(booking.num_nights, 0))
     can_mark_no_show = booking.status == "Confirmed" and booking.check_in_date < timezone.localdate()
     change_due = max(payment_totals["net_paid"] - booking.total_amount, Decimal("0.00"))
@@ -2118,11 +2155,60 @@ def booking_detail(request, pk):
             "refunds": refunds,
             "latest_payment": latest_payment,
             "payment_totals": payment_totals,
+            "deposit_received": deposit_received,
+            "deposit_outstanding": deposit_outstanding,
             "subtotal": subtotal,
             "can_mark_no_show": can_mark_no_show,
             "change_due": change_due,
         },
     )
+
+
+@login_required
+@require_POST
+def booking_set_deposit(request, pk):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(Booking.objects.select_related("room"), pk=pk, room__prop=active_prop)
+    if booking.status in Booking.INACTIVE_STATUSES:
+        messages.error(request, "A deposit cannot be set on an inactive booking.")
+        return redirect("core:booking_detail", pk=booking.pk)
+    if _is_date_locked(booking.check_in_date) or _is_date_locked(booking.check_out_date):
+        return _locked_day_response(request, booking.check_in_date, "core:booking_detail", pk=booking.pk)
+
+    try:
+        amount = Decimal(request.POST.get("deposit_amount", "").strip()).quantize(Decimal("0.01"))
+    except (AttributeError, ArithmeticError, ValueError):
+        messages.error(request, "Enter a valid deposit amount.")
+        return redirect("core:booking_detail", pk=booking.pk)
+
+    payment_totals = booking.payment_totals()
+    minimum_deposit = min(max(payment_totals["net_paid"], Decimal("0.00")), booking.total_amount)
+    if amount <= 0:
+        messages.error(request, "Deposit amount must be greater than zero.")
+        return redirect("core:booking_detail", pk=booking.pk)
+    if amount > booking.total_amount:
+        messages.error(request, f"Deposit cannot exceed the booking total of R {booking.total_amount:.2f}.")
+        return redirect("core:booking_detail", pk=booking.pk)
+    if amount < minimum_deposit:
+        messages.error(request, f"Deposit cannot be less than the R {minimum_deposit:.2f} already paid.")
+        return redirect("core:booking_detail", pk=booking.pk)
+
+    before = _model_snapshot(booking, ["deposit_required"])
+    booking.deposit_required = amount
+    booking.save(update_fields=["deposit_required"])
+    _audit(
+        request,
+        "update",
+        booking,
+        before=before,
+        after=_model_snapshot(booking, ["deposit_required"]),
+        reason="Deposit requirement set from booking summary",
+    )
+    messages.success(request, f"Deposit requirement set to R {amount:.2f}. Record the deposit payment below.")
+    return redirect(f"{reverse('core:payment_add', args=[booking.pk])}?intent=deposit")
 
 
 @login_required
@@ -2187,9 +2273,38 @@ def payment_add(request, booking_id):
         return blocked
     active_prop = get_active_property(request)
     booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=booking_id, room__prop=active_prop)
+    payment_totals = booking.payment_totals()
+    balance_due = payment_totals["balance_due"]
+    deposit_received = min(max(payment_totals["net_paid"], Decimal("0.00")), booking.deposit_required)
+    deposit_outstanding = max(booking.deposit_required - deposit_received, Decimal("0.00"))
+    payment_intent = request.POST.get("payment_intent", "") if request.method == "POST" else request.GET.get("intent", "")
+    if payment_intent not in {"deposit", "balance"}:
+        payment_intent = "balance"
+    initial_amount = deposit_outstanding if payment_intent == "deposit" and deposit_outstanding > 0 else balance_due
+    payment_mode = request.POST.get("payment_mode", "single") if request.method == "POST" else "single"
+    if payment_mode not in {"single", "split"}:
+        payment_mode = "single"
 
-    if request.method == "POST":
-        form = PaymentForm(request.POST)
+    form = PaymentForm(
+        request.POST if request.method == "POST" and payment_mode == "single" else None,
+        initial={"payment_date": timezone.localdate(), "payment_method": "Cash", "amount": initial_amount},
+    )
+    split_details = SplitPaymentDetailsForm(
+        request.POST if request.method == "POST" and payment_mode == "split" else None,
+        prefix="split",
+        initial={"payment_date": timezone.localdate()},
+    )
+    split_tenders = PaymentTenderFormSet(
+        request.POST if request.method == "POST" and payment_mode == "split" else None,
+        prefix="tender",
+        balance_due=balance_due,
+        initial=[
+            {"payment_method": "Cash"},
+            {"payment_method": "Card"},
+        ],
+    )
+
+    if request.method == "POST" and payment_mode == "single":
         if form.is_valid():
             payment = form.save(commit=False)
             if _is_date_locked(payment.payment_date):
@@ -2197,7 +2312,8 @@ def payment_add(request, booking_id):
             payment.booking = booking
             totals = booking.payment_totals()
             balance_due = totals["balance_due"]
-            total_paid_so_far = totals["total_paid"]
+            current_deposit_received = min(max(totals["net_paid"], Decimal("0.00")), booking.deposit_required)
+            current_deposit_outstanding = max(booking.deposit_required - current_deposit_received, Decimal("0.00"))
             tendered = payment.amount
             settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
 
@@ -2213,7 +2329,7 @@ def payment_add(request, booking_id):
                     change = tendered - balance_due
 
                 payment.amount = recorded_amount
-                if total_paid_so_far == Decimal("0.00") and booking.deposit_required > 0 and recorded_amount <= booking.deposit_required:
+                if current_deposit_outstanding > 0 and recorded_amount <= current_deposit_outstanding:
                     payment.payment_type = "Deposit"
                 payment.save()
                 _audit(request, "create", payment, after=_model_snapshot(payment, ["amount", "payment_method", "payment_type", "reference"]))
@@ -2227,13 +2343,85 @@ def payment_add(request, booking_id):
                 else:
                     messages.success(request, "Payment recorded successfully.")
                 return redirect("core:booking_detail", pk=booking.pk)
-    else:
-        form = PaymentForm(
-            initial={
-                "payment_date": timezone.localdate(),
-                "payment_method": "Cash",
-            }
-        )
+
+    elif request.method == "POST" and payment_mode == "split":
+        if split_details.is_valid() and split_tenders.is_valid():
+            payment_date = split_details.cleaned_data["payment_date"]
+            if _is_date_locked(payment_date):
+                return _locked_day_response(request, payment_date, "core:booking_detail", pk=booking.pk)
+
+            tenders = [row.cleaned_data for row in split_tenders.forms if row.cleaned_data]
+            split_total = sum((row["amount"] for row in tenders), Decimal("0.00"))
+            created_payments = []
+            try:
+                with transaction.atomic():
+                    locked_booking = Booking.objects.select_for_update().get(pk=booking.pk)
+                    locked_totals = locked_booking.payment_totals()
+                    locked_balance = locked_totals["balance_due"]
+                    locked_deposit_received = min(
+                        max(locked_totals["net_paid"], Decimal("0.00")),
+                        locked_booking.deposit_required,
+                    )
+                    locked_deposit_outstanding = max(
+                        locked_booking.deposit_required - locked_deposit_received,
+                        Decimal("0.00"),
+                    )
+                    if locked_balance <= 0:
+                        raise ValidationError("This booking has no outstanding balance.")
+                    if split_total > locked_balance:
+                        raise ValidationError(
+                            f"The outstanding balance changed. Split payments cannot exceed R {locked_balance:.2f}."
+                        )
+
+                    payment_type = "Payment"
+                    if (
+                        locked_deposit_outstanding > 0
+                        and split_total <= locked_deposit_outstanding
+                    ):
+                        payment_type = "Deposit"
+
+                    for row in tenders:
+                        payment = Payment.objects.create(
+                            booking=locked_booking,
+                            amount=row["amount"],
+                            payment_date=payment_date,
+                            payment_method=row["payment_method"],
+                            payment_type=payment_type,
+                            reference=row.get("reference", ""),
+                            notes=split_details.cleaned_data.get("notes", ""),
+                        )
+                        created_payments.append(payment)
+                        _audit(
+                            request,
+                            "create",
+                            payment,
+                            after=_model_snapshot(payment, ["amount", "payment_method", "payment_type", "reference"]),
+                            reason="Split payment tender",
+                        )
+            except ValidationError as exc:
+                split_tenders._non_form_errors = split_tenders.error_class(exc.messages)
+            else:
+                booking.refresh_from_db()
+                settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+                notification_payment = Payment(
+                    booking=booking,
+                    amount=split_total,
+                    payment_date=payment_date,
+                    payment_method="Split: " + " + ".join(row["payment_method"] for row in tenders),
+                    payment_type=created_payments[0].payment_type,
+                    reference=", ".join(payment.reference for payment in created_payments),
+                )
+                notify_payment_received(booking, notification_payment, settings_obj)
+                remaining = booking.payment_totals()["balance_due"]
+                method_summary = " + ".join(row["payment_method"] for row in tenders)
+                if remaining > 0:
+                    messages.success(
+                        request,
+                        f"Split payment of R {split_total:.2f} recorded ({method_summary}). Remaining balance: R {remaining:.2f}.",
+                    )
+                else:
+                    messages.success(request, f"Split payment of R {split_total:.2f} recorded ({method_summary}). Booking fully settled.")
+                return redirect("core:booking_detail", pk=booking.pk)
 
     return render(
         request,
@@ -2241,6 +2429,12 @@ def payment_add(request, booking_id):
         {
             "booking": booking,
             "form": form,
+            "split_details": split_details,
+            "split_tenders": split_tenders,
+            "payment_mode": payment_mode,
+            "payment_intent": payment_intent,
+            "deposit_received": deposit_received,
+            "deposit_outstanding": deposit_outstanding,
             "payment_totals": booking.payment_totals(),
         },
     )

@@ -1,279 +1,283 @@
 {% extends "base.html" %}
 {% block title %}Record Payment — Circle Core Guest House{% endblock %}
 
+{% block extra_css %}
+<style>
+  .payment-layout { display:grid; grid-template-columns:320px minmax(0, 1fr); gap:20px; max-width:1040px; align-items:start; }
+  .payment-stack { display:flex; flex-direction:column; gap:14px; }
+  .payment-summary-row { display:flex; justify-content:space-between; gap:18px; padding:10px 0; border-bottom:1px solid var(--color-border); }
+  .payment-summary-row:last-child { border-bottom:0; }
+  .payment-summary-label { color:var(--color-text-tertiary); font-size:12px; }
+  .payment-summary-value { color:var(--color-text-primary); font-size:13px; font-weight:650; text-align:right; }
+  .payment-balance { padding:18px; border-top:2px solid var(--color-green-500); }
+  .payment-balance__amount { margin-top:5px; font-family:var(--font-mono); font-size:26px; font-weight:750; color:var(--color-green-400); }
+  .payment-mode { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:5px; margin-bottom:24px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-subtle); }
+  .payment-mode label { cursor:pointer; }
+  .payment-mode input { position:absolute; opacity:0; pointer-events:none; }
+  .payment-mode span { min-height:42px; display:flex; align-items:center; justify-content:center; gap:7px; padding:8px 12px; border-radius:8px; color:var(--color-text-secondary); font-size:13px; font-weight:650; }
+  .payment-mode input:checked + span { background:var(--color-green-glow); color:var(--color-green-400); box-shadow:inset 0 0 0 1px var(--color-green-border); }
+  .payment-card { padding:26px; }
+  .payment-section-title { margin:0 0 5px; color:var(--color-text-primary); font-size:16px; font-weight:700; }
+  .payment-section-copy { margin:0 0 22px; color:var(--color-text-tertiary); font-size:12.5px; line-height:1.5; }
+  .payment-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
+  .payment-span { grid-column:1 / -1; }
+  .money-field { position:relative; }
+  .money-field__prefix { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--color-text-tertiary); font-family:var(--font-mono); font-weight:700; pointer-events:none; }
+  .money-field input { padding-left:34px; font-family:var(--font-mono); font-size:18px; font-weight:700; }
+  .tender-list { display:flex; flex-direction:column; gap:12px; margin-bottom:18px; }
+  .tender-row { display:grid; grid-template-columns:34px minmax(120px, .8fr) minmax(120px, .7fr) 1fr; gap:10px; align-items:start; padding:14px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-subtle); }
+  .tender-number { width:30px; height:30px; display:grid; place-items:center; margin-top:26px; border-radius:50%; background:var(--color-green-glow); color:var(--color-green-400); font:700 12px var(--font-mono); }
+  .split-total { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+  .split-metric { padding:13px 15px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-subtle); }
+  .split-metric__label { color:var(--color-text-tertiary); font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  .split-metric__value { margin-top:4px; color:var(--color-text-primary); font:700 17px var(--font-mono); }
+  .payment-errors { margin-bottom:18px; padding:11px 14px; border:1px solid rgba(239,68,68,.3); border-radius:var(--radius-md); background:rgba(239,68,68,.08); color:#f87171; font-size:12.5px; }
+  .payment-actions { display:flex; gap:10px; padding-top:4px; }
+  @media (max-width:850px) { .payment-layout { grid-template-columns:1fr; } .payment-stack { display:grid; grid-template-columns:1fr 1fr; } }
+  @media (max-width:640px) {
+    .payment-stack, .payment-grid, .split-total { grid-template-columns:1fr; }
+    .payment-card { padding:20px; }
+    .tender-row { grid-template-columns:30px 1fr; }
+    .tender-number { grid-row:1 / 4; }
+    .payment-actions .btn { flex:1; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <div>
     <div class="section-label">Payments</div>
-    <h1 class="page-title">Record Payment</h1>
+    <h1 class="page-title">Record payment</h1>
+    <p class="page-subtitle">Use one method or split the balance across multiple tenders.</p>
   </div>
   <div class="page-header-actions">
-    <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost">← Back</a>
+    <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost">← Back to booking</a>
   </div>
 </div>
 
-<div style="display:grid; grid-template-columns:340px 1fr; gap:20px; max-width:960px; align-items:start;">
-
-  <!-- LEFT: Booking Summary -->
-  <div style="display:flex; flex-direction:column; gap:14px;">
-
-    <!-- Reference card -->
-    <div class="card" style="padding:0; overflow:hidden;">
-      <div style="background:linear-gradient(135deg,rgba(34,197,94,0.12),rgba(34,197,94,0.04)); border-bottom:1px solid rgba(34,197,94,0.15); padding:14px 18px;">
-        <div style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:4px;">Booking Reference</div>
-        <div style="font-family:var(--font-mono); font-size:14px; color:var(--color-green-400); font-weight:600;">{{ booking.booking_reference }}</div>
+<div class="payment-layout">
+  <aside class="payment-stack">
+    <section class="card" style="padding:18px;">
+      <div class="section-label" style="margin-bottom:10px;">Booking summary</div>
+      <div class="payment-summary-row">
+        <span class="payment-summary-label">Reference</span>
+        <span class="payment-summary-value" style="font-family:var(--font-mono); color:var(--color-green-400);">{{ booking.booking_reference }}</span>
       </div>
-      <div style="padding:16px 18px; display:flex; flex-direction:column; gap:10px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:12px; color:var(--color-text-muted);">Guest</span>
-          <span style="font-size:13px; font-weight:600; color:var(--color-text-primary);">{{ booking.guest.full_name }}</span>
+      <div class="payment-summary-row">
+        <span class="payment-summary-label">Guest</span>
+        <span class="payment-summary-value">{{ booking.guest.full_name }}</span>
+      </div>
+      {% if booking.vehicle_registration %}
+      <div class="payment-summary-row">
+        <span class="payment-summary-label">Number plate</span>
+        <span class="payment-summary-value" style="font-family:var(--font-mono);">{{ booking.vehicle_registration }}</span>
+      </div>
+      {% endif %}
+      <div class="payment-summary-row">
+        <span class="payment-summary-label">Room</span>
+        <span class="payment-summary-value">{{ booking.room.name }}</span>
+      </div>
+      <div class="payment-summary-row">
+        <span class="payment-summary-label">Booking total</span>
+        <span class="payment-summary-value" style="font-family:var(--font-mono);">R {{ booking.total_amount|floatformat:2 }}</span>
+      </div>
+      <div class="payment-summary-row">
+        <span class="payment-summary-label">Paid to date</span>
+        <span class="payment-summary-value" style="font-family:var(--font-mono);">R {{ payment_totals.net_paid|floatformat:2 }}</span>
+      </div>
+    </section>
+
+    <section class="card payment-balance">
+      <div class="section-label">Outstanding balance</div>
+      <div class="payment-balance__amount">R {{ payment_totals.balance_due|floatformat:2 }}</div>
+    </section>
+  </aside>
+
+  <section class="card payment-card">
+    {% if booking.deposit_required <= 0 %}
+    <div style="margin-bottom:18px; padding:12px 14px; border:1px solid rgba(245,158,11,.3); border-radius:var(--radius-md); background:rgba(245,158,11,.08); color:#fbbf24; font-size:12.5px; line-height:1.5;">
+      No deposit requirement is set for this booking. Use <strong>Set &amp; Pay</strong> on the booking summary if you want to collect a deposit; otherwise record a normal payment below.
+    </div>
+    {% endif %}
+    <form method="post" id="payment-form" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="payment_intent" value="{{ payment_intent }}">
+
+      <div class="payment-mode" role="radiogroup" aria-label="Payment entry type">
+        <label>
+          <input type="radio" name="payment_mode" value="single" {% if payment_mode == 'single' %}checked{% endif %}>
+          <span>Single payment</span>
+        </label>
+        <label>
+          <input type="radio" name="payment_mode" value="split" {% if payment_mode == 'split' %}checked{% endif %}>
+          <span>Split payment</span>
+        </label>
+      </div>
+
+      <div id="single-panel">
+        <h2 class="payment-section-title">{% if payment_intent == 'deposit' and deposit_outstanding > 0 %}Pay booking deposit{% else %}Single payment{% endif %}</h2>
+        <p class="payment-section-copy">{% if payment_intent == 'deposit' and deposit_outstanding > 0 %}The outstanding deposit is preselected. Choose how the guest is paying it.{% else %}Record one payment method. Payments below the balance remain as partial payments.{% endif %}</p>
+
+        {% if deposit_outstanding > 0 %}
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin:-8px 0 18px;">
+          <button type="button" class="btn btn-ghost btn-sm" id="use-deposit">Deposit due · R {{ deposit_outstanding|floatformat:2 }}</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="use-balance">Full balance · R {{ payment_totals.balance_due|floatformat:2 }}</button>
         </div>
-        <div style="height:1px; background:var(--color-border);"></div>
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:12px; color:var(--color-text-muted);">Room</span>
-          <span style="font-size:13px; font-weight:600; color:var(--color-text-primary);">{{ booking.room.name }}</span>
-        </div>
-        <div style="height:1px; background:var(--color-border);"></div>
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:12px; color:var(--color-text-muted);">Dates</span>
-          <span style="font-family:var(--font-mono); font-size:11px; color:var(--color-text-secondary);">{{ booking.check_in_date|date:"d M Y" }} – {{ booking.check_out_date|date:"d M Y" }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Totals -->
-    <div class="card" style="padding:18px; background:linear-gradient(135deg,rgba(34,197,94,0.06),rgba(16,163,74,0.02));">
-      <div style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:10px;">Total Amount</div>
-      <div style="font-family:var(--font-mono); font-size:28px; font-weight:800; color:var(--color-text-primary); letter-spacing:-0.5px;">R {{ booking.total_amount|floatformat:2 }}</div>
-    </div>
-
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-      <div class="card" style="padding:14px 16px; border-top:2px solid var(--color-green-500);">
-        <div style="font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--color-green-400); margin-bottom:6px;">Paid</div>
-        <div style="font-family:var(--font-mono); font-size:17px; font-weight:700; color:var(--color-green-400);">R {{ payment_totals.total_paid|floatformat:2 }}</div>
-      </div>
-      <div class="card" style="padding:14px 16px; border-top:2px solid {% if payment_totals.balance_due > 0 %}#ef4444{% else %}var(--color-green-500){% endif %};">
-        <div style="font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:{% if payment_totals.balance_due > 0 %}#f87171{% else %}var(--color-green-400){% endif %}; margin-bottom:6px;">Balance</div>
-        <div style="font-family:var(--font-mono); font-size:17px; font-weight:700; color:{% if payment_totals.balance_due > 0 %}#f87171{% else %}var(--color-green-400){% endif %};">R {{ payment_totals.balance_due|floatformat:2 }}</div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- RIGHT: Payment Form -->
-  <div class="card" style="padding:0; overflow:hidden;">
-
-    <!-- Header bar -->
-    <div style="padding:18px 24px; border-bottom:1px solid var(--color-border); background:linear-gradient(135deg,rgba(34,197,94,0.06),transparent);">
-      <div style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:2px;">Payment Details</div>
-      <div style="font-size:15px; font-weight:600; color:var(--color-text-primary);">Enter payment information below</div>
-    </div>
-
-    <div style="padding:24px;">
-      <form method="post">
-        {% csrf_token %}
-        {% if form.non_field_errors %}
-        <div style="margin-bottom:18px; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;">{{ form.non_field_errors }}</div>
         {% endif %}
 
-        <!-- Amount input — large and prominent -->
-        <div style="margin-bottom:24px;">
-          <label style="display:block; font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:10px;">Amount Tendered</label>
-          <div style="position:relative;">
-            <span style="position:absolute; left:16px; top:50%; transform:translateY(-50%); font-family:var(--font-mono); font-size:20px; font-weight:700; color:var(--color-text-muted); pointer-events:none; line-height:1;">R</span>
-            <input type="number" step="0.01" name="{{ form.amount.html_name }}" id="{{ form.amount.id_for_label }}"
-                   value="{{ form.amount.value|default:'' }}"
-                   style="width:100%; padding:14px 16px 14px 36px; background:var(--color-bg-subtle); border:2px solid var(--color-border-bright); border-radius:var(--radius-md); color:var(--color-text-primary); font-family:var(--font-mono); font-size:24px; font-weight:700; outline:none; transition:border-color .15s, box-shadow .15s; box-sizing:border-box;"
-                   placeholder="0.00"
-                   onfocus="this.style.borderColor='var(--color-green-500)';this.style.boxShadow='0 0 0 3px rgba(34,197,94,0.12)'"
-                   onblur="this.style.borderColor='var(--color-border-bright)';this.style.boxShadow='none'">
+        {% if form.non_field_errors %}<div class="payment-errors" role="alert">{{ form.non_field_errors.0 }}</div>{% endif %}
+        <div class="payment-grid">
+          <div class="form-group payment-span">
+            <label class="form-label" for="{{ form.amount.id_for_label }}">Amount</label>
+            <div class="money-field"><span class="money-field__prefix">R</span>{{ form.amount }}</div>
+            {% if form.amount.errors %}<div class="form-error">{{ form.amount.errors.0 }}</div>{% endif %}
+            <div id="single-balance-hint" class="form-hint"></div>
           </div>
-          {% if form.amount.errors %}<div class="form-error" style="margin-top:6px;">{{ form.amount.errors.0 }}</div>{% endif %}
-          <div id="change-display" style="display:none; margin-top:10px; padding:10px 14px; border-radius:var(--radius-md); font-family:var(--font-mono); font-size:13px; font-weight:600;"></div>
-        </div>
-
-        <!-- Payment Method -->
-        <div style="margin-bottom:24px;">
-          <label style="display:block; font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:12px;">Payment Method</label>
-          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;" id="payment-method-cards">
-
-            <label class="pay-method-card" data-value="Cash">
-              <input type="radio" name="payment_method" value="Cash" style="display:none;" {% if form.payment_method.value == "Cash" %}checked{% endif %}>
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0"/><path d="M6 10v4M18 10v4"/></svg>
-              <span>Cash</span>
-            </label>
-
-            <label class="pay-method-card" data-value="EFT">
-              <input type="radio" name="payment_method" value="EFT" style="display:none;" {% if form.payment_method.value == "EFT" %}checked{% endif %}>
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 12h12M3 18h8"/><path d="M17 15l2 2 4-4"/></svg>
-              <span>EFT</span>
-            </label>
-
-            <label class="pay-method-card" data-value="Card">
-              <input type="radio" name="payment_method" value="Card" style="display:none;" {% if form.payment_method.value == "Card" %}checked{% endif %}>
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-              <span>Card</span>
-            </label>
-
-            <label class="pay-method-card" data-value="SnapScan">
-              <input type="radio" name="payment_method" value="SnapScan" style="display:none;" {% if form.payment_method.value == "SnapScan" %}checked{% endif %}>
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><rect x="7" y="7" width="4" height="4" rx=".5"/><rect x="13" y="7" width="4" height="4" rx=".5"/><rect x="7" y="13" width="4" height="4" rx=".5"/><path d="M13 15h4M15 13v4"/></svg>
-              <span>SnapScan</span>
-            </label>
-
-            <label class="pay-method-card" data-value="Zapper">
-              <input type="radio" name="payment_method" value="Zapper" style="display:none;" {% if form.payment_method.value == "Zapper" %}checked{% endif %}>
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M13 2L4.5 13.5H12L11 22L19.5 10.5H12L13 2z"/></svg>
-              <span>Zapper</span>
-            </label>
-
-            <label class="pay-method-card" data-value="Bank Deposit">
-              <input type="radio" name="payment_method" value="Bank Deposit" style="display:none;" {% if form.payment_method.value == "Bank Deposit" %}checked{% endif %}>
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M3 10h18M3 14h18M5 6l7-3 7 3"/><rect x="3" y="18" width="18" height="2" rx="1"/><path d="M6 10v8M10 10v8M14 10v8M18 10v8"/></svg>
-              <span style="font-size:10px; line-height:1.2;">Bank<br>Deposit</span>
-            </label>
-
-            <label class="pay-method-card" data-value="Other">
-              <input type="radio" name="payment_method" value="Other" style="display:none;" {% if form.payment_method.value == "Other" %}checked{% endif %}>
-              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
-              <span>Other</span>
-            </label>
-
+          <div class="form-group">
+            <label class="form-label" for="{{ form.payment_method.id_for_label }}">Payment method</label>
+            {{ form.payment_method }}
+            {% if form.payment_method.errors %}<div class="form-error">{{ form.payment_method.errors.0 }}</div>{% endif %}
           </div>
-          {% if form.payment_method.errors %}<div class="form-error" style="margin-top:6px;">{{ form.payment_method.errors.0 }}</div>{% endif %}
+          <div class="form-group">
+            <label class="form-label" for="{{ form.payment_date.id_for_label }}">Payment date</label>
+            {{ form.payment_date }}
+            {% if form.payment_date.errors %}<div class="form-error">{{ form.payment_date.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="{{ form.reference.id_for_label }}">Reference</label>
+            {{ form.reference }}
+            <div class="form-hint">Optional; generated automatically if blank.</div>
+            {% if form.reference.errors %}<div class="form-error">{{ form.reference.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="{{ form.notes.id_for_label }}">Notes</label>
+            {{ form.notes }}
+            {% if form.notes.errors %}<div class="form-error">{{ form.notes.errors.0 }}</div>{% endif %}
+          </div>
         </div>
+      </div>
 
-        <!-- Notes -->
-        <div style="margin-bottom:20px;">
-          <label class="form-label" for="{{ form.notes.id_for_label }}" style="font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--color-text-muted);">Notes</label>
-          {{ form.notes }}
-          {% if form.notes.errors %}<div class="form-error">{{ form.notes.errors.0 }}</div>{% endif %}
-        </div>
+      <div id="split-panel">
+        <h2 class="payment-section-title">Split tender</h2>
+        <p class="payment-section-copy">Enter at least two different methods. Each tender is stored separately for reporting and receipts.</p>
+        <button type="button" class="btn btn-ghost btn-sm" id="split-equally" style="margin:-10px 0 16px;">Split balance equally</button>
 
-        <!-- More details (collapsible) -->
-        <details style="margin-bottom:24px; border:1px solid var(--color-border); border-radius:var(--radius-md); overflow:hidden;">
-          <summary style="cursor:pointer; padding:12px 16px; font-size:12px; font-weight:600; letter-spacing:.04em; color:var(--color-text-secondary); background:var(--color-bg-subtle); list-style:none; display:flex; align-items:center; gap:8px; user-select:none;">
-            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-            More details
-          </summary>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px; border-top:1px solid var(--color-border);">
+        {{ split_tenders.management_form }}
+        {% if split_tenders.non_form_errors %}<div class="payment-errors" role="alert">{{ split_tenders.non_form_errors.0 }}</div>{% endif %}
+        {% if split_details.non_field_errors %}<div class="payment-errors" role="alert">{{ split_details.non_field_errors.0 }}</div>{% endif %}
+
+        <div class="tender-list">
+          {% for tender in split_tenders %}
+          <div class="tender-row" data-tender-row>
+            <div class="tender-number">{{ forloop.counter }}</div>
             <div class="form-group" style="margin:0;">
-              <label class="form-label" for="{{ form.payment_date.id_for_label }}">Date</label>
-              {{ form.payment_date }}
-              {% if form.payment_date.errors %}<div class="form-error">{{ form.payment_date.errors.0 }}</div>{% endif %}
+              <label class="form-label" for="{{ tender.payment_method.id_for_label }}">Method{% if forloop.counter == 3 %} (optional){% endif %}</label>
+              {{ tender.payment_method }}
+              {% if tender.payment_method.errors %}<div class="form-error">{{ tender.payment_method.errors.0 }}</div>{% endif %}
             </div>
             <div class="form-group" style="margin:0;">
-              <label class="form-label" for="{{ form.reference.id_for_label }}">Reference</label>
-              {{ form.reference }}
-              <div class="form-hint">Leave blank to auto-generate.</div>
-              {% if form.reference.errors %}<div class="form-error">{{ form.reference.errors.0 }}</div>{% endif %}
+              <label class="form-label" for="{{ tender.amount.id_for_label }}">Amount</label>
+              <div class="money-field"><span class="money-field__prefix">R</span>{{ tender.amount }}</div>
+              {% if tender.amount.errors %}<div class="form-error">{{ tender.amount.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label" for="{{ tender.reference.id_for_label }}">Reference</label>
+              {{ tender.reference }}
+              {% if tender.reference.errors %}<div class="form-error">{{ tender.reference.errors.0 }}</div>{% endif %}
             </div>
           </div>
-        </details>
-
-        <!-- Actions -->
-        <div style="display:flex; gap:10px;">
-          <button type="submit" class="btn btn-primary btn-lg" style="flex:1;">Record Payment</button>
-          <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-lg">Cancel</a>
+          {% endfor %}
         </div>
 
-      </form>
-    </div>
-  </div>
+        <div class="split-total">
+          <div class="split-metric">
+            <div class="split-metric__label">Split total</div>
+            <div class="split-metric__value" id="split-total">R 0.00</div>
+          </div>
+          <div class="split-metric">
+            <div class="split-metric__label">Balance remaining</div>
+            <div class="split-metric__value" id="split-remaining">R {{ payment_totals.balance_due|floatformat:2 }}</div>
+          </div>
+        </div>
 
+        <div class="payment-grid">
+          <div class="form-group">
+            <label class="form-label" for="{{ split_details.payment_date.id_for_label }}">Payment date</label>
+            {{ split_details.payment_date }}
+            {% if split_details.payment_date.errors %}<div class="form-error">{{ split_details.payment_date.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="{{ split_details.notes.id_for_label }}">Notes</label>
+            {{ split_details.notes }}
+            {% if split_details.notes.errors %}<div class="form-error">{{ split_details.notes.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="payment-actions">
+        <button type="submit" class="btn btn-primary btn-lg" id="payment-submit">Record payment</button>
+        <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-lg">Cancel</a>
+      </div>
+    </form>
+  </section>
 </div>
 
-<style>
-.pay-method-card {
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 12px 8px;
-  border-radius: var(--radius-md);
-  border: 1.5px solid var(--color-border-bright);
-  background: var(--color-bg-subtle);
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  text-align: center;
-  transition: border-color .15s, background .15s, color .15s, box-shadow .15s;
-  line-height: 1.3;
-}
-.pay-method-card:hover {
-  border-color: var(--color-green-500);
-  color: var(--color-text-secondary);
-  background: rgba(34,197,94,0.04);
-}
-.pay-method-card.selected {
-  border-color: var(--color-green-500);
-  background: rgba(34,197,94,0.08);
-  color: var(--color-green-400);
-  box-shadow: 0 0 0 3px rgba(34,197,94,0.1);
-}
-details[open] summary svg {
-  transform: rotate(90deg);
-}
-details summary svg {
-  transition: transform .2s;
-  flex-shrink: 0;
-}
-</style>
-
 <script>
-(function() {
-  var balanceDue       = parseFloat("{{ payment_totals.balance_due }}") || 0;
-  var depositRequired  = parseFloat("{{ booking.deposit_required }}")  || 0;
-  var totalPaid        = parseFloat("{{ payment_totals.total_paid }}")  || 0;
-  var amountInput      = document.getElementById("{{ form.amount.id_for_label }}");
-  var display          = document.getElementById("change-display");
+(function () {
+  var balance = Number("{{ payment_totals.balance_due }}") || 0;
+  var modeInputs = document.querySelectorAll('input[name="payment_mode"]');
+  var singlePanel = document.getElementById('single-panel');
+  var splitPanel = document.getElementById('split-panel');
+  var submitButton = document.getElementById('payment-submit');
+  var singleAmount = document.getElementById('{{ form.amount.id_for_label }}');
+  var singleHint = document.getElementById('single-balance-hint');
+  var splitAmounts = document.querySelectorAll('[data-tender-row] input[name$="-amount"]');
+  var splitTotal = document.getElementById('split-total');
+  var splitRemaining = document.getElementById('split-remaining');
+  var splitEqually = document.getElementById('split-equally');
+  var useDeposit = document.getElementById('use-deposit');
+  var useBalance = document.getElementById('use-balance');
+  var depositOutstanding = Number("{{ deposit_outstanding }}") || 0;
 
-  function updateChange() {
-    var entered = parseFloat(amountInput.value) || 0;
-    if (entered <= 0) { display.style.display = "none"; return; }
-    var isFullPayment   = Math.abs(entered - balanceDue) < 0.01;
-    var isOverpayment   = entered > balanceDue && balanceDue > 0;
-    var isDepositPayment = totalPaid === 0 && depositRequired > 0 && Math.abs(entered - depositRequired) < 0.01;
-
-    if (isOverpayment) {
-      var change = (entered - balanceDue).toFixed(2);
-      display.textContent = "Change to give: R " + change;
-      display.style.cssText += ";display:block;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.35);color:#fbbf24;";
-    } else if (isFullPayment) {
-      display.textContent = "✓ Exact amount — fully settled";
-      display.style.cssText += ";display:block;background:var(--color-green-glow);border:1px solid var(--color-green-border);color:var(--color-green-400);";
-    } else if (isDepositPayment) {
-      display.textContent = "Deposit — R " + (balanceDue - entered).toFixed(2) + " balance remains";
-      display.style.cssText += ";display:block;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);color:#818cf8;";
-    } else {
-      var hint = totalPaid === 0 && depositRequired > 0
-        ? "Accepted: R " + balanceDue.toFixed(2) + " (full) or R " + depositRequired.toFixed(2) + " (deposit)"
-        : "Accepted: R " + balanceDue.toFixed(2) + " (full balance)";
-      display.textContent = hint;
-      display.style.cssText += ";display:block;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;";
-    }
-    display.style.display = "block";
+  function money(value) { return 'R ' + Math.max(value, 0).toFixed(2); }
+  function currentMode() {
+    var selected = document.querySelector('input[name="payment_mode"]:checked');
+    return selected ? selected.value : 'single';
   }
-  if (amountInput) amountInput.addEventListener("input", updateChange);
-
-  // Payment method card selection
-  var cards = document.querySelectorAll('.pay-method-card');
-  function updateCards() {
-    cards.forEach(function(card) {
-      var inp = card.querySelector('input[type="radio"]');
-      card.classList.toggle('selected', inp && inp.checked);
-    });
+  function updateMode() {
+    var split = currentMode() === 'split';
+    singlePanel.style.display = split ? 'none' : '';
+    splitPanel.style.display = split ? '' : 'none';
+    submitButton.textContent = split ? 'Record split payment' : 'Record payment';
   }
-  cards.forEach(function(card) {
-    card.addEventListener('click', function() {
-      var inp = card.querySelector('input[type="radio"]');
-      if (inp) { inp.checked = true; }
-      updateCards();
-    });
+  function updateSingle() {
+    var amount = Number(singleAmount && singleAmount.value) || 0;
+    if (!amount) { singleHint.textContent = 'Outstanding balance: ' + money(balance); return; }
+    if (amount > balance) singleHint.textContent = 'Cash change: ' + money(amount - balance) + '. Only the balance will be recorded.';
+    else singleHint.textContent = 'Balance after payment: ' + money(balance - amount);
+  }
+  function updateSplit() {
+    var total = 0;
+    splitAmounts.forEach(function (input) { total += Number(input.value) || 0; });
+    splitTotal.textContent = money(total);
+    splitRemaining.textContent = total > balance ? 'Over by ' + money(total - balance) : money(balance - total);
+    splitRemaining.style.color = total > balance ? '#f87171' : 'var(--color-text-primary)';
+  }
+  modeInputs.forEach(function (input) { input.addEventListener('change', updateMode); });
+  if (singleAmount) singleAmount.addEventListener('input', updateSingle);
+  if (useDeposit) useDeposit.addEventListener('click', function () { singleAmount.value = depositOutstanding.toFixed(2); updateSingle(); });
+  if (useBalance) useBalance.addEventListener('click', function () { singleAmount.value = balance.toFixed(2); updateSingle(); });
+  splitAmounts.forEach(function (input) { input.addEventListener('input', updateSplit); });
+  if (splitEqually) splitEqually.addEventListener('click', function () {
+    if (splitAmounts.length < 2) return;
+    var first = Math.floor((balance * 100) / 2) / 100;
+    splitAmounts[0].value = first.toFixed(2);
+    splitAmounts[1].value = (balance - first).toFixed(2);
+    for (var i = 2; i < splitAmounts.length; i += 1) splitAmounts[i].value = '';
+    updateSplit();
   });
-  updateCards();
+  updateMode(); updateSingle(); updateSplit();
 })();
 </script>
 {% endblock %}

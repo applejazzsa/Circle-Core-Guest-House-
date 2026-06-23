@@ -19,6 +19,10 @@
     <span class="detail-value">{{ booking.room.name }}</span>
   </div>
   <div class="detail-row">
+    <span class="detail-label">Payment type</span>
+    <span class="detail-value">{{ payment.payment_type }}</span>
+  </div>
+  <div class="detail-row">
     <span class="detail-label">Remaining Balance</span>
     <span class="detail-value" style="color:{% if booking.balance_due > 0 %}#dc2626{% else %}#16a34a{% endif %};">
       {% if booking.balance_due > 0 %}R {{ booking.balance_due }} due{% else %}Settled{% endif %}

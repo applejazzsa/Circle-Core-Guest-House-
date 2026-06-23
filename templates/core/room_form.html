@@ -1,119 +1,148 @@
 {% extends "base.html" %}
 {% block title %}{{ title }} — Circle Core Guest House{% endblock %}
 
+{% block extra_css %}
+<style>
+  .room-form-shell { max-width: 1040px; }
+  .room-form-card { padding: 28px; margin-bottom: 18px; }
+  .room-form-card__header { margin-bottom: 22px; }
+  .room-form-card__title { margin: 0 0 5px; color: var(--color-text-primary); font-size: 1rem; font-weight: 650; }
+  .room-form-card__description { margin: 0; color: var(--color-text-tertiary); font-size: .8125rem; line-height: 1.5; }
+  .room-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+  .room-pricing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 16px; }
+  .room-form-span { grid-column: 1 / -1; }
+  .room-form-card .form-input { min-height: 44px; }
+  .room-form-card textarea.form-input { min-height: 94px; }
+  .room-form-card .form-group:last-child { margin-bottom: 0; }
+  .room-form-required { color: var(--color-red); }
+  .room-form-alert { margin-bottom: 18px; padding: 12px 14px; border: 1px solid rgba(239,68,68,.35); border-radius: var(--radius-md); background: rgba(239,68,68,.08); color: var(--color-red); font-size: .8125rem; }
+  .room-form-actions { display: flex; align-items: center; gap: 10px; padding: 4px 0 28px; }
+  .room-checkbox { width: 16px; height: 16px; accent-color: var(--color-green-500); }
+  @media (max-width: 760px) {
+    .room-form-card { padding: 20px; }
+    .room-form-grid, .room-pricing-grid { grid-template-columns: 1fr; }
+    .room-form-actions .btn { flex: 1; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <div>
     <div class="section-label">Rooms</div>
     <h1 class="page-title">{{ title }}</h1>
+    <p class="room-form-card__description">Configure the room, capacity, availability, and rates.</p>
   </div>
   <div class="page-header-actions">
     <a href="{% url 'core:room_list' %}" class="btn btn-ghost">← Back to Rooms</a>
     {% if room %}
-    <a href="{% url 'core:room_delete' room.pk %}" class="btn btn-danger btn-sm">Delete Room</a>
+      <a href="{% url 'core:room_delete' room.pk %}" class="btn btn-danger btn-sm">Delete Room</a>
     {% endif %}
   </div>
 </div>
 
-<div style="max-width:720px;">
-  <form method="post">
+<div class="room-form-shell">
+  <form method="post" novalidate>
     {% csrf_token %}
 
-    <!-- Basic info section -->
-    <div class="card" style="margin-bottom:16px;">
-      <div class="section-label" style="margin-bottom:20px;">Room Details</div>
+    {% if form.non_field_errors %}
+      <div class="room-form-alert" role="alert">{{ form.non_field_errors.0 }}</div>
+    {% endif %}
 
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-        <div class="form-group" style="grid-column:1/-1;">
-          <label class="form-label" for="{{ form.name.id_for_label }}">Room Name</label>
+    <section class="card room-form-card" aria-labelledby="room-details-heading">
+      <div class="room-form-card__header">
+        <h2 class="room-form-card__title" id="room-details-heading">Room details</h2>
+        <p class="room-form-card__description">The core information staff use to identify and manage this room.</p>
+      </div>
+
+      <div class="room-form-grid">
+        <div class="form-group room-form-span">
+          <label class="form-label" for="{{ form.name.id_for_label }}">Room name <span class="room-form-required">*</span></label>
           {{ form.name }}
-          {% if form.name.errors %}<div class="form-error">{{ form.name.errors.0 }}</div>{% endif %}
+          {% if form.name.errors %}<div class="form-error" role="alert">{{ form.name.errors.0 }}</div>{% endif %}
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="{{ form.room_type.id_for_label }}">Room Type</label>
+          <label class="form-label" for="{{ form.room_type.id_for_label }}">Room type <span class="room-form-required">*</span></label>
           {{ form.room_type }}
-          {% if form.room_type.errors %}<div class="form-error">{{ form.room_type.errors.0 }}</div>{% endif %}
+          {% if form.room_type.errors %}<div class="form-error" role="alert">{{ form.room_type.errors.0 }}</div>{% endif %}
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="{{ form.max_guests.id_for_label }}">Max Guests</label>
+          <label class="form-label" for="{{ form.max_guests.id_for_label }}">Maximum guests <span class="room-form-required">*</span></label>
           {{ form.max_guests }}
-          {% if form.max_guests.errors %}<div class="form-error">{{ form.max_guests.errors.0 }}</div>{% endif %}
+          {% if form.max_guests.errors %}<div class="form-error" role="alert">{{ form.max_guests.errors.0 }}</div>{% endif %}
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="{{ form.status.id_for_label }}">Status</label>
+          <label class="form-label" for="{{ form.status.id_for_label }}">Availability status <span class="room-form-required">*</span></label>
           {{ form.status }}
-          {% if form.status.errors %}<div class="form-error">{{ form.status.errors.0 }}</div>{% endif %}
+          {% if form.status.errors %}<div class="form-error" role="alert">{{ form.status.errors.0 }}</div>{% endif %}
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="{{ form.cleaning_status.id_for_label }}">Cleaning Status</label>
+          <label class="form-label" for="{{ form.cleaning_status.id_for_label }}">Cleaning status <span class="room-form-required">*</span></label>
           {{ form.cleaning_status }}
-          {% if form.cleaning_status.errors %}<div class="form-error">{{ form.cleaning_status.errors.0 }}</div>{% endif %}
+          {% if form.cleaning_status.errors %}<div class="form-error" role="alert">{{ form.cleaning_status.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="{{ form.description.id_for_label }}">Guest-facing description</label>
+          {{ form.description }}
+          <div class="form-hint">Include useful details such as bed type, view, or amenities.</div>
+          {% if form.description.errors %}<div class="form-error" role="alert">{{ form.description.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="{{ form.internal_notes.id_for_label }}">Internal notes</label>
+          {{ form.internal_notes }}
+          <div class="form-hint">Visible to staff only; guests will not see these notes.</div>
+          {% if form.internal_notes.errors %}<div class="form-error" role="alert">{{ form.internal_notes.errors.0 }}</div>{% endif %}
         </div>
       </div>
+    </section>
 
-      <div class="form-group">
-        <label class="form-label" for="{{ form.description.id_for_label }}">Description</label>
-        {{ form.description }}
-        {% if form.description.errors %}<div class="form-error">{{ form.description.errors.0 }}</div>{% endif %}
+    <section class="card room-form-card" aria-labelledby="room-pricing-heading">
+      <div class="room-form-card__header">
+        <h2 class="room-form-card__title" id="room-pricing-heading">Rates and booking types</h2>
+        <p class="room-form-card__description">Enter rates in South African rand. Optional rates can be left blank.</p>
       </div>
 
-      <div class="form-group">
-        <label class="form-label" for="{{ form.internal_notes.id_for_label }}">Internal Notes</label>
-        {{ form.internal_notes }}
-        <div class="form-hint">Only visible to staff — not shown to guests.</div>
-        {% if form.internal_notes.errors %}<div class="form-error">{{ form.internal_notes.errors.0 }}</div>{% endif %}
-      </div>
-    </div>
-
-    <!-- Pricing section -->
-    <div class="card" style="margin-bottom:16px;">
-      <div class="section-label" style="margin-bottom:4px;">Pricing</div>
-      <p style="font-size:12px; color:var(--color-text-tertiary); margin-bottom:20px;">Leave fields blank to disable that booking type.</p>
-
-      <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px;">
+      <div class="room-pricing-grid">
         <div class="form-group">
-          <label class="form-label" for="{{ form.price_per_night.id_for_label }}">Per Night (R)</label>
+          <label class="form-label" for="{{ form.price_per_night.id_for_label }}">Per night (R) <span class="room-form-required">*</span></label>
           {{ form.price_per_night }}
-          {% if form.price_per_night.errors %}<div class="form-error">{{ form.price_per_night.errors.0 }}</div>{% endif %}
+          {% if form.price_per_night.errors %}<div class="form-error" role="alert">{{ form.price_per_night.errors.0 }}</div>{% endif %}
         </div>
-
         <div class="form-group">
-          <label class="form-label" for="{{ form.price_per_week.id_for_label }}">Per Week (R)</label>
+          <label class="form-label" for="{{ form.price_per_week.id_for_label }}">Per week (R)</label>
           {{ form.price_per_week }}
-          {% if form.price_per_week.errors %}<div class="form-error">{{ form.price_per_week.errors.0 }}</div>{% endif %}
+          {% if form.price_per_week.errors %}<div class="form-error" role="alert">{{ form.price_per_week.errors.0 }}</div>{% endif %}
         </div>
-
         <div class="form-group">
-          <label class="form-label" for="{{ form.price_1_hour.id_for_label }}">1 Hour (R)</label>
+          <label class="form-label" for="{{ form.price_1_hour.id_for_label }}">1 hour (R)</label>
           {{ form.price_1_hour }}
-          {% if form.price_1_hour.errors %}<div class="form-error">{{ form.price_1_hour.errors.0 }}</div>{% endif %}
+          {% if form.price_1_hour.errors %}<div class="form-error" role="alert">{{ form.price_1_hour.errors.0 }}</div>{% endif %}
         </div>
-
         <div class="form-group">
-          <label class="form-label" for="{{ form.price_2_hours.id_for_label }}">2 Hours (R)</label>
+          <label class="form-label" for="{{ form.price_2_hours.id_for_label }}">2 hours (R)</label>
           {{ form.price_2_hours }}
-          {% if form.price_2_hours.errors %}<div class="form-error">{{ form.price_2_hours.errors.0 }}</div>{% endif %}
+          {% if form.price_2_hours.errors %}<div class="form-error" role="alert">{{ form.price_2_hours.errors.0 }}</div>{% endif %}
         </div>
-
         <div class="form-group">
-          <label class="form-label" for="{{ form.price_3_hours.id_for_label }}">3 Hours (R)</label>
+          <label class="form-label" for="{{ form.price_3_hours.id_for_label }}">3 hours (R)</label>
           {{ form.price_3_hours }}
-          {% if form.price_3_hours.errors %}<div class="form-error">{{ form.price_3_hours.errors.0 }}</div>{% endif %}
+          {% if form.price_3_hours.errors %}<div class="form-error" role="alert">{{ form.price_3_hours.errors.0 }}</div>{% endif %}
         </div>
-
         <div class="form-group">
-          <label class="form-label" for="{{ form.price_5_hours.id_for_label }}">5 Hours (R)</label>
+          <label class="form-label" for="{{ form.price_5_hours.id_for_label }}">5 hours (R)</label>
           {{ form.price_5_hours }}
-          {% if form.price_5_hours.errors %}<div class="form-error">{{ form.price_5_hours.errors.0 }}</div>{% endif %}
+          {% if form.price_5_hours.errors %}<div class="form-error" role="alert">{{ form.price_5_hours.errors.0 }}</div>{% endif %}
         </div>
       </div>
 
-      <div class="form-group" style="margin-bottom:0;">
-        <div class="form-label">Booking Types Allowed</div>
+      <div class="form-group">
+        <div class="form-label">Booking types allowed</div>
         <div class="checkbox-grid">
           {% for choice in form.booking_types_allowed %}
             <label class="checkbox-option" for="{{ choice.id_for_label }}">
@@ -122,12 +151,12 @@
             </label>
           {% endfor %}
         </div>
-        {% if form.booking_types_allowed.errors %}<div class="form-error">{{ form.booking_types_allowed.errors.0 }}</div>{% endif %}
+        {% if form.booking_types_allowed.errors %}<div class="form-error" role="alert">{{ form.booking_types_allowed.errors.0 }}</div>{% endif %}
       </div>
-    </div>
+    </section>
 
-    <div style="display:flex; gap:12px; margin-top:20px; padding-bottom:24px;">
-      <button type="submit" class="btn btn-primary btn-lg">Save Room</button>
+    <div class="room-form-actions">
+      <button type="submit" class="btn btn-primary btn-lg">{% if room %}Save changes{% else %}Add room{% endif %}</button>
       <a href="{% url 'core:room_list' %}" class="btn btn-ghost btn-lg">Cancel</a>
     </div>
   </form>

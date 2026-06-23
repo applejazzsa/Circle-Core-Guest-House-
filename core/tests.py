@@ -18,6 +18,7 @@ from django_tenants.utils import schema_context, tenant_context
 
 from tenants.models import Domain, GuestHouseTenant
 
+from .forms import RoomForm
 from .models import (
     Booking,
     Guest,
@@ -139,6 +140,49 @@ class RoomModelTest(CircleCoreTenantTestCase):
     def test_room_price_stored(self):
         room = make_room(price=750)
         self.assertEqual(room.price_per_night, Decimal("750"))
+
+
+class RoomFormTest(CircleCoreTenantTestCase):
+    def room_data(self, name="Room 2"):
+        return {
+            "name": name,
+            "room_type": "Double",
+            "price_per_night": "500.00",
+            "booking_types_allowed": ["Daily"],
+            "max_guests": 2,
+            "status": "Available",
+            "cleaning_status": "Clean",
+            "description": "",
+            "internal_notes": "",
+        }
+
+    def test_same_name_is_allowed_at_a_different_property(self):
+        first_property = Property.objects.create(pk=91001, name="First Property")
+        second_property = Property.objects.create(pk=91002, name="Second Property")
+        Room.objects.create(
+            prop=first_property,
+            name="Room 2",
+            room_type="Double",
+            price_per_night=Decimal("500.00"),
+        )
+
+        form = RoomForm(data=self.room_data(), prop=second_property)
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_same_name_is_rejected_at_the_same_property(self):
+        prop = Property.objects.create(pk=91003, name="Test Property")
+        Room.objects.create(
+            prop=prop,
+            name="Room 2",
+            room_type="Double",
+            price_per_night=Decimal("500.00"),
+        )
+
+        form = RoomForm(data=self.room_data(name=" room 2 "), prop=prop)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("name", form.errors)
 
 
 class GuestModelTest(CircleCoreTenantTestCase):
@@ -407,6 +451,20 @@ class OfflineSyncTest(CircleCoreTenantTestCase):
         self.assertEqual(Booking.objects.filter(room=self.room).count(), 1)
         self.assertEqual(OfflineOperation.objects.count(), 1)
 
+    def test_offline_snapshot_includes_checkout_timestamp_for_local_reminders(self):
+        guest = make_guest("Offline", "Reminder", "0840000010")
+        booking = make_booking(self.room, guest, days_ahead=0, nights=1)
+        booking.status = "Checked In"
+        booking.check_in_time = timezone.now()
+        booking.save()
+
+        response = self.client.get(reverse("core:offline_bootstrap"), {"device_id": self.device_id})
+        row = next(item for item in response.json()["bookings"] if item["id"] == booking.pk)
+
+        self.assertIsNotNone(row["checkout_at"])
+        self.assertEqual(row["status"], "Checked In")
+        self.assertEqual(row["room_id"], self.room.pk)
+
     def test_room_collision_creates_owner_conflict(self):
         self.room.status = "Occupied"
         self.room.save(update_fields=["status"])
@@ -526,6 +584,107 @@ class BookingFlowTest(CircleCoreTenantTestCase):
         response = self.client.get(reverse("core:booking_add"))
         self.assertEqual(response.status_code, 200)
 
+    def test_occupied_room_card_shows_current_guest(self):
+        booking = make_booking(self.room, self.guest, days_ahead=1)
+        booking.status = "Checked In"
+        booking.save()
+        self.room.status = "Occupied"
+        self.room.save(update_fields=["status"])
+
+        response = self.client.get(reverse("core:room_list"))
+
+        self.assertContains(response, "Currently staying")
+        self.assertContains(response, self.guest.full_name)
+        self.assertContains(response, reverse("core:booking_detail", args=[booking.pk]))
+
+    def test_occupied_room_card_shows_number_plate_identity(self):
+        vehicle_guest = Guest.get_or_create_for_vehicle("CA 555-555")
+        booking = make_booking(self.room, vehicle_guest, days_ahead=1)
+        booking.vehicle_registration = vehicle_guest.vehicle_registration
+        booking.status = "Checked In"
+        booking.save()
+        self.room.status = "Occupied"
+        self.room.save(update_fields=["status"])
+
+        response = self.client.get(reverse("core:room_list"))
+
+        self.assertContains(response, "Currently staying")
+        self.assertContains(response, "CA 555-555")
+
+    def test_notification_feed_uses_clean_text_and_semantic_type(self):
+        today = timezone.localdate()
+        booking = Booking.objects.create(
+            room=self.room,
+            guest=self.guest,
+            check_in_date=today,
+            check_out_date=today + datetime.timedelta(days=1),
+            booking_duration_type="daily",
+            num_guests=1,
+            rate_per_night=self.room.price_per_night,
+            status="Confirmed",
+            booking_source="Walk-in",
+        )
+
+        response = self.client.get(reverse("core:notifications_feed"))
+
+        self.assertEqual(response.status_code, 200)
+        alert = next(item for item in response.json()["alerts"] if item["id"] == f"booking-created-{booking.pk}")
+        self.assertEqual(alert["type"], "booking_created")
+        self.assertEqual(alert["body"], f"{self.guest.full_name} · {self.room.name} — {booking.booking_reference}")
+        self.assertNotIn("icon", alert)
+        self.assertNotIn("Â", alert["body"])
+
+    def test_checkin_alert_does_not_trigger_checkout_reminder_early(self):
+        booking = make_booking(self.room, self.guest, days_ahead=1)
+        local_now = timezone.localtime()
+        checkout_at = local_now + datetime.timedelta(minutes=30)
+        Booking.objects.filter(pk=booking.pk).update(
+            status="Checked In",
+            check_in_date=local_now.date(),
+            check_out_date=local_now.date(),
+            booking_duration_type="1_hour",
+            booking_start_time=local_now.time().replace(second=0, microsecond=0),
+            booking_end_time=checkout_at.time().replace(second=0, microsecond=0),
+            check_in_time=timezone.now(),
+        )
+
+        alerts = self.client.get(reverse("core:notifications_feed")).json()["alerts"]
+
+        self.assertTrue(any(item["type"] == "checked_in" for item in alerts))
+        self.assertFalse(any(item["type"] == "checkout_reminder" for item in alerts))
+
+    def test_checkout_reminder_triggers_inside_five_minute_window(self):
+        booking = make_booking(self.room, self.guest, days_ahead=1)
+        local_now = timezone.localtime()
+        checkout_at = local_now + datetime.timedelta(minutes=4)
+        checkin_at = local_now - datetime.timedelta(hours=1)
+        Booking.objects.filter(pk=booking.pk).update(
+            status="Checked In",
+            check_in_date=local_now.date(),
+            check_out_date=local_now.date(),
+            booking_duration_type="1_hour",
+            booking_start_time=checkin_at.time().replace(second=0, microsecond=0),
+            booking_end_time=checkout_at.time().replace(second=0, microsecond=0),
+            check_in_time=timezone.now() - datetime.timedelta(hours=1),
+        )
+
+        alerts = self.client.get(reverse("core:notifications_feed")).json()["alerts"]
+        reminder = next(item for item in alerts if item["type"] == "checkout_reminder")
+
+        self.assertEqual(reminder["title"], "Checkout in 5 Minutes")
+        self.assertIn(self.room.name, reminder["body"])
+
+    def test_room_needs_cleaning_notification_is_in_feed(self):
+        self.room.cleaning_status = "Needs Cleaning"
+        self.room.status = "Cleaning"
+        self.room.save(update_fields=["cleaning_status", "status"])
+
+        alerts = self.client.get(reverse("core:notifications_feed")).json()["alerts"]
+
+        cleaning_alert = next(item for item in alerts if item["type"] == "needs_cleaning")
+        self.assertEqual(cleaning_alert["title"], "Room Needs Cleaning")
+        self.assertIn(self.room.name, cleaning_alert["body"])
+
     def test_booking_add_has_one_guest_field_and_one_submit_action(self):
         response = self.client.get(reverse("core:booking_add"))
         content = response.content.decode()
@@ -589,7 +748,7 @@ class BookingFlowTest(CircleCoreTenantTestCase):
         self.assertTrue(booking.guest.is_generic)
         self.assertEqual(booking.vehicle_registration, "")
 
-    def test_number_plate_booking_uses_walk_in_guest_without_guest_selection(self):
+    def test_number_plate_booking_creates_persistent_vehicle_profile(self):
         check_in = timezone.localdate() + datetime.timedelta(days=1)
         response = self.client.post(
             reverse("core:booking_add"),
@@ -614,8 +773,38 @@ class BookingFlowTest(CircleCoreTenantTestCase):
         )
         self.assertEqual(response.status_code, 302)
         booking = Booking.objects.get(room=self.room)
-        self.assertTrue(booking.guest.is_generic)
+        self.assertFalse(booking.guest.is_generic)
+        self.assertTrue(booking.guest.is_vehicle_profile)
+        self.assertEqual(booking.guest.vehicle_registration, "YSR 142 GP")
         self.assertEqual(booking.vehicle_registration, "YSR 142 GP")
+
+        detail = self.client.get(reverse("core:guest_detail", args=[booking.guest_id]))
+        self.assertContains(detail, "YSR 142 GP")
+        self.assertContains(detail, booking.booking_reference)
+
+    def test_number_plate_bookings_reuse_profile_and_share_history(self):
+        plate = "CA 123-456"
+        profile = Guest.get_or_create_for_vehicle(plate.lower())
+        same_profile = Guest.get_or_create_for_vehicle("  CA   123-456  ")
+        self.assertEqual(profile.pk, same_profile.pk)
+
+        first = make_booking(self.room, profile)
+        first.vehicle_registration = plate
+        first.save(update_fields=["vehicle_registration"])
+        second_room = Room.objects.create(
+            prop=self.room.prop,
+            name="Room History",
+            room_type="Single",
+            price_per_night=Decimal("350.00"),
+        )
+        second = make_booking(second_room, same_profile, days_ahead=4)
+        second.vehicle_registration = plate
+        second.save(update_fields=["vehicle_registration"])
+
+        detail = self.client.get(reverse("core:guest_detail", args=[profile.pk]))
+        self.assertContains(detail, first.booking_reference)
+        self.assertContains(detail, second.booking_reference)
+        self.assertEqual(detail.context["stay_count"], 2)
 
     def test_number_plate_mode_requires_a_plate(self):
         check_in = timezone.localdate() + datetime.timedelta(days=1)
@@ -748,6 +937,156 @@ class BookingFlowTest(CircleCoreTenantTestCase):
         )
         booking.refresh_from_db()
         self.assertEqual(booking.balance_due, booking.total_amount - Decimal("250.00"))
+
+    def test_single_payment_workflow_remains_available(self):
+        booking = make_booking(self.room, self.guest, days_ahead=6, nights=2)
+        response = self.client.post(
+            reverse("core:payment_add", args=[booking.pk]),
+            {
+                "payment_mode": "single",
+                "amount": "600.00",
+                "payment_date": timezone.localdate().isoformat(),
+                "payment_method": "EFT",
+                "reference": "EFT-ONE",
+                "notes": "Single partial payment",
+            },
+        )
+
+        self.assertRedirects(response, reverse("core:booking_detail", args=[booking.pk]))
+        payment = booking.payments.get()
+        self.assertEqual(payment.payment_method, "EFT")
+        self.assertEqual(payment.notes, "Single partial payment")
+        booking.refresh_from_db()
+        self.assertEqual(booking.balance_due, Decimal("400.00"))
+
+    def test_booking_detail_links_to_preselected_deposit_payment(self):
+        booking = make_booking(self.room, self.guest, days_ahead=10, nights=2)
+        booking.deposit_required = Decimal("300.00")
+        booking.save()
+
+        detail = self.client.get(reverse("core:booking_detail", args=[booking.pk]))
+        self.assertContains(detail, "Pay Deposit · R 300.00")
+        self.assertContains(detail, f'{reverse("core:payment_add", args=[booking.pk])}?intent=deposit')
+
+        payment_page = self.client.get(reverse("core:payment_add", args=[booking.pk]), {"intent": "deposit"})
+        self.assertEqual(payment_page.context["payment_intent"], "deposit")
+        self.assertEqual(payment_page.context["form"]["amount"].value(), Decimal("300.00"))
+        self.assertContains(payment_page, "Pay booking deposit")
+
+    def test_booking_without_deposit_can_set_and_continue_to_payment(self):
+        booking = make_booking(self.room, self.guest, days_ahead=12, nights=2)
+        detail = self.client.get(reverse("core:booking_detail", args=[booking.pk]))
+        self.assertContains(detail, "Set &amp; Pay", html=False)
+        self.assertContains(detail, reverse("core:booking_set_deposit", args=[booking.pk]))
+
+        response = self.client.post(
+            reverse("core:booking_set_deposit", args=[booking.pk]),
+            {"deposit_amount": "250.00"},
+        )
+
+        self.assertRedirects(
+            response,
+            f'{reverse("core:payment_add", args=[booking.pk])}?intent=deposit',
+            fetch_redirect_response=False,
+        )
+        booking.refresh_from_db()
+        self.assertEqual(booking.deposit_required, Decimal("250.00"))
+
+    def test_deposit_requirement_cannot_exceed_booking_total(self):
+        booking = make_booking(self.room, self.guest, days_ahead=13, nights=2)
+
+        response = self.client.post(
+            reverse("core:booking_set_deposit", args=[booking.pk]),
+            {"deposit_amount": "1000.01"},
+            follow=True,
+        )
+
+        self.assertContains(response, "Deposit cannot exceed the booking total")
+        booking.refresh_from_db()
+        self.assertEqual(booking.deposit_required, Decimal("0.00"))
+
+    def test_partial_deposit_payments_remain_classified_as_deposits(self):
+        booking = make_booking(self.room, self.guest, days_ahead=11, nights=2)
+        booking.deposit_required = Decimal("300.00")
+        booking.save()
+
+        for amount, reference in (("100.00", "DEP-ONE"), ("200.00", "DEP-TWO")):
+            response = self.client.post(
+                reverse("core:payment_add", args=[booking.pk]),
+                {
+                    "payment_mode": "single",
+                    "payment_intent": "deposit",
+                    "amount": amount,
+                    "payment_date": timezone.localdate().isoformat(),
+                    "payment_method": "EFT",
+                    "reference": reference,
+                    "notes": "Deposit instalment",
+                },
+            )
+            self.assertRedirects(response, reverse("core:booking_detail", args=[booking.pk]))
+
+        self.assertEqual(booking.payments.filter(payment_type="Deposit").count(), 2)
+        detail = self.client.get(reverse("core:booking_detail", args=[booking.pk]))
+        self.assertEqual(detail.context["deposit_outstanding"], Decimal("0.00"))
+        self.assertNotContains(detail, "Pay Deposit ·")
+
+    def split_payment_data(self, booking, first_amount="400.00", second_amount="600.00", second_method="Card"):
+        return {
+            "payment_mode": "split",
+            "split-payment_date": timezone.localdate().isoformat(),
+            "split-notes": "Guest requested split tender",
+            "tender-TOTAL_FORMS": "3",
+            "tender-INITIAL_FORMS": "0",
+            "tender-MIN_NUM_FORMS": "2",
+            "tender-MAX_NUM_FORMS": "3",
+            "tender-0-payment_method": "Cash",
+            "tender-0-amount": first_amount,
+            "tender-0-reference": "CASH-PORTION",
+            "tender-1-payment_method": second_method,
+            "tender-1-amount": second_amount,
+            "tender-1-reference": "SECOND-PORTION",
+            "tender-2-payment_method": "",
+            "tender-2-amount": "",
+            "tender-2-reference": "",
+        }
+
+    def test_split_payment_records_each_method_atomically(self):
+        booking = make_booking(self.room, self.guest, days_ahead=7, nights=2)
+
+        response = self.client.post(
+            reverse("core:payment_add", args=[booking.pk]),
+            self.split_payment_data(booking),
+        )
+
+        self.assertRedirects(response, reverse("core:booking_detail", args=[booking.pk]))
+        payments = booking.payments.order_by("payment_method")
+        self.assertEqual(payments.count(), 2)
+        self.assertEqual(
+            set(payments.values_list("payment_method", "amount")),
+            {("Cash", Decimal("400.00")), ("Card", Decimal("600.00"))},
+        )
+        booking.refresh_from_db()
+        self.assertEqual(booking.balance_due, Decimal("0.00"))
+
+    def test_invalid_split_payment_records_nothing(self):
+        booking = make_booking(self.room, self.guest, days_ahead=8, nights=2)
+        data = self.split_payment_data(booking, first_amount="600.00", second_amount="600.00")
+
+        response = self.client.post(reverse("core:payment_add", args=[booking.pk]), data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "cannot exceed the outstanding balance")
+        self.assertFalse(booking.payments.exists())
+
+    def test_split_payment_rejects_duplicate_methods(self):
+        booking = make_booking(self.room, self.guest, days_ahead=9, nights=2)
+        data = self.split_payment_data(booking, first_amount="500.00", second_amount="500.00", second_method="Cash")
+
+        response = self.client.post(reverse("core:payment_add", args=[booking.pk]), data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Use each payment method only once")
+        self.assertFalse(booking.payments.exists())
 
 
 class SearchViewTest(CircleCoreTenantTestCase):

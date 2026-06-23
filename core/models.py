@@ -252,6 +252,7 @@ class Guest(models.Model):
     emergency_contact_phone = models.CharField(max_length=50, blank=True)
     notes = models.TextField(blank=True)
     is_generic = models.BooleanField(default=False)
+    vehicle_registration = models.CharField(max_length=20, unique=True, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -272,11 +273,39 @@ class Guest(models.Model):
         )
         return guest
 
+    @classmethod
+    def get_or_create_for_vehicle(cls, registration):
+        registration = " ".join((registration or "").strip().upper().split())
+        if not registration:
+            raise ValueError("A vehicle registration is required.")
+        guest, _ = cls.objects.get_or_create(
+            vehicle_registration=registration,
+            defaults={
+                "first_name": "Vehicle",
+                "last_name": registration,
+                "phone": "N/A",
+            },
+        )
+        return guest
+
     @property
     def full_name(self):
         if self.is_generic:
             return "Walk-in Guest"
+        if self.vehicle_registration:
+            return f"Vehicle {self.vehicle_registration}"
         return f"{self.first_name} {self.last_name}"
+
+    @property
+    def is_vehicle_profile(self):
+        return bool(self.vehicle_registration)
+
+    def save(self, *args, **kwargs):
+        if self.vehicle_registration:
+            self.vehicle_registration = " ".join(self.vehicle_registration.strip().upper().split())
+        else:
+            self.vehicle_registration = None
+        super().save(*args, **kwargs)
 
     @property
     def total_stays(self):
@@ -516,6 +545,8 @@ class Booking(models.Model):
 
     def save(self, *args, **kwargs):
         from django.db import transaction
+        if self.vehicle_registration:
+            self.vehicle_registration = " ".join(self.vehicle_registration.strip().upper().split())
         if not self.booking_reference:
             self.booking_reference = self._generate_reference()
         self.compute_totals()

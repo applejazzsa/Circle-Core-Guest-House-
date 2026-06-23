@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import Booking, DailyCloseLock, Guest, MaintenanceRequest, OfflineConflict, OfflineDevice, OfflineOperation, Payment, Property, Room, Subscription
+from .models import Booking, DailyCloseLock, Guest, GuestHouseSettings, MaintenanceRequest, OfflineConflict, OfflineDevice, OfflineOperation, Payment, Property, Room, Subscription
 from .roles import is_cleaner, is_manager, is_owner, is_reception, is_viewer
 
 
@@ -87,10 +87,30 @@ def _serialize_state(prop):
             "cleaning_status": room.cleaning_status, "max_guests": room.max_guests,
             "rates": {key: str(room.get_price_for_duration(key) or "") for key in ("1_hour", "2_hours", "3_hours", "5_hours", "daily")},
         })
+    settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
     bookings = Booking.objects.filter(room__prop=prop, status__in=["Pending", "Confirmed", "Checked In"]).select_related("room", "guest")
+    booking_rows = []
+    current_timezone = timezone.get_current_timezone()
+    for booking in bookings:
+        if booking.is_hourly:
+            _, checkout_naive = booking._booking_window()
+        else:
+            checkout_naive = datetime.datetime.combine(booking.check_out_date, settings_obj.check_out_time)
+        checkout_at = timezone.make_aware(checkout_naive, current_timezone).isoformat() if checkout_naive else None
+        booking_rows.append({
+            "id": booking.pk,
+            "reference": booking.booking_reference,
+            "room_id": booking.room_id,
+            "room": booking.room.name,
+            "guest": booking.guest.full_name,
+            "vehicle_registration": booking.vehicle_registration,
+            "status": booking.status,
+            "balance": str(booking.balance_due),
+            "checkout_at": checkout_at,
+        })
     return {
         "rooms": rooms,
-        "bookings": [{"id": b.pk, "reference": b.booking_reference, "room_id": b.room_id, "room": b.room.name, "guest": b.guest.full_name, "status": b.status, "balance": str(b.balance_due)} for b in bookings],
+        "bookings": booking_rows,
         "guests": list(Guest.objects.filter(is_generic=False).values("id", "first_name", "last_name", "phone")[:500]),
     }
 
@@ -150,10 +170,18 @@ def _apply_operation(request, device, operation_type, payload, occurred_at):
         check_in = local_time.date()
         hourly = duration in ("1_hour", "2_hours", "3_hours", "5_hours")
         identity = payload.get("identity_mode", "walk_in")
-        guest = Guest.objects.filter(pk=payload.get("guest_id"), is_generic=False).first() if identity == "existing" else Guest.get_generic()
+        vehicle_registration = (payload.get("vehicle_registration") or "")[:20].strip().upper()
+        if identity == "existing":
+            guest = Guest.objects.filter(pk=payload.get("guest_id"), is_generic=False).first()
+            if guest and guest.vehicle_registration:
+                vehicle_registration = guest.vehicle_registration
+        elif identity == "plate" and vehicle_registration:
+            guest = Guest.get_or_create_for_vehicle(vehicle_registration)
+        else:
+            guest = Guest.get_generic()
         if not guest:
             raise SyncConflict("The selected guest no longer exists.")
-        booking = Booking(guest=guest, room=room, check_in_date=check_in, check_out_date=check_in if hourly else check_in + datetime.timedelta(days=1), booking_duration_type=duration, booking_start_time=local_time.time().replace(second=0, microsecond=0) if hourly else None, num_guests=max(1, min(int(payload.get("num_guests", 1)), room.max_guests)), rate_per_night=rate, booking_source="Walk-in", status="Checked In", vehicle_registration=(payload.get("vehicle_registration") or "")[:20].upper(), check_in_time=occurred_at)
+        booking = Booking(guest=guest, room=room, check_in_date=check_in, check_out_date=check_in if hourly else check_in + datetime.timedelta(days=1), booking_duration_type=duration, booking_start_time=local_time.time().replace(second=0, microsecond=0) if hourly else None, num_guests=max(1, min(int(payload.get("num_guests", 1)), room.max_guests)), rate_per_night=rate, booking_source="Walk-in", status="Checked In", vehicle_registration=vehicle_registration, check_in_time=occurred_at)
         booking.save()
         room.status = "Occupied"; room.save(update_fields=["status"])
         return {"booking_id": booking.pk, "reference": booking.booking_reference}

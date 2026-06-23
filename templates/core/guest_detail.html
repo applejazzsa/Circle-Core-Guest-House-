@@ -6,7 +6,7 @@
   <div>
     <div class="section-label">Guests</div>
     <h1 class="page-title">{{ guest.full_name }}</h1>
-    {% if guest.is_repeat_guest %}<span class="badge badge-amber" style="margin-top:6px;">Returning Guest</span>{% endif %}
+    {% if guest.is_vehicle_profile %}<span class="badge badge-green" style="margin-top:6px;">Number Plate Customer</span>{% elif guest.is_repeat_guest %}<span class="badge badge-amber" style="margin-top:6px;">Returning Guest</span>{% endif %}
   </div>
   <div class="page-header-actions">
     <a href="{% url 'core:booking_add' %}?guest={{ guest.pk }}" class="btn btn-primary">New Booking</a>
@@ -71,7 +71,7 @@
 
     <!-- Avatar + summary -->
     <div class="card" style="padding:24px; text-align:center;">
-      <div class="avatar avatar-xl avatar-green" style="margin:0 auto 16px;">{{ guest.first_name|first }}{{ guest.last_name|first }}</div>
+      <div class="avatar avatar-xl avatar-green" style="margin:0 auto 16px;">{% if guest.is_vehicle_profile %}NP{% else %}{{ guest.first_name|first }}{{ guest.last_name|first }}{% endif %}</div>
       <div style="font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--color-text-primary);">{{ guest.full_name }}</div>
       <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:4px;">Member since {{ guest.created_at|date:"M Y" }}</div>
 
@@ -91,10 +91,18 @@
     <div class="card" style="padding:20px;">
       <div class="section-label" style="margin-bottom:12px;">Contact</div>
 
+      {% if guest.is_vehicle_profile %}
+      <div class="detail-row">
+        <span class="detail-label">Number plate</span>
+        <span class="detail-value" style="font-family:var(--font-mono); color:var(--color-green-400);">{{ guest.vehicle_registration }}</span>
+      </div>
+      {% endif %}
+      {% if guest.phone != 'N/A' %}
       <div class="detail-row">
         <span class="detail-label">Phone</span>
         <span class="detail-value" style="font-family:var(--font-mono);">{{ guest.phone }}</span>
       </div>
+      {% endif %}
       {% if guest.email %}
       <div class="detail-row">
         <span class="detail-label">Email</span>

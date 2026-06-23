@@ -80,6 +80,7 @@ urlpatterns = [
     path("security/exceptions/", views.exception_report, name="exception_report"),
     path("security/audit/", views.audit_timeline, name="audit_timeline"),
     path("bookings/<int:pk>/", views.booking_detail, name="booking_detail"),
+    path("bookings/<int:pk>/deposit/set/", views.booking_set_deposit, name="booking_set_deposit"),
     path("bookings/<int:booking_id>/payments/add/", views.payment_add, name="payment_add"),
     path("bookings/<int:booking_id>/refund/", views.booking_refund, name="booking_refund"),
     path("bookings/<int:booking_id>/payments/<int:payment_id>/delete/", views.payment_delete, name="payment_delete"),

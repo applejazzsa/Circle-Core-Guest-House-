@@ -32,7 +32,7 @@
 {% if rooms %}
 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:16px;">
   {% for room in rooms %}
-  <div class="card" style="padding:0; overflow:hidden;">
+  <div class="card" style="padding:0; overflow:hidden; display:flex; flex-direction:column;">
     <div style="height:3px; background:
       {% if room.status == 'Available' %}var(--color-green-500)
       {% elif room.status == 'Booked' %}#ef4444
@@ -41,7 +41,7 @@
       {% elif room.status == 'Maintenance' %}#ef4444
       {% else %}var(--color-text-tertiary){% endif %};"></div>
 
-    <div style="padding:20px;">
+    <div style="padding:20px; display:flex; flex-direction:column; height:100%;">
       <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
         <div>
           <h3 style="font-family:var(--font-display); font-size:16px; font-weight:700; color:var(--color-text-primary); line-height:1.2;">{{ room.name }}</h3>
@@ -92,8 +92,24 @@
         <span style="font-size:11.5px; color:var(--color-text-tertiary);">{{ room.cleaning_status }}</span>
       </div>
 
+      {% if room.display_booking and room.status == 'Occupied' or room.display_booking and room.status == 'Booked' %}
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 14px; padding:10px 12px; border:1px solid {% if room.status == 'Occupied' %}rgba(59,130,246,.24){% else %}rgba(239,68,68,.22){% endif %}; border-radius:var(--radius-md); background:{% if room.status == 'Occupied' %}rgba(59,130,246,.07){% else %}rgba(239,68,68,.06){% endif %};">
+        <div style="min-width:0;">
+          <div style="font-size:9px; font-weight:750; letter-spacing:.09em; text-transform:uppercase; color:var(--color-text-tertiary);">{% if room.status == 'Occupied' %}Currently staying{% else %}Next arrival{% endif %}</div>
+          {% if not is_cleaner %}
+          <a href="{% url 'core:booking_detail' room.display_booking.pk %}" style="display:block; margin-top:3px; color:var(--color-text-primary); font-size:12.5px; font-weight:650; text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+            {% if room.display_booking.vehicle_registration %}{{ room.display_booking.vehicle_registration }}{% else %}{{ room.display_booking.guest.full_name }}{% endif %}
+          </a>
+          {% else %}
+          <div style="margin-top:3px; color:var(--color-text-primary); font-size:12.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{% if room.display_booking.vehicle_registration %}{{ room.display_booking.vehicle_registration }}{% else %}{{ room.display_booking.guest.full_name }}{% endif %}</div>
+          {% endif %}
+        </div>
+        <span style="flex-shrink:0; font-family:var(--font-mono); font-size:10.5px; color:var(--color-text-tertiary);">{% if room.status == 'Occupied' %}{% if room.display_booking.is_hourly %}until {{ room.display_booking.booking_end_time|time:'H:i' }}{% else %}out {{ room.display_booking.check_out_date|date:'d M' }}{% endif %}{% else %}{{ room.display_booking.check_in_date|date:'d M' }}{% endif %}</span>
+      </div>
+      {% endif %}
+
       <!-- Actions -->
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; margin-top:auto;">
         <a href="{% url 'core:room_detail' room.pk %}" class="btn btn-secondary btn-sm" style="flex:1; justify-content:center;">View</a>
         {% if not is_cleaner %}
         <a href="{% url 'core:room_edit' room.pk %}" class="btn btn-ghost btn-sm" style="flex:1; justify-content:center;">Edit</a>

@@ -122,7 +122,7 @@ def pwa_manifest(request):
 
 def service_worker(request):
     script = """
-const CACHE_NAME = 'circle-core-shell-v3';
+const CACHE_NAME = 'circle-core-shell-v5';
 const CORE_ASSETS = [
   '/static/css/theme.css',
   '/static/js/offline-reception.js',

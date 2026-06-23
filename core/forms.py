@@ -270,12 +270,22 @@ class RoomForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        self.prop = kwargs.pop("prop", None)
         super().__init__(*args, **kwargs)
+        if self.prop is None and self.instance and self.instance.pk:
+            self.prop = self.instance.prop
         for field_name, field in self.fields.items():
             if field_name == "booking_types_allowed":
-                field.widget.attrs.update({"class": "h-4 w-4 rounded border-gray-300 text-gold focus:ring-gold"})
+                field.widget.attrs.update({"class": "room-checkbox"})
                 continue
-            field.widget.attrs.update({"class": PREMIUM_FIELD_CLASSES})
+            field.widget.attrs.update({"class": "form-input"})
+        self.fields["name"].widget.attrs.update({"placeholder": "e.g. Garden Suite", "autofocus": True})
+        self.fields["max_guests"].widget.attrs.update({"min": 1})
+        for field_name in (
+            "price_per_night", "price_per_week", "price_1_hour", "price_2_hours",
+            "price_3_hours", "price_5_hours",
+        ):
+            self.fields[field_name].widget.attrs.update({"min": "0", "step": "0.01"})
         if self.instance and self.instance.pk:
             self.fields["booking_types_allowed"].initial = self.instance.booking_types_list()
 
@@ -285,11 +295,11 @@ class RoomForm(forms.ModelForm):
 
     def clean_name(self):
         name = self.cleaned_data["name"].strip()
-        qs = Room.objects.filter(name__iexact=name)
+        qs = Room.objects.filter(prop=self.prop, name__iexact=name)
         if self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
-            raise forms.ValidationError("A room with this name already exists.")
+            raise forms.ValidationError("A room with this name already exists at this property.")
         return name
 
     def clean_max_guests(self):
@@ -400,12 +410,15 @@ class BookingForm(forms.ModelForm):
         if identity_mode == "plate":
             if not vehicle_registration:
                 self.add_error("vehicle_registration", "Enter the vehicle number plate.")
-            cleaned_data["guest"] = Guest.get_generic()
+            else:
+                cleaned_data["guest"] = Guest.get_or_create_for_vehicle(vehicle_registration)
         elif identity_mode == "walk_in":
             cleaned_data["guest"] = Guest.get_generic()
             cleaned_data["vehicle_registration"] = ""
         elif not cleaned_data.get("guest") or cleaned_data["guest"].is_generic:
             self.add_error("guest", "Select a guest or use Number Plate.")
+        elif cleaned_data["guest"].vehicle_registration:
+            cleaned_data["vehicle_registration"] = cleaned_data["guest"].vehicle_registration
 
         if num_guests is not None and num_guests < 1:
             raise forms.ValidationError("Number of guests must be at least 1.")
@@ -544,7 +557,7 @@ class PaymentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
-            field.widget.attrs.update({"class": PREMIUM_FIELD_CLASSES})
+            field.widget.attrs.update({"class": "form-input"})
         self.fields["payment_method"].choices = Payment.PAYMENT_METHOD_CHOICES
         self.fields["payment_method"].initial = "Cash"
 
@@ -560,6 +573,62 @@ class PaymentForm(forms.ModelForm):
         if amount <= 0:
             raise forms.ValidationError("Payment amount must be greater than zero.")
         return amount
+
+
+class SplitPaymentDetailsForm(forms.Form):
+    payment_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+
+
+class PaymentTenderForm(forms.Form):
+    payment_method = forms.ChoiceField(choices=(("", "Select method"),) + tuple(Payment.PAYMENT_METHOD_CHOICES))
+    amount = forms.DecimalField(min_value=Decimal("0.01"), max_digits=10, decimal_places=2)
+    reference = forms.CharField(required=False, max_length=100)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-input"})
+        self.fields["amount"].widget.attrs.update({"min": "0.01", "step": "0.01", "placeholder": "0.00"})
+        self.fields["reference"].widget.attrs.update({"placeholder": "Optional reference"})
+
+
+class BasePaymentTenderFormSet(forms.BaseFormSet):
+    def __init__(self, *args, balance_due=None, **kwargs):
+        self.balance_due = balance_due
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+
+        tenders = [form.cleaned_data for form in self.forms if form.cleaned_data]
+        methods = [tender["payment_method"] for tender in tenders]
+        if len(methods) != len(set(methods)):
+            raise forms.ValidationError("Use each payment method only once. Combine amounts that use the same method.")
+
+        total = sum((tender["amount"] for tender in tenders), Decimal("0.00"))
+        if self.balance_due is not None and total > self.balance_due:
+            raise forms.ValidationError(
+                f"Split payment total cannot exceed the outstanding balance of R {self.balance_due:.2f}."
+            )
+
+
+PaymentTenderFormSet = forms.formset_factory(
+    PaymentTenderForm,
+    formset=BasePaymentTenderFormSet,
+    extra=3,
+    min_num=2,
+    max_num=3,
+    validate_min=True,
+    validate_max=True,
+)
 
 
 class BookingRefundForm(forms.ModelForm):

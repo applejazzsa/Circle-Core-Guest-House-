@@ -49,8 +49,11 @@
         <table class="info">
             <tr><td>Booking reference</td><td><strong>{{ booking.booking_reference }}</strong></td></tr>
             <tr><td>Guest</td><td>{{ booking.guest.full_name }}</td></tr>
+            {% if booking.vehicle_registration %}<tr><td>Vehicle number plate</td><td><strong>{{ booking.vehicle_registration }}</strong></td></tr>{% endif %}
+            {% if not booking.guest.is_vehicle_profile %}
             <tr><td>Phone</td><td>{{ booking.guest.phone }}</td></tr>
             <tr><td>Email</td><td>{{ booking.guest.email|default:"-" }}</td></tr>
+            {% endif %}
             <tr><td>Room</td><td>{{ booking.room.name }} ({{ booking.room.room_type }})</td></tr>
             <tr><td>Check-in</td><td>{{ booking.check_in_date|date:"d M Y" }} from {{ settings.check_in_time|time:"H:i" }}</td></tr>
             <tr><td>Check-out</td><td>{{ booking.check_out_date|date:"d M Y" }} by {{ settings.check_out_time|time:"H:i" }}</td></tr>

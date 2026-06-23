@@ -52,6 +52,12 @@
           <span class="detail-label">Guest</span>
           <a href="{% url 'core:guest_detail' booking.guest.pk %}" style="font-size:14px; color:var(--color-green-400); text-decoration:none;">{{ booking.guest.full_name }}</a>
         </div>
+        {% if booking.vehicle_registration %}
+        <div class="detail-row">
+          <span class="detail-label">Number plate</span>
+          <a href="{% url 'core:guest_detail' booking.guest.pk %}" class="detail-value" style="font-family:var(--font-mono); color:var(--color-green-400); text-decoration:none;">{{ booking.vehicle_registration }}</a>
+        </div>
+        {% endif %}
         <div class="detail-row">
           <span class="detail-label">Room</span>
           <a href="{% url 'core:room_detail' booking.room.pk %}" style="font-size:14px; color:var(--color-green-400); text-decoration:none;">{{ booking.room.name }}</a>
@@ -124,6 +130,7 @@
           <tr>
             <th>Date</th>
             <th>Method</th>
+            <th>Type</th>
             <th>Amount</th>
             <th class="hide-mobile">Balance After</th>
             <th></th>
@@ -136,6 +143,7 @@
             <td>
               <span class="badge badge-gray" style="font-size:9.5px;">{{ payment.payment_method }}</span>
             </td>
+            <td><span class="badge {% if payment.payment_type == 'Deposit' %}badge-amber{% else %}badge-blue{% endif %}" style="font-size:9.5px;">{{ payment.payment_type }}</span></td>
             <td style="font-family:var(--font-mono); font-size:13px; color:var(--color-green-400); font-weight:500;">R {{ payment.amount }}</td>
             <td class="hide-mobile" style="font-family:var(--font-mono); font-size:12.5px; color:{% if payment.balance_after > 0 %}#fbbf24{% else %}var(--color-green-400){% endif %};">R {{ payment.balance_after }}</td>
             <td>
@@ -271,6 +279,26 @@
         <span class="detail-label">Deposit Required</span>
         <span class="detail-value" style="font-family:var(--font-mono);">R {{ booking.deposit_required|floatformat:2 }}</span>
       </div>
+      {% if booking.deposit_required <= 0 and booking.status not in 'Cancelled,No Show,Checked Out' %}
+      <form method="post" action="{% url 'core:booking_set_deposit' booking.pk %}" style="margin:10px 0 4px; padding:12px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-subtle);">
+        {% csrf_token %}
+        <label class="form-label" for="deposit-amount-{{ booking.pk }}">Set a deposit requirement</label>
+        <div style="display:flex; gap:8px; align-items:stretch;">
+          <div style="position:relative; min-width:0; flex:1;">
+            <span style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--color-text-tertiary); font-family:var(--font-mono); font-size:12px;">R</span>
+            <input id="deposit-amount-{{ booking.pk }}" name="deposit_amount" type="number" min="0.01" max="{{ booking.total_amount }}" step="0.01" required placeholder="0.00" style="width:100%; height:38px; padding:8px 10px 8px 27px; font-family:var(--font-mono);">
+          </div>
+          <button type="submit" class="btn btn-secondary btn-sm" style="white-space:nowrap;">Set &amp; Pay</button>
+        </div>
+        <div class="form-hint">Choose the amount to collect now. You will continue to the payment screen.</div>
+      </form>
+      {% endif %}
+      {% if booking.deposit_required > 0 %}
+      <div class="detail-row">
+        <span class="detail-label">Deposit Paid</span>
+        <span class="detail-value" style="font-family:var(--font-mono); color:{% if deposit_outstanding > 0 %}#fbbf24{% else %}var(--color-green-400){% endif %};">R {{ deposit_received|floatformat:2 }}</span>
+      </div>
+      {% endif %}
       <div class="detail-row">
         <span class="detail-label">Total Paid</span>
         <span class="detail-value" style="font-family:var(--font-mono); color:var(--color-green-400); font-weight:600;">R {{ payment_totals.total_paid|floatformat:2 }}</span>
@@ -296,7 +324,12 @@
         <div style="font-family:var(--font-mono); font-size:16px; font-weight:700; color:#f87171;">R {{ payment_totals.balance_due|floatformat:2 }}</div>
       </div>
       {% if booking.status not in 'Cancelled,No Show,Checked Out' %}
-      <a href="{% url 'core:payment_add' booking.pk %}" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:10px; display:flex;">Record Payment</a>
+        {% if deposit_outstanding > 0 %}
+        <a href="{% url 'core:payment_add' booking.pk %}?intent=deposit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:10px; display:flex;">Pay Deposit · R {{ deposit_outstanding|floatformat:2 }}</a>
+        <a href="{% url 'core:payment_add' booking.pk %}?intent=balance" class="btn btn-ghost btn-sm" style="width:100%; justify-content:center; margin-top:8px; display:flex;">Record another payment</a>
+        {% else %}
+        <a href="{% url 'core:payment_add' booking.pk %}?intent=balance" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:10px; display:flex;">Record Payment</a>
+        {% endif %}
       {% endif %}
       {% else %}
       <div style="background:var(--color-green-glow); border:1px solid var(--color-green-border); border-radius:var(--radius-md); padding:12px; margin-top:12px; text-align:center;">
