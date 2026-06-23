@@ -7,17 +7,21 @@
   <!-- Header -->
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px;">
     <div>
+      <a href="{% url 'core:home' %}" style="font-size:12px; color:var(--color-text-tertiary); text-decoration:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:6px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Main Dashboard
+      </a>
       <h1 style="font-family:var(--font-display); font-size:22px; font-weight:800; color:var(--color-text-primary); margin:0 0 4px;">Spa &amp; Wellness</h1>
       <p style="font-size:13px; color:var(--color-text-tertiary); margin:0;">{{ today|date:"l, d F Y" }}</p>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <a href="{% url 'core:spa_schedule' %}" class="btn btn-ghost btn-sm">Schedule</a>
-      <a href="{% url 'core:spa_therapists' %}" class="btn btn-ghost btn-sm">Therapists</a>
-      <a href="{% url 'core:spa_vouchers' %}" class="btn btn-ghost btn-sm">Vouchers</a>
-      <a href="{% url 'core:spa_waitlist' %}" class="btn btn-ghost btn-sm">Waitlist</a>
+      <a href="{% url 'core:spa_appointment_list' %}" class="btn btn-ghost btn-sm">Appointments</a>
       <a href="{% url 'core:spa_reports' %}" class="btn btn-ghost btn-sm">Reports</a>
-      <a href="{% url 'core:spa_services' %}" class="btn btn-ghost btn-sm">Services</a>
-      <a href="{% url 'core:spa_appointment_list' %}" class="btn btn-ghost btn-sm">All Appointments</a>
+      <a href="{% url 'core:spa_settings' %}" class="btn btn-ghost btn-sm">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Settings
+      </a>
       <a href="{% url 'core:spa_appointment_add' %}" class="btn btn-primary btn-sm">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Book
@@ -70,6 +74,12 @@
     <a href="{% url 'core:spa_reports' %}" class="card" style="padding:16px; text-decoration:none; text-align:center; transition:border-color .15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor=''">
       <div style="font-size:20px; margin-bottom:6px;">📊</div>
       <div style="font-size:12px; font-weight:700; color:var(--color-text-primary);">Revenue Reports</div>
+    </a>
+    <a href="{% url 'core:spa_settings' %}" class="card" style="padding:16px; text-decoration:none; text-align:center; transition:border-color .15s;" onmouseover="this.style.borderColor='var(--color-green-border)'" onmouseout="this.style.borderColor=''">
+      <div style="margin-bottom:6px; display:flex; justify-content:center;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </div>
+      <div style="font-size:12px; font-weight:700; color:var(--color-text-primary);">Settings</div>
     </a>
   </div>
 

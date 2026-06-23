@@ -100,6 +100,7 @@ urlpatterns = [
     path("command-enter/", views.command_enter, name="command_enter"),
     # Spa & Wellness — dashboard
     path("spa/", views.spa_dashboard, name="spa_dashboard"),
+    path("spa/settings/", views.spa_settings, name="spa_settings"),
     path("spa/schedule/", views.spa_schedule, name="spa_schedule"),
     path("spa/reports/", views.spa_reports, name="spa_reports"),
     # Appointments

@@ -4488,7 +4488,120 @@ def spa_schedule(request):
     })
 
 
-# â"€â"€â"€ Reports â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+# ─── Spa Settings ──────────────────────────────────────────────────────────────
+
+@login_required
+def spa_settings(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    if not can_manage_system(request.user):
+        messages.error(request, "Only owners and operators can access spa settings.")
+        return redirect("core:spa_dashboard")
+    spa_block = _spa_blocked(request)
+    if spa_block:
+        return spa_block
+    active_prop = get_active_property(request)
+
+    services  = SpaService.objects.filter(prop=active_prop).order_by("category", "name")
+    therapists = SpaTherapist.objects.filter(prop=active_prop).order_by("name")
+    rooms     = SpaTreatmentRoom.objects.filter(prop=active_prop).order_by("name")
+
+    svc_form       = SpaServiceForm(prefix="svc")
+    therapist_form = SpaTherapistForm(prefix="thr")
+    room_form      = SpaTreatmentRoomForm(prefix="room")
+
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+
+        if action == "add_service":
+            svc_form = SpaServiceForm(request.POST, prefix="svc")
+            if svc_form.is_valid():
+                s = svc_form.save(commit=False)
+                s.prop = active_prop
+                s.save()
+                messages.success(request, f"Service '{s.name}' added.")
+                return redirect("core:spa_settings")
+        elif action == "edit_service":
+            pk = request.POST.get("svc_pk")
+            svc = get_object_or_404(SpaService, pk=pk, prop=active_prop)
+            svc.name             = request.POST.get("name", svc.name).strip()
+            svc.price            = request.POST.get("price", svc.price)
+            svc.duration_minutes = request.POST.get("duration_minutes", svc.duration_minutes)
+            svc.description      = request.POST.get("description", svc.description).strip()
+            svc.category         = request.POST.get("category", svc.category)
+            svc.is_active        = request.POST.get("is_active") == "on"
+            svc.save()
+            messages.success(request, f"Service '{svc.name}' updated.")
+            return redirect("core:spa_settings")
+        elif action == "deactivate_service":
+            pk = request.POST.get("svc_pk")
+            svc = get_object_or_404(SpaService, pk=pk, prop=active_prop)
+            svc.is_active = False
+            svc.save(update_fields=["is_active"])
+            messages.success(request, f"'{svc.name}' deactivated.")
+            return redirect("core:spa_settings")
+        elif action == "activate_service":
+            pk = request.POST.get("svc_pk")
+            svc = get_object_or_404(SpaService, pk=pk, prop=active_prop)
+            svc.is_active = True
+            svc.save(update_fields=["is_active"])
+            messages.success(request, f"'{svc.name}' activated.")
+            return redirect("core:spa_settings")
+
+        elif action == "add_therapist":
+            therapist_form = SpaTherapistForm(request.POST, prefix="thr")
+            if therapist_form.is_valid():
+                t = therapist_form.save(commit=False)
+                t.prop = active_prop
+                t.save()
+                messages.success(request, f"Therapist '{t.name}' added.")
+                return redirect("core:spa_settings")
+        elif action == "edit_therapist":
+            pk = request.POST.get("thr_pk")
+            thr = get_object_or_404(SpaTherapist, pk=pk, prop=active_prop)
+            thr.name           = request.POST.get("name", thr.name).strip()
+            thr.phone          = request.POST.get("phone", thr.phone).strip()
+            thr.commission_pct = request.POST.get("commission_pct", thr.commission_pct)
+            thr.specialties    = request.POST.get("specialties", thr.specialties).strip()
+            thr.is_active      = request.POST.get("is_active") == "on"
+            thr.save()
+            messages.success(request, f"'{thr.name}' updated.")
+            return redirect("core:spa_settings")
+        elif action == "deactivate_therapist":
+            pk = request.POST.get("thr_pk")
+            thr = get_object_or_404(SpaTherapist, pk=pk, prop=active_prop)
+            thr.is_active = False
+            thr.save(update_fields=["is_active"])
+            messages.success(request, f"'{thr.name}' deactivated.")
+            return redirect("core:spa_settings")
+
+        elif action == "add_room":
+            room_form = SpaTreatmentRoomForm(request.POST, prefix="room")
+            if room_form.is_valid():
+                r = room_form.save(commit=False)
+                r.prop = active_prop
+                r.save()
+                messages.success(request, f"Room '{r.name}' added.")
+                return redirect("core:spa_settings")
+        elif action == "edit_room":
+            pk = request.POST.get("room_pk")
+            room = get_object_or_404(SpaTreatmentRoom, pk=pk, prop=active_prop)
+            room.name        = request.POST.get("name", room.name).strip()
+            room.description = request.POST.get("description", room.description).strip()
+            room.is_active   = request.POST.get("is_active") == "on"
+            room.save()
+            messages.success(request, f"Room '{room.name}' updated.")
+            return redirect("core:spa_settings")
+
+    return render(request, "core/spa_settings.html", {
+        "services": services, "therapists": therapists, "rooms": rooms,
+        "svc_form": svc_form, "therapist_form": therapist_form, "room_form": room_form,
+        "category_choices": SpaService.CATEGORY_CHOICES,
+    })
+
+
+# ─── Reports ──────────────────────────────────────────────────────────────────
 
 @login_required
 def spa_reports(request):

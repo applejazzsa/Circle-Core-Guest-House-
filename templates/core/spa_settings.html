@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+{% block title %}Spa Settings — Circle Core{% endblock %}
+
+{% block content %}
+<div style="max-width:1100px; margin:0 auto;">
+
+  <!-- Header -->
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:12px;">
+    <div>
+      <a href="{% url 'core:spa_dashboard' %}" style="font-size:12px; color:var(--color-text-tertiary); text-decoration:none; display:inline-flex; align-items:center; gap:5px; margin-bottom:6px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Spa &amp; Wellness
+      </a>
+      <h1 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--color-text-primary); margin:0;">Spa Settings</h1>
+    </div>
+  </div>
+
+  <!-- Tab nav -->
+  <div style="display:flex; gap:4px; margin-bottom:24px; border-bottom:2px solid var(--color-border); padding-bottom:0;">
+    <button class="tab-btn active" data-tab="services" style="padding:9px 18px; font-size:13px; font-weight:600; border:none; cursor:pointer; border-radius:var(--radius-md) var(--radius-md) 0 0; background:var(--color-bg-elevated); color:var(--color-green-400); border-bottom:2px solid var(--color-green-500); margin-bottom:-2px;">
+      Services &amp; Pricing
+    </button>
+    <button class="tab-btn" data-tab="therapists" style="padding:9px 18px; font-size:13px; font-weight:600; border:none; cursor:pointer; border-radius:var(--radius-md) var(--radius-md) 0 0; background:transparent; color:var(--color-text-tertiary); border-bottom:2px solid transparent; margin-bottom:-2px;">
+      Therapists
+    </button>
+    <button class="tab-btn" data-tab="rooms" style="padding:9px 18px; font-size:13px; font-weight:600; border:none; cursor:pointer; border-radius:var(--radius-md) var(--radius-md) 0 0; background:transparent; color:var(--color-text-tertiary); border-bottom:2px solid transparent; margin-bottom:-2px;">
+      Treatment Rooms
+    </button>
+  </div>
+
+  {% if messages %}
+  {% for msg in messages %}
+  <div style="margin-bottom:16px; padding:11px 16px; background:{% if 'error' in msg.tags %}rgba(239,68,68,0.08){% else %}rgba(34,197,94,0.08){% endif %}; border:1px solid {% if 'error' in msg.tags %}rgba(239,68,68,0.25){% else %}rgba(34,197,94,0.25){% endif %}; border-radius:var(--radius-md); font-size:13px; color:{% if 'error' in msg.tags %}#f87171{% else %}var(--color-green-400){% endif %};">{{ msg }}</div>
+  {% endfor %}
+  {% endif %}
+
+  <!-- ══════════ SERVICES TAB ══════════ -->
+  <div id="tab-services" class="tab-panel">
+    <div style="display:grid; grid-template-columns:1fr 340px; gap:24px; align-items:start;">
+
+      <!-- Service list -->
+      <div>
+        {% regroup services by get_category_display as by_cat %}
+        {% for group in by_cat %}
+        <div style="margin-bottom:24px;">
+          <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--color-text-tertiary); margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--color-border);">{{ group.grouper }}</div>
+          {% for svc in group.list %}
+          <div class="svc-row" id="svc-{{ svc.pk }}" style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:8px; overflow:hidden; {% if not svc.is_active %}opacity:.5;{% endif %}">
+            <!-- Display row -->
+            <div class="svc-display" style="display:flex; align-items:center; gap:14px; padding:13px 16px;">
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:13.5px; font-weight:600; color:var(--color-text-primary);">
+                  {{ svc.name }}
+                  {% if not svc.is_active %}<span style="font-size:10px; color:var(--color-text-tertiary); font-weight:400; margin-left:6px;">(inactive)</span>{% endif %}
+                </div>
+                {% if svc.description %}<div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ svc.description }}</div>{% endif %}
+              </div>
+              <div style="display:flex; align-items:center; gap:16px; flex-shrink:0;">
+                <div style="text-align:right;">
+                  <div style="font-size:15px; font-weight:700; color:var(--color-text-primary);">R {{ svc.price|floatformat:2 }}</div>
+                  <div style="font-size:11px; color:var(--color-text-tertiary);">{{ svc.duration_minutes }} min</div>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm svc-edit-toggle" data-pk="{{ svc.pk }}" title="Edit">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+              </div>
+            </div>
+            <!-- Inline edit form -->
+            <form method="post" class="svc-edit-form" id="svc-edit-{{ svc.pk }}" style="display:none; border-top:1px solid var(--color-border); padding:16px; background:var(--color-bg-subtle);">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="edit_service">
+              <input type="hidden" name="svc_pk" value="{{ svc.pk }}">
+              <div style="display:grid; grid-template-columns:1fr 100px 90px; gap:10px; margin-bottom:10px;">
+                <div>
+                  <label style="font-size:10px; font-weight:600; text-transform:uppercase; color:var(--color-text-tertiary); display:block; margin-bottom:4px;">Name</label>
+                  <input type="text" name="name" value="{{ svc.name }}" class="form-input" required>
+                </div>
+                <div>
+                  <label style="font-size:10px; font-weight:600; text-transform:uppercase; color:var(--color-text-tertiary); display:block; margin-bottom:4px;">Price (R)</label>
+                  <input type="number" step="0.01" name="price" value="{{ svc.price }}" class="form-input" required>
+                </div>
+                <div>
+                  <label style="font-size:10px; font-weight:600; text-transform:uppercase; color:var(--color-text-tertiary); display:block; margin-bottom:4px;">Duration (min)</label>
+                  <input type="number" name="duration_minutes" value="{{ svc.duration_minutes }}" class="form-input" required>
+                </div>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 160px; gap:10px; margin-bottom:12px; align-items:end;">
+                <div>
+                  <label style="font-size:10px; font-weight:600; text-transform:uppercase; color:var(--color-text-tertiary); display:block; margin-bottom:4px;">Description</label>
+                  <input type="text" name="description" value="{{ svc.description }}" class="form-input">
+                </div>
+                <div>
+                  <label style="font-size:10px; font-weight:600; text-transform:uppercase; color:var(--color-text-tertiary); display:block; margin-bottom:4px;">Category</label>
+                  <select name="category" class="form-input">
+                    {% for val, label in category_choices %}
+                    <option value="{{ val }}" {% if val == svc.category %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--color-text-secondary); cursor:pointer;">
+                  <input type="checkbox" name="is_active" {% if svc.is_active %}checked{% endif %}> Active
+                </label>
+                <div style="display:flex; gap:8px;">
+                  <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                  <button type="button" class="btn btn-ghost btn-sm svc-edit-cancel" data-pk="{{ svc.pk }}">Cancel</button>
+                </div>
+              </div>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% empty %}
+        <div class="card" style="padding:48px 20px; text-align:center;">
+          <div style="font-size:32px; margin-bottom:10px;">💆</div>
+          <p style="color:var(--color-text-tertiary); font-size:13.5px; margin:0 0 16px;">No services yet. Add your first treatment →</p>
+        </div>
+        {% endregroup %}
+      </div>
+
+      <!-- Add service panel -->
+      <div class="card" style="padding:22px; position:sticky; top:80px;">
+        <h3 style="font-size:14px; font-weight:700; color:var(--color-text-primary); margin:0 0 18px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle; margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Service
+        </h3>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_service">
+          {% for field in svc_form %}
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:10px; font-weight:600; color:var(--color-text-secondary); margin-bottom:4px; text-transform:uppercase; letter-spacing:.07em;">
+              {{ field.label }}{% if field.field.required %} <span style="color:#f87171;">*</span>{% endif %}
+            </label>
+            {{ field }}
+            {% for e in field.errors %}<p style="font-size:11px; color:#f87171; margin:3px 0 0;">{{ e }}</p>{% endfor %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn btn-primary" style="width:100%; margin-top:10px;">Add Service</button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════ THERAPISTS TAB ══════════ -->
+  <div id="tab-therapists" class="tab-panel" style="display:none;">
+    <div style="display:grid; grid-template-columns:1fr 320px; gap:24px; align-items:start;">
+
+      <div>
+        {% if therapists %}
+        {% for thr in therapists %}
+        <div style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:8px; overflow:hidden; {% if not thr.is_active %}opacity:.5;{% endif %}">
+          <div style="display:flex; align-items:center; gap:14px; padding:14px 16px;">
+            <div style="width:38px; height:38px; border-radius:50%; background:rgba(34,197,94,0.12); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; color:var(--color-green-400); flex-shrink:0; text-transform:uppercase;">
+              {{ thr.name|slice:":1" }}
+            </div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:13.5px; font-weight:600; color:var(--color-text-primary);">{{ thr.name }}{% if not thr.is_active %} <span style="font-size:10px;color:var(--color-text-tertiary);font-weight:400;">(inactive)</span>{% endif %}</div>
+              <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:2px;">
+                {% if thr.phone %}{{ thr.phone }}{% endif %}
+                {% if thr.specialties %} · {{ thr.specialties|truncatechars:40 }}{% endif %}
+              </div>
+            </div>
+            <div style="font-size:12px; font-weight:700; color:#fbbf24; flex-shrink:0;">{{ thr.commission_pct }}% commission</div>
+            <button type="button" class="btn btn-ghost btn-sm thr-edit-toggle" data-pk="{{ thr.pk }}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          </div>
+          <form method="post" class="thr-edit-form" id="thr-edit-{{ thr.pk }}" style="display:none; border-top:1px solid var(--color-border); padding:16px; background:var(--color-bg-subtle);">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit_therapist">
+            <input type="hidden" name="thr_pk" value="{{ thr.pk }}">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+              <div>
+                <label style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--color-text-tertiary);display:block;margin-bottom:4px;">Name</label>
+                <input type="text" name="name" value="{{ thr.name }}" class="form-input" required>
+              </div>
+              <div>
+                <label style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--color-text-tertiary);display:block;margin-bottom:4px;">Phone</label>
+                <input type="text" name="phone" value="{{ thr.phone }}" class="form-input">
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 120px; gap:10px; margin-bottom:10px;">
+              <div>
+                <label style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--color-text-tertiary);display:block;margin-bottom:4px;">Specialties</label>
+                <input type="text" name="specialties" value="{{ thr.specialties }}" class="form-input" placeholder="e.g. Deep Tissue, Hot Stone">
+              </div>
+              <div>
+                <label style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--color-text-tertiary);display:block;margin-bottom:4px;">Commission %</label>
+                <input type="number" step="0.1" name="commission_pct" value="{{ thr.commission_pct }}" class="form-input">
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary);cursor:pointer;">
+                <input type="checkbox" name="is_active" {% if thr.is_active %}checked{% endif %}> Active
+              </label>
+              <div style="display:flex; gap:8px;">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <button type="button" class="btn btn-ghost btn-sm thr-edit-cancel" data-pk="{{ thr.pk }}">Cancel</button>
+              </div>
+            </div>
+          </form>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="card" style="padding:48px 20px; text-align:center;">
+          <p style="color:var(--color-text-tertiary); font-size:13.5px; margin:0;">No therapists yet.</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Add therapist -->
+      <div class="card" style="padding:22px; position:sticky; top:80px;">
+        <h3 style="font-size:14px; font-weight:700; color:var(--color-text-primary); margin:0 0 18px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Therapist
+        </h3>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_therapist">
+          {% for field in therapist_form %}
+          <div style="margin-bottom:12px;">
+            <label style="display:block;font-size:10px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em;">
+              {{ field.label }}{% if field.field.required %} <span style="color:#f87171;">*</span>{% endif %}
+            </label>
+            {{ field }}
+            {% for e in field.errors %}<p style="font-size:11px;color:#f87171;margin:3px 0 0;">{{ e }}</p>{% endfor %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:10px;">Add Therapist</button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════ ROOMS TAB ══════════ -->
+  <div id="tab-rooms" class="tab-panel" style="display:none;">
+    <div style="display:grid; grid-template-columns:1fr 300px; gap:24px; align-items:start;">
+
+      <div>
+        {% if rooms %}
+        {% for room in rooms %}
+        <div style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:8px; overflow:hidden; {% if not room.is_active %}opacity:.5;{% endif %}">
+          <div style="display:flex; align-items:center; gap:14px; padding:14px 16px;">
+            <div style="width:36px; height:36px; border-radius:var(--radius-md); background:rgba(99,102,241,0.1); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13.5px; font-weight:600; color:var(--color-text-primary);">{{ room.name }}{% if not room.is_active %} <span style="font-size:10px;color:var(--color-text-tertiary);font-weight:400;">(inactive)</span>{% endif %}</div>
+              {% if room.description %}<div style="font-size:11.5px;color:var(--color-text-tertiary);margin-top:2px;">{{ room.description }}</div>{% endif %}
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm room-edit-toggle" data-pk="{{ room.pk }}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          </div>
+          <form method="post" class="room-edit-form" id="room-edit-{{ room.pk }}" style="display:none; border-top:1px solid var(--color-border); padding:16px; background:var(--color-bg-subtle);">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit_room">
+            <input type="hidden" name="room_pk" value="{{ room.pk }}">
+            <div style="margin-bottom:10px;">
+              <label style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--color-text-tertiary);display:block;margin-bottom:4px;">Room Name</label>
+              <input type="text" name="name" value="{{ room.name }}" class="form-input" required>
+            </div>
+            <div style="margin-bottom:12px;">
+              <label style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--color-text-tertiary);display:block;margin-bottom:4px;">Description</label>
+              <input type="text" name="description" value="{{ room.description }}" class="form-input">
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary);cursor:pointer;">
+                <input type="checkbox" name="is_active" {% if room.is_active %}checked{% endif %}> Active
+              </label>
+              <div style="display:flex;gap:8px;">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <button type="button" class="btn btn-ghost btn-sm room-edit-cancel" data-pk="{{ room.pk }}">Cancel</button>
+              </div>
+            </div>
+          </form>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="card" style="padding:48px 20px; text-align:center;">
+          <p style="color:var(--color-text-tertiary); font-size:13.5px; margin:0;">No treatment rooms yet.</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Add room -->
+      <div class="card" style="padding:22px; position:sticky; top:80px;">
+        <h3 style="font-size:14px; font-weight:700; color:var(--color-text-primary); margin:0 0 18px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Room
+        </h3>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_room">
+          {% for field in room_form %}
+          <div style="margin-bottom:12px;">
+            <label style="display:block;font-size:10px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em;">
+              {{ field.label }}{% if field.field.required %} <span style="color:#f87171;">*</span>{% endif %}
+            </label>
+            {{ field }}
+            {% for e in field.errors %}<p style="font-size:11px;color:#f87171;margin:3px 0 0;">{{ e }}</p>{% endfor %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:10px;">Add Room</button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<style>
+.form-input, select.form-input, textarea.form-input {
+  display:block; width:100%; background:var(--color-bg-subtle);
+  border:1px solid var(--color-border-bright); border-radius:var(--radius-md);
+  padding:8px 12px; color:var(--color-text-primary); font-size:13px;
+  font-family:var(--font-body); transition:border-color .15s; box-sizing:border-box;
+}
+.form-input:focus { outline:none; border-color:var(--color-green-500); }
+select.form-input option { background:var(--color-bg-surface); }
+.tab-btn { transition:color .15s, background .15s; }
+.tab-btn.active { background:var(--color-bg-elevated) !important; color:var(--color-green-400) !important; border-bottom-color:var(--color-green-500) !important; }
+</style>
+
+<script>
+(function () {
+  /* Tab switching */
+  document.querySelectorAll(".tab-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".tab-btn").forEach(function (b) {
+        b.classList.remove("active");
+        b.style.background = "transparent";
+        b.style.color = "var(--color-text-tertiary)";
+        b.style.borderBottom = "2px solid transparent";
+      });
+      btn.classList.add("active");
+      btn.style.background = "var(--color-bg-elevated)";
+      btn.style.color = "var(--color-green-400)";
+      btn.style.borderBottom = "2px solid var(--color-green-500)";
+      document.querySelectorAll(".tab-panel").forEach(function (p) { p.style.display = "none"; });
+      document.getElementById("tab-" + btn.dataset.tab).style.display = "block";
+    });
+  });
+
+  /* Service inline edit toggles */
+  document.querySelectorAll(".svc-edit-toggle").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var pk = btn.dataset.pk;
+      var form = document.getElementById("svc-edit-" + pk);
+      form.style.display = form.style.display === "none" ? "block" : "none";
+    });
+  });
+  document.querySelectorAll(".svc-edit-cancel").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.getElementById("svc-edit-" + btn.dataset.pk).style.display = "none";
+    });
+  });
+
+  /* Therapist inline edit toggles */
+  document.querySelectorAll(".thr-edit-toggle").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var pk = btn.dataset.pk;
+      var form = document.getElementById("thr-edit-" + pk);
+      form.style.display = form.style.display === "none" ? "block" : "none";
+    });
+  });
+  document.querySelectorAll(".thr-edit-cancel").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.getElementById("thr-edit-" + btn.dataset.pk).style.display = "none";
+    });
+  });
+
+  /* Room inline edit toggles */
+  document.querySelectorAll(".room-edit-toggle").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var pk = btn.dataset.pk;
+      var form = document.getElementById("room-edit-" + pk);
+      form.style.display = form.style.display === "none" ? "block" : "none";
+    });
+  });
+  document.querySelectorAll(".room-edit-cancel").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.getElementById("room-edit-" + btn.dataset.pk).style.display = "none";
+    });
+  });
+
+  /* Open correct tab from URL hash */
+  var hash = window.location.hash.replace("#","");
+  if (hash === "therapists" || hash === "rooms") {
+    document.querySelector('[data-tab="' + hash + '"]').click();
+  }
+})();
+</script>
+{% endblock %}
