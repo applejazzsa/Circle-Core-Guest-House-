@@ -40,6 +40,12 @@
 
       <!-- Service list -->
       <div>
+        {% if not services %}
+        <div class="card" style="padding:48px 20px; text-align:center;">
+          <div style="font-size:32px; margin-bottom:10px;">💆</div>
+          <p style="color:var(--color-text-tertiary); font-size:13.5px; margin:0;">No services yet. Add your first treatment using the panel →</p>
+        </div>
+        {% endif %}
         {% regroup services by get_category_display as by_cat %}
         {% for group in by_cat %}
         <div style="margin-bottom:24px;">
@@ -111,12 +117,7 @@
           </div>
           {% endfor %}
         </div>
-        {% empty %}
-        <div class="card" style="padding:48px 20px; text-align:center;">
-          <div style="font-size:32px; margin-bottom:10px;">💆</div>
-          <p style="color:var(--color-text-tertiary); font-size:13.5px; margin:0 0 16px;">No services yet. Add your first treatment →</p>
-        </div>
-        {% endregroup %}
+        {% endfor %}
       </div>
 
       <!-- Add service panel -->
