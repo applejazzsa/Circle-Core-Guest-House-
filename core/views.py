@@ -3955,8 +3955,10 @@ def spa_appointment_add(request):
         appt.save()
         messages.success(request, "Spa appointment booked.")
         return redirect("core:spa_appointment_detail", pk=appt.pk)
+    service_prices = {s.pk: float(s.price) for s in form.fields["service"].queryset}
     return render(request, "core/spa_appointment_form.html", {
         "form": form, "title": "Book Spa Appointment",
+        "service_prices": service_prices,
     })
 
 
@@ -3975,8 +3977,10 @@ def spa_appointment_edit(request, pk):
         form.save()
         messages.success(request, "Appointment updated.")
         return redirect("core:spa_appointment_detail", pk=appt.pk)
+    service_prices = {s.pk: float(s.price) for s in form.fields["service"].queryset}
     return render(request, "core/spa_appointment_form.html", {
         "form": form, "title": "Edit Appointment", "appt": appt,
+        "service_prices": service_prices,
     })
 
 
