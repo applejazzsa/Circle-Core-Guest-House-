@@ -636,7 +636,7 @@ class SpaAppointmentForm(forms.ModelForm):
             "service", "guest", "booking", "guest_name", "guest_phone",
             "assigned_therapist", "therapist", "treatment_room", "package",
             "scheduled_date", "scheduled_time",
-            "price_charged", "tip_amount", "payment_status",
+            "price_charged", "status",
             "consultation_notes", "notes",
         ]
         widgets = {
@@ -658,8 +658,8 @@ class SpaAppointmentForm(forms.ModelForm):
             self.fields["treatment_room"].queryset = SpaTreatmentRoom.objects.filter(prop=prop, is_active=True)
             self.fields["package"].queryset = SpaPackage.objects.filter(prop=prop, is_active=True)
         optional = ["guest", "booking", "guest_name", "guest_phone", "therapist",
-                    "assigned_therapist", "treatment_room", "package", "tip_amount",
-                    "consultation_notes"]
+                    "assigned_therapist", "treatment_room", "package",
+                    "consultation_notes", "status"]
         for f in optional:
             self.fields[f].required = False
         for field in self.fields.values():

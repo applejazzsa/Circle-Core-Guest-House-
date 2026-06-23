@@ -3940,7 +3940,7 @@ def spa_appointment_add(request):
     if spa_block:
         return spa_block
     active_prop = get_active_property(request)
-    initial = {}
+    initial = {"status": "pending"}
     if request.GET.get("date"):
         initial["scheduled_date"] = request.GET["date"]
     if request.GET.get("therapist"):
