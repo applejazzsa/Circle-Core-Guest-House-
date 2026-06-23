@@ -13,26 +13,159 @@
   </div>
 
   <div class="card" style="padding:28px;">
-    <form method="post">
+    <form method="post" id="spa-appt-form">
       {% csrf_token %}
 
-      {% for field in form %}
+      {% if form.non_field_errors %}
+      <div style="margin-bottom:18px; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <!-- SERVICE -->
       <div style="margin-bottom:18px;">
-        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.07em;">
-          {{ field.label }}{% if field.field.required %} <span style="color:#f87171;">*</span>{% endif %}
-        </label>
-        {{ field }}
-        {% if field.help_text %}
-        <p style="font-size:11.5px; color:var(--color-text-tertiary); margin:4px 0 0;">{{ field.help_text }}</p>
-        {% endif %}
-        {% for error in field.errors %}
-        <p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>
-        {% endfor %}
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+          <label style="font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em;">
+            Service <span style="color:#f87171;">*</span>
+          </label>
+          <a href="{% url 'core:spa_services' %}" target="_blank" style="font-size:11px; color:var(--color-green-400); text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Manage services
+          </a>
+        </div>
+        {{ form.service }}
+        {% for error in form.service.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
       </div>
-      {% endfor %}
+
+      <!-- DATE & TIME -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px;">
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Date <span style="color:#f87171;">*</span></label>
+          {{ form.scheduled_date }}
+          {% for error in form.scheduled_date.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Time <span style="color:#f87171;">*</span></label>
+          {{ form.scheduled_time }}
+          {% for error in form.scheduled_time.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+
+      <!-- GUEST -->
+      <div style="margin-bottom:18px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+          <label style="font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em;">Guest</label>
+          <button type="button" id="new-guest-btn" style="font-size:11px; color:var(--color-green-400); background:none; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:4px; padding:0;">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New guest
+          </button>
+        </div>
+        {{ form.guest }}
+        {% for error in form.guest.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+      </div>
+
+      <!-- QUICK CREATE GUEST PANEL -->
+      <div id="quick-guest-panel" style="display:none; margin-bottom:18px; padding:16px; background:rgba(34,197,94,0.05); border:1px solid rgba(34,197,94,0.2); border-radius:var(--radius-md);">
+        <div style="font-size:12px; font-weight:700; color:var(--color-green-400); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px;">Create New Guest</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:10px; align-items:end;">
+          <div>
+            <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-tertiary); margin-bottom:4px;">First Name *</label>
+            <input id="qg-first" type="text" class="form-input" style="padding:8px 10px; font-size:13px;" placeholder="Jane">
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-tertiary); margin-bottom:4px;">Last Name *</label>
+            <input id="qg-last" type="text" class="form-input" style="padding:8px 10px; font-size:13px;" placeholder="Smith">
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-tertiary); margin-bottom:4px;">Phone *</label>
+            <input id="qg-phone" type="text" class="form-input" style="padding:8px 10px; font-size:13px;" placeholder="0821234567">
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button type="button" id="qg-save" class="btn btn-primary btn-sm" style="white-space:nowrap;">Save</button>
+            <button type="button" id="qg-cancel" class="btn btn-ghost btn-sm">✕</button>
+          </div>
+        </div>
+        <div id="qg-error" style="display:none; font-size:12px; color:#f87171; margin-top:8px;"></div>
+      </div>
+
+      <!-- GUEST NAME & PHONE (walk-in) -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px;">
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Guest Name</label>
+          {{ form.guest_name }}
+          <p style="font-size:11.5px; color:var(--color-text-tertiary); margin:4px 0 0;">Walk-in guest name (if no guest profile)</p>
+          {% for error in form.guest_name.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Guest Phone</label>
+          {{ form.guest_phone }}
+          {% for error in form.guest_phone.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+
+      <!-- BOOKING LINK -->
+      <div style="margin-bottom:18px;">
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Booking</label>
+        {{ form.booking }}
+        <p style="font-size:11.5px; color:var(--color-text-tertiary); margin:4px 0 0;">Link to room booking (optional)</p>
+        {% for error in form.booking.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+      </div>
+
+      <!-- ASSIGNED THERAPIST + THERAPIST TEXT + TREATMENT ROOM -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px;">
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Assigned Therapist</label>
+          {{ form.assigned_therapist }}
+          {% for error in form.assigned_therapist.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Therapist Name</label>
+          {{ form.therapist }}
+          <p style="font-size:11.5px; color:var(--color-text-tertiary); margin:4px 0 0;">Name of therapist</p>
+          {% for error in form.therapist.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+
+      <!-- TREATMENT ROOM + PACKAGE -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px;">
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Treatment Room</label>
+          {{ form.treatment_room }}
+          {% for error in form.treatment_room.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Package</label>
+          {{ form.package }}
+          {% for error in form.package.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+
+      <!-- PRICE + STATUS -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px;">
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Price Charged</label>
+          {{ form.price_charged }}
+          {% for error in form.price_charged.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Status</label>
+          {{ form.status }}
+          {% for error in form.status.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+        </div>
+      </div>
+
+      <!-- NOTES + CONSULTATION NOTES -->
+      <div style="margin-bottom:18px;">
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Notes</label>
+        {{ form.notes }}
+        {% for error in form.notes.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+      </div>
+      <div style="margin-bottom:18px;">
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:6px;">Consultation Notes</label>
+        {{ form.consultation_notes }}
+        {% for error in form.consultation_notes.errors %}<p style="font-size:12px; color:#f87171; margin:4px 0 0;">{{ error }}</p>{% endfor %}
+      </div>
 
       <div style="display:flex; gap:10px; margin-top:24px; padding-top:20px; border-top:1px solid var(--color-border);">
-        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="submit" class="btn btn-primary">Save Appointment</button>
         <a href="{% if appt %}{% url 'core:spa_appointment_detail' appt.pk %}{% else %}{% url 'core:spa_dashboard' %}{% endif %}" class="btn btn-ghost">Cancel</a>
       </div>
     </form>
@@ -42,19 +175,91 @@
 
 <style>
 .form-input, select.form-input, textarea.form-input {
-  display: block;
-  width: 100%;
+  display: block; width: 100%;
   background: var(--color-bg-subtle);
   border: 1px solid var(--color-border-bright);
   border-radius: var(--radius-md);
-  padding: 9px 13px;
-  color: var(--color-text-primary);
-  font-size: 13.5px;
-  font-family: var(--font-body);
-  transition: border-color 0.15s;
-  box-sizing: border-box;
+  padding: 9px 13px; color: var(--color-text-primary);
+  font-size: 13.5px; font-family: var(--font-body);
+  transition: border-color 0.15s; box-sizing: border-box;
 }
 .form-input:focus { outline: none; border-color: var(--color-green-500); }
 select.form-input option { background: var(--color-bg-surface); }
 </style>
+
+<script>
+(function () {
+  var btn = document.getElementById("new-guest-btn");
+  var panel = document.getElementById("quick-guest-panel");
+  var cancelBtn = document.getElementById("qg-cancel");
+  var saveBtn = document.getElementById("qg-save");
+  var guestSelect = document.getElementById("{{ form.guest.id_for_label }}");
+  var errDiv = document.getElementById("qg-error");
+
+  btn.addEventListener("click", function () {
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+    if (panel.style.display === "block") document.getElementById("qg-first").focus();
+  });
+
+  cancelBtn.addEventListener("click", function () {
+    panel.style.display = "none";
+    errDiv.style.display = "none";
+  });
+
+  saveBtn.addEventListener("click", function () {
+    errDiv.style.display = "none";
+    var first = document.getElementById("qg-first").value.trim();
+    var last  = document.getElementById("qg-last").value.trim();
+    var phone = document.getElementById("qg-phone").value.trim();
+
+    if (!first || !last || !phone) {
+      errDiv.textContent = "First name, last name and phone are all required.";
+      errDiv.style.display = "block";
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+
+    fetch("{% url 'core:guest_quick_create' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+      },
+      body: JSON.stringify({ first_name: first, last_name: last, phone: phone })
+    })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+    .then(function (res) {
+      if (!res.ok) {
+        var msgs = Object.values(res.data.errors || {}).join(" ");
+        errDiv.textContent = msgs || "Could not create guest.";
+        errDiv.style.display = "block";
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save";
+        return;
+      }
+      // Add the new guest as a selected option in the dropdown
+      var opt = document.createElement("option");
+      opt.value = res.data.id;
+      opt.textContent = res.data.full_name + (res.data.phone ? " (" + res.data.phone + ")" : "");
+      opt.selected = true;
+      guestSelect.appendChild(opt);
+      // Hide the panel and reset fields
+      panel.style.display = "none";
+      document.getElementById("qg-first").value = "";
+      document.getElementById("qg-last").value = "";
+      document.getElementById("qg-phone").value = "";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save";
+    })
+    .catch(function () {
+      errDiv.textContent = "Network error — please try again.";
+      errDiv.style.display = "block";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save";
+    });
+  });
+})();
+</script>
 {% endblock %}

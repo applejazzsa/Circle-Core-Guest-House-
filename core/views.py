@@ -4176,7 +4176,7 @@ def spa_therapist_edit(request, pk):
         form.save()
         messages.success(request, "Therapist updated.")
         return redirect("core:spa_therapists")
-    return render(request, "core/spa_appointment_form.html", {
+    return render(request, "core/spa_simple_form.html", {
         "form": form, "title": f"Edit Therapist — {therapist.name}",
     })
 
@@ -4234,7 +4234,7 @@ def spa_treatment_room_edit(request, pk):
         form.save()
         messages.success(request, "Room updated.")
         return redirect("core:spa_treatment_rooms")
-    return render(request, "core/spa_appointment_form.html", {
+    return render(request, "core/spa_simple_form.html", {
         "form": form, "title": f"Edit Room — {room.name}",
     })
 

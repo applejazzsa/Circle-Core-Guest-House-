@@ -652,8 +652,8 @@ class SpaAppointmentForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if prop:
             self.fields["service"].queryset = SpaService.objects.filter(prop=prop, is_active=True)
-            self.fields["guest"].queryset = Guest.objects.filter(prop=prop)
-            self.fields["booking"].queryset = Booking.objects.filter(prop=prop).order_by("-created_at")
+            self.fields["guest"].queryset = Guest.objects.all()
+            self.fields["booking"].queryset = Booking.objects.all().order_by("-created_at")
             self.fields["assigned_therapist"].queryset = SpaTherapist.objects.filter(prop=prop, is_active=True)
             self.fields["treatment_room"].queryset = SpaTreatmentRoom.objects.filter(prop=prop, is_active=True)
             self.fields["package"].queryset = SpaPackage.objects.filter(prop=prop, is_active=True)
@@ -776,7 +776,7 @@ class SpaWaitlistForm(forms.ModelForm):
         if prop:
             self.fields["service"].queryset = SpaService.objects.filter(prop=prop, is_active=True)
             self.fields["preferred_therapist"].queryset = SpaTherapist.objects.filter(prop=prop, is_active=True)
-            self.fields["guest"].queryset = Guest.objects.filter(prop=prop)
+            self.fields["guest"].queryset = Guest.objects.all()
         optional = ["service", "preferred_therapist", "preferred_date", "guest",
                     "guest_name", "guest_phone", "guest_email", "notes"]
         for f in optional:
