@@ -36,7 +36,7 @@ class PhonePinBackend(ModelBackend):
         if not phone_number or pin is None or connection.schema_name == "public":
             return None
 
-        from .models import StaffProfile
+        from .models import ControlUserSecurity, StaffProfile
 
         normalized_phone = StaffProfile.normalize_phone(phone_number)
         now = timezone.now()
@@ -57,6 +57,10 @@ class PhonePinBackend(ModelBackend):
 
             if profile.pin_locked_until and profile.pin_locked_until > now:
                 check_password(str(pin), _DUMMY_PIN_HASH)
+                security, _ = ControlUserSecurity.objects.get_or_create(user=profile.user)
+                security.last_failed_login = now
+                security.failed_login_count += 1
+                security.save(update_fields=['last_failed_login', 'failed_login_count', 'updated_at'])
                 return None
 
             if profile.pin_locked_until and profile.pin_locked_until <= now:
@@ -67,6 +71,10 @@ class PhonePinBackend(ModelBackend):
                 profile.pin_failed_attempts = 0
                 profile.pin_locked_until = None
                 profile.save(update_fields=["pin_failed_attempts", "pin_locked_until", "updated_at"])
+                security, _ = ControlUserSecurity.objects.get_or_create(user=profile.user)
+                security.locked_at = None
+                security.lock_reason = ''
+                security.save(update_fields=['locked_at', 'lock_reason', 'updated_at'])
                 return profile.user if self.user_can_authenticate(profile.user) else None
 
             profile.pin_failed_attempts = min(
@@ -76,4 +84,11 @@ class PhonePinBackend(ModelBackend):
             if profile.pin_failed_attempts >= self.max_failed_attempts:
                 profile.pin_locked_until = now + self.lock_duration
             profile.save(update_fields=["pin_failed_attempts", "pin_locked_until", "updated_at"])
+            security, _ = ControlUserSecurity.objects.get_or_create(user=profile.user)
+            security.last_failed_login = now
+            security.failed_login_count += 1
+            if profile.pin_locked_until:
+                security.locked_at = now
+                security.lock_reason = 'PIN attempts exceeded'
+            security.save(update_fields=['last_failed_login', 'failed_login_count', 'locked_at', 'lock_reason', 'updated_at'])
         return None

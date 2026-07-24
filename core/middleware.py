@@ -28,6 +28,27 @@ class ImpersonationMiddleware:
                 request.session.pop("impersonated_schema", None)
         return self.get_response(request)
 
+
+class ControlAccountSecurityMiddleware:
+    EXEMPT_PREFIXES = ('/password-change/', '/password-reset/', '/logout/', '/static/', '/media/', '/healthz/')
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.user.is_authenticated and connection.schema_name != 'public':
+            request.session['_circle_core_tenant_schema'] = connection.schema_name
+            from .models import ControlUserSecurity
+            state = ControlUserSecurity.objects.filter(user=request.user, force_password_reset=True).first()
+            if state:
+                if state.password_hash_at_force and state.password_hash_at_force != request.user.password:
+                    state.force_password_reset = False
+                    state.password_hash_at_force = ''
+                    state.save(update_fields=['force_password_reset', 'password_hash_at_force', 'updated_at'])
+                elif not request.path.startswith(self.EXEMPT_PREFIXES):
+                    return redirect('/password-change/')
+        return self.get_response(request)
+
 # Paths that are always accessible regardless of subscription state
 _ALWAYS_EXEMPT = [
     "/login/",
@@ -74,6 +95,12 @@ class SubscriptionMiddleware:
         subscription = Subscription.objects.select_related("plan").first()
         if not subscription:
             return redirect("/subscription/setup/")
+
+        if not getattr(request.tenant, 'is_active', True):
+            return render(request, "subscription/cancelled.html", {"subscription": subscription, "suspended": True}, status=402)
+
+        if not getattr(request.tenant, 'product_access_enabled', True):
+            return render(request, "subscription/cancelled.html", {"subscription": subscription, "suspended": True}, status=402)
 
         now = timezone.now()
         grace_until = grace_ends_at(subscription)

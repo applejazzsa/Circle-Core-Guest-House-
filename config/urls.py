@@ -7,6 +7,7 @@ from django.contrib.auth.views import (
     PasswordResetConfirmView,
     PasswordResetDoneView,
     PasswordResetView,
+    PasswordChangeView,
 )
 from django.urls import include, path
 
@@ -48,6 +49,8 @@ urlpatterns = [
         PasswordResetCompleteView.as_view(template_name="registration/password_reset_complete.html"),
         name="password_reset_complete",
     ),
+    path("password-change/", PasswordChangeView.as_view(
+        template_name="registration/password_change_form.html", success_url="/"), name="password_change"),
     # PayFast — called by PayFast server (no login required) and by tenant users
     path("payfast/itn/", tenant_views.payfast_itn, name="payfast_itn"),
     path("payfast/initiate/", tenant_views.payfast_initiate, name="payfast_initiate"),

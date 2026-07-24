@@ -6,6 +6,7 @@ from core import views as core_views
 from tenants import views as tenant_views
 
 urlpatterns = [
+    path('internal/control/v1/', include('circle_core_control_api.urls')),
     path('manifest.webmanifest', tenant_views.pwa_manifest, name='pwa_manifest'),
     path('service-worker.js', tenant_views.service_worker, name='service_worker'),
     path('healthz/', tenant_views.healthz, name='healthz'),

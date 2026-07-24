@@ -942,6 +942,7 @@ class Subscription(models.Model):
     next_billing_date = models.DateField(null=True, blank=True)
     payfast_token = models.CharField(max_length=200, blank=True)
     notes = models.TextField(blank=True)
+    control_grace_ends_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-started_at"]
@@ -968,6 +969,48 @@ class Subscription(models.Model):
 
     def __str__(self):
         return f"{self.plan.display_name} - {self.status} - {self.days_remaining} days left"
+
+
+class ControlManualPayment(models.Model):
+    STATUSES = [
+        ('recorded', 'Recorded'), ('pending_verification', 'Pending verification'),
+        ('verified', 'Verified'), ('rejected', 'Rejected'), ('reversed', 'Reversed'),
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    subscription = models.ForeignKey(Subscription, on_delete=models.PROTECT, related_name='control_manual_payments')
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3)
+    payment_date = models.DateField()
+    payment_method_category = models.CharField(max_length=40)
+    internal_reference = models.CharField(max_length=100, unique=True)
+    invoice_reference = models.CharField(max_length=100, blank=True)
+    coverage_start = models.DateField(null=True, blank=True)
+    coverage_end = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    evidence_metadata = models.JSONField(default=dict, blank=True)
+    activate_after_payment = models.BooleanField(default=False)
+    next_billing_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=30, choices=STATUSES, default='pending_verification')
+    recorded_by = models.CharField(max_length=200)
+    operation_id = models.UUIDField(unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class ControlUserSecurity(models.Model):
+    user = models.OneToOneField('auth.User', on_delete=models.CASCADE, related_name='control_security')
+    force_password_reset = models.BooleanField(default=False)
+    password_hash_at_force = models.CharField(max_length=128, blank=True)
+    forced_at = models.DateTimeField(null=True, blank=True)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    lock_reason = models.CharField(max_length=200, blank=True)
+    unlocked_at = models.DateTimeField(null=True, blank=True)
+    last_successful_login = models.DateTimeField(null=True, blank=True)
+    last_failed_login = models.DateTimeField(null=True, blank=True)
+    failed_login_count = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
 
 
 class MaintenanceRequest(models.Model):

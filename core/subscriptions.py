@@ -50,4 +50,4 @@ def apply_paid_renewal(subscription, paid_at=None):
 
 
 def grace_ends_at(subscription):
-    return subscription.expires_at + datetime.timedelta(days=GRACE_DAYS)
+    return subscription.control_grace_ends_at or (subscription.expires_at + datetime.timedelta(days=GRACE_DAYS))

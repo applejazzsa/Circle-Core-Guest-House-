@@ -1,5 +1,8 @@
 from django.conf import settings
 from django.contrib.auth import login as auth_login
+from django.contrib.auth import get_user_model
+from django.db.models import Q
+from django.utils import timezone
 from django.shortcuts import redirect, render, resolve_url
 from django.utils.decorators import method_decorator
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -44,6 +47,16 @@ class DualLoginView(View):
         if active_form.is_valid():
             auth_login(request, active_form.get_user())
             return redirect(self.get_success_url(request))
+
+        if login_method == "email":
+            identifier = (request.POST.get("username") or request.POST.get("email") or "").strip()
+            user = get_user_model().objects.filter(Q(username__iexact=identifier) | Q(email__iexact=identifier)).first()
+            if user:
+                from .models import ControlUserSecurity
+                security, _ = ControlUserSecurity.objects.get_or_create(user=user)
+                security.last_failed_login = timezone.now()
+                security.failed_login_count += 1
+                security.save(update_fields=['last_failed_login', 'failed_login_count', 'updated_at'])
 
         return render(
             request,

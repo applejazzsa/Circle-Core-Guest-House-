@@ -1,4 +1,5 @@
 import os
+import json
 import importlib.util
 from pathlib import Path
 
@@ -20,6 +21,7 @@ def _cast_bool(value):
 
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-circle-core-guest-house-dev-key')
 DEBUG = config('DEBUG', default=True, cast=_cast_bool)
+ENVIRONMENT = config('ENVIRONMENT', default='development').strip().lower()
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
     default='localhost,127.0.0.1,.localhost,.circlecore.co.za',
@@ -42,6 +44,7 @@ SHARED_APPS = [
     'django_tenants',
     'tenants',
     'command',                    # Command Center — public schema only
+    'circle_core_control_api',
     'django.contrib.contenttypes',
     'django.contrib.sessions',    # public schema needs sessions for CSRF on landing/register
     'django.contrib.messages',
@@ -56,6 +59,26 @@ TENANT_APPS = [
 
 INSTALLED_APPS = list(SHARED_APPS) + [app for app in TENANT_APPS if app not in SHARED_APPS]
 
+PRODUCT_CONTROL_API_ENABLED = config('PRODUCT_CONTROL_API_ENABLED', default=False, cast=_cast_bool)
+PRODUCT_CONTROL_API_REQUIRE_HTTPS = True
+PRODUCT_CONTROL_API_MAX_REQUEST_BYTES = 131072
+PRODUCT_CONTROL_API_TIMESTAMP_SKEW_SECONDS = 300
+PRODUCT_CONTROL_API_RATE_LIMIT_PER_MINUTE = 120
+PRODUCT_CONTROL_API_BACKEND = 'tenants.product_control_backend.GuestHouseProductControlBackend'
+try:
+    PRODUCT_CONTROL_API_KEYS = json.loads(config('PRODUCT_CONTROL_API_KEYS_JSON', default='{}'))
+except json.JSONDecodeError as exc:
+    raise ValueError('PRODUCT_CONTROL_API_KEYS_JSON must be valid JSON') from exc
+if not isinstance(PRODUCT_CONTROL_API_KEYS, dict):
+    raise ValueError('PRODUCT_CONTROL_API_KEYS_JSON must be a JSON object')
+PRODUCT_CONTROL_API_APPROVAL_REQUIRED_ACTIONS = {
+    'suspend_tenant', 'archive_tenant', 'change_plan', 'manual_payment',
+    'apply_grace_period', 'cancel_subscription', 'disable_product',
+    'invite_user', 'disable_user', 'change_user_role', 'revoke_sessions', 'force_password_reset',
+}
+if PRODUCT_CONTROL_API_ENABLED and ENVIRONMENT not in {'staging', 'test'}:
+    raise ValueError('The product control API may only be enabled in staging or test')
+
 TENANT_MODEL = 'tenants.GuestHouseTenant'
 TENANT_DOMAIN_MODEL = 'tenants.Domain'
 
@@ -67,6 +90,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.ControlAccountSecurityMiddleware',
     'core.middleware.SubscriptionMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'core.middleware.RoleAccessMiddleware',
@@ -162,6 +186,7 @@ LOGOUT_REDIRECT_URL = 'login'
 
 # ── Email ──
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_FILE_PATH = config('EMAIL_FILE_PATH', default=str(BASE_DIR / 'runtime' / 'mail'))
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.xneelo.co.za')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)

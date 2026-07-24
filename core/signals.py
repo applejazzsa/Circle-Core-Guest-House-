@@ -45,9 +45,13 @@ def track_login(sender, request, user, **kwargs):
     try:
         from django.db.models import F
         from django.utils import timezone
-        from core.models import TrialEngagement
+        from core.models import ControlUserSecurity, TrialEngagement
 
         now = timezone.now()
+        security, _ = ControlUserSecurity.objects.get_or_create(user=user)
+        security.last_successful_login = now
+        security.failed_login_count = 0
+        security.save(update_fields=['last_successful_login', 'failed_login_count', 'updated_at'])
         updated = TrialEngagement.objects.filter(pk=1).update(
             login_count=F("login_count") + 1,
             last_login_at=now,
