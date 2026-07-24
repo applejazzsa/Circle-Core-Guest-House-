@@ -1875,13 +1875,15 @@ def _room_prices_json(active_prop=None):
     rooms = Room.objects.filter(prop=active_prop) if active_prop else Room.objects.none()
     for room in rooms:
         data[str(room.pk)] = {
-            "daily": str(room.get_price_for_duration("daily") or settings_obj.default_price_per_night or ""),
-            "24_hours": str(room.get_price_for_duration("24_hours") or settings_obj.default_price_24_hours or ""),
+            "daily": str(room.get_price_for_duration("daily") or ""),
+            "24_hours": str(room.get_price_for_duration("24_hours") or ""),
             "weekly": str(room.price_per_week or ""),
             "1_hour": str(room.price_1_hour or ""),
             "2_hours": str(room.get_price_for_duration("2_hours") or ""),
             "3_hours": str(room.get_price_for_duration("3_hours") or ""),
             "5_hours": str(room.price_5_hours or ""),
+            "pricing_model": room.pricing_model,
+            "max_guests": room.max_guests,
         }
     return json.dumps(data)
 

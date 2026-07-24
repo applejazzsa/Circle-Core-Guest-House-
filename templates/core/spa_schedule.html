@@ -61,10 +61,10 @@
               {% if appt.scheduled_time.hour == hour %}
               <a href="{% url 'core:spa_appointment_detail' appt.pk %}" style="display:block; text-decoration:none; padding:5px 8px; border-radius:5px; margin-bottom:3px;
                 {% if appt.status == 'completed' %}background:rgba(34,197,94,0.14); border-left:3px solid var(--color-green-500);
-                {% elif appt.status == 'in_progress' %}background:rgba(59,130,246,0.15); border-left:3px solid #3b82f6;
+                {% elif appt.status == 'in_progress' %}background:rgba(34, 197, 94,0.15); border-left:3px solid #22c55e;
                 {% elif appt.status == 'confirmed' %}background:rgba(34,197,94,0.08); border-left:3px solid rgba(34,197,94,0.45);
-                {% elif appt.status == 'cancelled' %}background:rgba(239,68,68,0.07); border-left:3px solid rgba(239,68,68,0.35); opacity:0.6;
-                {% else %}background:rgba(245,158,11,0.09); border-left:3px solid rgba(245,158,11,0.5);{% endif %}">
+                {% elif appt.status == 'cancelled' %}background:rgba(100, 116, 139,0.07); border-left:3px solid rgba(100, 116, 139,0.35); opacity:0.6;
+                {% else %}background:rgba(148, 163, 184,0.09); border-left:3px solid rgba(148, 163, 184,0.5);{% endif %}">
                 <div style="font-size:11px; font-weight:700; color:var(--color-text-primary); line-height:1.2;">{{ appt.scheduled_time|time:"H:i" }} · {{ appt.service.duration_minutes }}m</div>
                 <div style="font-size:10.5px; color:var(--color-text-secondary); margin-top:1px;">{{ appt.display_guest_name }}</div>
                 <div style="font-size:10px; color:var(--color-text-tertiary);">{{ appt.service.name }}</div>
@@ -94,9 +94,9 @@
 
   <!-- Legend -->
   <div style="display:flex; gap:16px; margin-top:14px; flex-wrap:wrap;">
-    <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--color-text-tertiary);"><div style="width:10px; height:10px; border-radius:2px; background:rgba(245,158,11,0.2); border-left:2px solid #fbbf24;"></div>Pending</div>
+    <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--color-text-tertiary);"><div style="width:10px; height:10px; border-radius:2px; background:rgba(148, 163, 184,0.2); border-left:2px solid #cbd5e1;"></div>Pending</div>
     <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--color-text-tertiary);"><div style="width:10px; height:10px; border-radius:2px; background:rgba(34,197,94,0.1); border-left:2px solid rgba(34,197,94,0.5);"></div>Confirmed</div>
-    <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--color-text-tertiary);"><div style="width:10px; height:10px; border-radius:2px; background:rgba(59,130,246,0.2); border-left:2px solid #3b82f6;"></div>In Progress</div>
+    <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--color-text-tertiary);"><div style="width:10px; height:10px; border-radius:2px; background:rgba(34, 197, 94,0.2); border-left:2px solid #22c55e;"></div>In Progress</div>
     <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--color-text-tertiary);"><div style="width:10px; height:10px; border-radius:2px; background:rgba(34,197,94,0.2); border-left:2px solid var(--color-green-500);"></div>Completed</div>
   </div>
   {% endif %}

@@ -20,7 +20,7 @@
     </div>
     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid var(--color-border);">
       <span style="font-size:13.5px; color:var(--color-text-secondary);">Current stock</span>
-      <span style="font-family:var(--font-mono); font-size:15px; font-weight:700; color:{% if item.current_stock <= 0 %}#f87171{% elif item.is_low_stock %}#f59e0b{% else %}var(--color-green-400){% endif %};">{{ item.current_stock }} {{ item.unit }}</span>
+      <span style="font-family:var(--font-mono); font-size:15px; font-weight:700; color:{% if item.current_stock <= 0 %}#94a3b8{% elif item.is_low_stock %}#94a3b8{% else %}var(--color-green-400){% endif %};">{{ item.current_stock }} {{ item.unit }}</span>
     </div>
   </div>
 
@@ -38,7 +38,7 @@
         {% endfor %}
       </div>
       {% if mode == "out" %}
-      <div style="margin-top:16px; padding:12px 14px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:var(--radius-md); font-size:13px; color:#f59e0b;">
+      <div style="margin-top:16px; padding:12px 14px; background:rgba(148, 163, 184,0.08); border:1px solid rgba(148, 163, 184,0.2); border-radius:var(--radius-md); font-size:13px; color:#94a3b8;">
         If quantity exceeds current stock, tick the confirmation checkbox to allow negative stock.
       </div>
       {% endif %}

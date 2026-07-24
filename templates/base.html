@@ -43,19 +43,7 @@
     <!-- subtle top glow line -->
     <div style="position:absolute; top:0; left:20px; right:20px; height:1px; background:linear-gradient(90deg, transparent, rgba(34,197,94,0.4), transparent);"></div>
     <a href="{% url 'core:home' %}" style="display: flex; align-items: center; gap: 12px; text-decoration: none;">
-      <div class="sidebar-logo-icon" style="
-        width: 36px; height: 36px; border-radius: 10px;
-        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-        display: flex; align-items: center; justify-content: center;
-        flex-shrink: 0;
-      ">
-        <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="2" width="5" height="5" rx="1.5" fill="#000" opacity="0.85"/>
-          <rect x="9" y="2" width="5" height="5" rx="1.5" fill="#000" opacity="0.45"/>
-          <rect x="2" y="9" width="5" height="5" rx="1.5" fill="#000" opacity="0.45"/>
-          <rect x="9" y="9" width="5" height="5" rx="1.5" fill="#000" opacity="0.85"/>
-        </svg>
-      </div>
+      <img src="{% static 'branding/circle-core-icon-master.png' %}" alt="Circle Core" class="sidebar-logo-icon" style="width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; box-shadow: 0 0 20px rgba(34,197,94,0.35), 0 0 8px rgba(34,197,94,0.2), 0 2px 8px rgba(0,0,0,0.5);">
       <div>
         <div style="font-family: var(--font-display); font-weight: 800; font-size: 15px; color: var(--color-text-primary); letter-spacing: -0.03em; line-height: 1.15;">Circle Core</div>
         <div style="font-size: 9px; color: var(--color-green-500); letter-spacing: 0.15em; text-transform: uppercase; margin-top: 2px; font-weight: 600;">Guest House</div>
@@ -459,10 +447,10 @@
   <!-- Subscription banners -->
   {% if subscription and can_manage_system %}
     {% if subscription.is_trial and subscription.days_remaining <= 7 and subscription.days_remaining > 0 %}
-    <div class="site-notice" style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18);">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <span style="font-size:12.5px; color:#fbbf24; font-weight:500;">Trial expires in <strong>{{ subscription.days_remaining }} day{{ subscription.days_remaining|pluralize }}</strong></span>
-      <a href="{% url 'core:plans_page' %}" style="font-size:12px; color:#f59e0b; font-weight:600; margin-left:8px; text-decoration:underline;">Upgrade now →</a>
+    <div class="site-notice" style="background:rgba(148, 163, 184,0.07); border-bottom:1px solid rgba(148, 163, 184,0.18);">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span style="font-size:12.5px; color:#cbd5e1; font-weight:500;">Trial expires in <strong>{{ subscription.days_remaining }} day{{ subscription.days_remaining|pluralize }}</strong></span>
+      <a href="{% url 'core:plans_page' %}" style="font-size:12px; color:#94a3b8; font-weight:600; margin-left:8px; text-decoration:underline;">Upgrade now →</a>
     </div>
     {% elif subscription.is_trial and subscription.days_remaining > 7 %}
     <div class="site-notice" style="background:rgba(34,197,94,0.04); border-bottom:1px solid rgba(34,197,94,0.12);">
@@ -470,17 +458,17 @@
       <a href="{% url 'core:plans_page' %}" style="font-size:12px; color:var(--color-green-400); font-weight:500; margin-left:auto; text-decoration:none;">View plans →</a>
     </div>
     {% elif subscription.status == 'active' and subscription.days_remaining <= 7 %}
-    <div class="site-notice" style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18);">
-      <span style="font-size:12.5px; color:#fbbf24; font-weight:500;">Subscription renews in <strong>{{ subscription.days_remaining }} days</strong></span>
-      <a href="{% url 'core:subscription_status' %}" style="font-size:12px; color:#f59e0b; font-weight:600; margin-left:8px;">Manage →</a>
+    <div class="site-notice" style="background:rgba(148, 163, 184,0.07); border-bottom:1px solid rgba(148, 163, 184,0.18);">
+      <span style="font-size:12.5px; color:#cbd5e1; font-weight:500;">Subscription renews in <strong>{{ subscription.days_remaining }} days</strong></span>
+      <a href="{% url 'core:subscription_status' %}" style="font-size:12px; color:#94a3b8; font-weight:600; margin-left:8px;">Manage →</a>
     </div>
     {% endif %}
   {% endif %}
 
   {% if is_cleaner and cleaning_notification_count > 0 %}
-  <div class="site-notice" style="background:rgba(245,158,11,0.07); border-bottom:1px solid rgba(245,158,11,0.18);">
-    <span style="font-size:12.5px; color:#fbbf24; font-weight:500;">{{ cleaning_notification_count }} room{{ cleaning_notification_count|pluralize }} waiting for cleaning</span>
-    <a href="{% url 'core:cleaning' %}" style="font-size:12px; color:#f59e0b; font-weight:600; margin-left:8px;">Open board</a>
+  <div class="site-notice" style="background:rgba(148, 163, 184,0.07); border-bottom:1px solid rgba(148, 163, 184,0.18);">
+    <span style="font-size:12.5px; color:#cbd5e1; font-weight:500;">{{ cleaning_notification_count }} room{{ cleaning_notification_count|pluralize }} waiting for cleaning</span>
+    <a href="{% url 'core:cleaning' %}" style="font-size:12px; color:#94a3b8; font-weight:600; margin-left:8px;">Open board</a>
   </div>
   {% endif %}
 
@@ -493,9 +481,9 @@
       padding: 11px 14px; border-radius: var(--radius-md); margin-bottom:8px;
       font-size:13.5px; font-weight:500;
       {% if message.level_tag == 'success' %}background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); color:var(--color-green-300);
-      {% elif message.level_tag == 'error' %}background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); color:#fca5a5;
-      {% elif message.level_tag == 'warning' %}background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); color:#fbbf24;
-      {% else %}background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); color:#93c5fd;{% endif %}
+      {% elif message.level_tag == 'error' %}background:rgba(100, 116, 139,0.08); border:1px solid rgba(100, 116, 139,0.2); color:#cbd5e1;
+      {% elif message.level_tag == 'warning' %}background:rgba(148, 163, 184,0.08); border:1px solid rgba(148, 163, 184,0.2); color:#cbd5e1;
+      {% else %}background:rgba(34, 197, 94,0.08); border:1px solid rgba(34, 197, 94,0.2); color:#86efac;{% endif %}
     ">
       {% if message.level_tag == 'success' %}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -512,20 +500,20 @@
 
   <!-- Subscription state banners -->
   {% if request.subscription_state == 'grace' %}
-  <div class="site-notice" style="background:rgba(245,158,11,0.08); border-bottom:1px solid rgba(245,158,11,0.25);">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="3"/></svg>
-    <span style="font-size:13px; color:#f59e0b; font-weight:500;">
+  <div class="site-notice" style="background:rgba(148, 163, 184,0.08); border-bottom:1px solid rgba(148, 163, 184,0.25);">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="3"/></svg>
+    <span style="font-size:13px; color:#94a3b8; font-weight:500;">
       Your subscription has expired. You have <strong>{{ request.grace_days_left }} day{{ request.grace_days_left|pluralize }}</strong> remaining in your grace period before the account switches to read-only.
     </span>
-    <a href="mailto:support@circlecore.co.za?subject=Renew Subscription" style="margin-left:auto; font-size:12px; font-weight:600; color:#f59e0b; text-decoration:none; white-space:nowrap; border:1px solid rgba(245,158,11,0.4); padding:4px 12px; border-radius:6px;">Contact Us</a>
+    <a href="mailto:support@circlecore.co.za?subject=Renew Subscription" style="margin-left:auto; font-size:12px; font-weight:600; color:#94a3b8; text-decoration:none; white-space:nowrap; border:1px solid rgba(148, 163, 184,0.4); padding:4px 12px; border-radius:6px;">Contact Us</a>
   </div>
   {% elif request.subscription_state == 'read_only' %}
-  <div class="site-notice" style="background:rgba(239,68,68,0.08); border-bottom:1px solid rgba(239,68,68,0.25);">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    <span style="font-size:13px; color:#f87171; font-weight:500;">
+  <div class="site-notice" style="background:rgba(100, 116, 139,0.08); border-bottom:1px solid rgba(100, 116, 139,0.25);">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <span style="font-size:13px; color:#94a3b8; font-weight:500;">
       Read-only mode — your data is safe but you cannot create or edit records until your subscription is renewed.
     </span>
-    <a href="mailto:support@circlecore.co.za?subject=Reactivate Account" style="margin-left:auto; font-size:12px; font-weight:600; color:#f87171; text-decoration:none; white-space:nowrap; border:1px solid rgba(239,68,68,0.4); padding:4px 12px; border-radius:6px;">Contact Us</a>
+    <a href="mailto:support@circlecore.co.za?subject=Reactivate Account" style="margin-left:auto; font-size:12px; font-weight:600; color:#94a3b8; text-decoration:none; white-space:nowrap; border:1px solid rgba(100, 116, 139,0.4); padding:4px 12px; border-radius:6px;">Contact Us</a>
   </div>
   {% endif %}
 
@@ -565,8 +553,8 @@
   padding: 1px 6px; border-radius: var(--radius-full);
   min-width: 18px; text-align: center; flex-shrink: 0;
 }
-.nav-badge-red { background: rgba(239,68,68,0.15); color: #f87171; }
-.nav-badge-amber { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.nav-badge-red { background: rgba(100, 116, 139,0.15); color: #94a3b8; }
+.nav-badge-amber { background: rgba(148, 163, 184,0.15); color: #cbd5e1; }
 
 #booking-reminder-stack {
   position: fixed;
@@ -586,7 +574,7 @@
   align-items: start;
   padding: 14px;
   background: var(--color-bg-surface);
-  border: 1px solid rgba(245, 158, 11, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-elevated);
   color: var(--color-text-primary);
@@ -599,8 +587,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
 }
 
 .booking-reminder-title {
@@ -665,7 +653,7 @@ function updateConnectivityStatus() {
   const dot = document.getElementById('offline-status-dot');
   const text = document.getElementById('offline-status-text');
   if (!dot || !text) return;
-  dot.style.background = navigator.onLine ? '#22c55e' : '#f59e0b';
+  dot.style.background = navigator.onLine ? '#22c55e' : '#94a3b8';
   text.textContent = navigator.onLine ? 'Online' : 'Switching offline…';
 }
 let offlineRedirectTimer = null;
@@ -873,16 +861,16 @@ setTimeout(() => {
 <style>
 #notif-stack{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column-reverse;gap:10px;pointer-events:none;}
 .notif-toast{pointer-events:all;display:flex;align-items:flex-start;gap:12px;min-width:300px;max-width:360px;padding:14px 16px;background:var(--color-bg-surface);border:1px solid var(--color-border-bright);border-radius:var(--radius-lg);box-shadow:0 8px 28px rgba(0,0,0,0.45);animation:notifIn 0.28s ease;cursor:default;}
-.notif-toast.notif-booking-created{border-left:3px solid #3b82f6;}
+.notif-toast.notif-booking-created{border-left:3px solid #22c55e;}
 .notif-toast.notif-checked-in{border-left:3px solid #22c55e;}
-.notif-toast.notif-checkout-reminder{border-left:3px solid #f59e0b;}
-.notif-toast.notif-needs_cleaning{border-left:3px solid #f97316;}
+.notif-toast.notif-checkout-reminder{border-left:3px solid #94a3b8;}
+.notif-toast.notif-needs_cleaning{border-left:3px solid #64748b;}
 .notif-icon{width:34px;height:34px;display:grid;place-items:center;flex-shrink:0;margin-top:1px;border-radius:9px;background:var(--color-bg-elevated);color:var(--color-text-secondary);}
 .notif-icon svg{width:18px;height:18px;}
-.notif-booking-created .notif-icon{background:rgba(59,130,246,.12);color:#60a5fa;}
+.notif-booking-created .notif-icon{background:rgba(34, 197, 94,.12);color:#4ade80;}
 .notif-checked-in .notif-icon{background:var(--color-green-glow);color:var(--color-green-400);}
-.notif-checkout-reminder .notif-icon{background:rgba(245,158,11,.12);color:#fbbf24;}
-.notif-needs_cleaning .notif-icon{background:rgba(249,115,22,.12);color:#fb923c;}
+.notif-checkout-reminder .notif-icon{background:rgba(148, 163, 184,.12);color:#cbd5e1;}
+.notif-needs_cleaning .notif-icon{background:rgba(100, 116, 139,.12);color:#94a3b8;}
 .notif-title{font-size:13px;font-weight:700;color:var(--color-text-primary);margin-bottom:2px;}
 .notif-body{font-size:12px;color:var(--color-text-secondary);line-height:1.45;}
 .notif-close{margin-left:auto;flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:18px;line-height:1;padding:0 2px;align-self:flex-start;}

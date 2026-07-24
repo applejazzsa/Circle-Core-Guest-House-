@@ -86,7 +86,7 @@
         </div>
         <div class="detail-row">
           <span class="detail-label">Guests</span>
-          <span class="detail-value">{{ booking.num_guests }}</span>
+          <span class="detail-value">{{ booking.num_guests }}{% if booking.room.pricing_model == 'per_person' %} <span style="color:var(--color-green-400); font-size:11.5px;">(priced per person)</span>{% endif %}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Source</span>
@@ -145,14 +145,14 @@
             </td>
             <td><span class="badge {% if payment.payment_type == 'Deposit' %}badge-amber{% else %}badge-blue{% endif %}" style="font-size:9.5px;">{{ payment.payment_type }}</span></td>
             <td style="font-family:var(--font-mono); font-size:13px; color:var(--color-green-400); font-weight:500;">R {{ payment.amount }}</td>
-            <td class="hide-mobile" style="font-family:var(--font-mono); font-size:12.5px; color:{% if payment.balance_after > 0 %}#fbbf24{% else %}var(--color-green-400){% endif %};">R {{ payment.balance_after }}</td>
+            <td class="hide-mobile" style="font-family:var(--font-mono); font-size:12.5px; color:{% if payment.balance_after > 0 %}#cbd5e1{% else %}var(--color-green-400){% endif %};">R {{ payment.balance_after }}</td>
             <td>
               <div style="display:flex; gap:4px; justify-content:flex-end;">
                 <a href="{% url 'core:payment_receipt_pdf' booking.pk payment.pk %}" class="btn btn-ghost btn-sm" title="Receipt" target="_blank">Receipt PDF</a>
                 {% if booking.status != 'Checked Out' and is_owner %}
                 <form method="post" action="{% url 'core:payment_delete' booking.pk payment.pk %}" onsubmit="return confirm('Delete this payment of R {{ payment.amount }}?');">
                   {% csrf_token %}
-                  <button type="submit" class="btn btn-ghost btn-sm" style="color:#f87171; border-color:rgba(239,68,68,0.25);">Delete</button>
+                  <button type="submit" class="btn btn-ghost btn-sm" style="color:#94a3b8; border-color:rgba(100, 116, 139,0.25);">Delete</button>
                 </form>
                 {% endif %}
               </div>
@@ -178,7 +178,7 @@
           <tr>
             <td style="font-family:var(--font-mono); font-size:12.5px;">{{ refund.refund_date|date:"d M Y" }}</td>
             <td><span class="badge badge-red" style="font-size:9.5px;">{{ refund.refund_method }}</span></td>
-            <td style="font-family:var(--font-mono); font-size:13px; color:#f87171; font-weight:500;">- R {{ refund.amount }}</td>
+            <td style="font-family:var(--font-mono); font-size:13px; color:#94a3b8; font-weight:500;">- R {{ refund.amount }}</td>
             <td class="hide-mobile" style="font-size:13px;">{{ refund.approved_by|default:"-" }}</td>
             <td class="hide-mobile" style="font-size:13px; color:var(--color-text-secondary);">{{ refund.reason|truncatechars:80 }}</td>
           </tr>
@@ -248,7 +248,7 @@
 
       <div class="detail-row">
         <span class="detail-label">Rate</span>
-        <span class="detail-value" style="font-family:var(--font-mono);">R {{ booking.rate_per_night }} / {{ booking.duration_label }}</span>
+        <span class="detail-value" style="font-family:var(--font-mono);">R {{ booking.rate_per_night }} / {{ booking.duration_label }}{% if booking.room.pricing_model == 'per_person' %} /person{% endif %}</span>
       </div>
       {% if not booking.is_hourly %}
       <div class="detail-row">
@@ -263,7 +263,7 @@
       {% if booking.discount > 0 %}
       <div class="detail-row">
         <span class="detail-label">Discount</span>
-        <span class="detail-value" style="font-family:var(--font-mono); color:#f87171;">- R {{ booking.discount }}</span>
+        <span class="detail-value" style="font-family:var(--font-mono); color:#94a3b8;">- R {{ booking.discount }}</span>
       </div>
       {% endif %}
 
@@ -296,7 +296,7 @@
       {% if booking.deposit_required > 0 %}
       <div class="detail-row">
         <span class="detail-label">Deposit Paid</span>
-        <span class="detail-value" style="font-family:var(--font-mono); color:{% if deposit_outstanding > 0 %}#fbbf24{% else %}var(--color-green-400){% endif %};">R {{ deposit_received|floatformat:2 }}</span>
+        <span class="detail-value" style="font-family:var(--font-mono); color:{% if deposit_outstanding > 0 %}#cbd5e1{% else %}var(--color-green-400){% endif %};">R {{ deposit_received|floatformat:2 }}</span>
       </div>
       {% endif %}
       <div class="detail-row">
@@ -306,7 +306,7 @@
       {% if payment_totals.total_refunded > 0 %}
       <div class="detail-row">
         <span class="detail-label">Refunded</span>
-        <span class="detail-value" style="font-family:var(--font-mono); color:#f87171; font-weight:600;">- R {{ payment_totals.total_refunded|floatformat:2 }}</span>
+        <span class="detail-value" style="font-family:var(--font-mono); color:#94a3b8; font-weight:600;">- R {{ payment_totals.total_refunded|floatformat:2 }}</span>
       </div>
       <div class="detail-row">
         <span class="detail-label">Net Paid</span>
@@ -315,13 +315,13 @@
       {% endif %}
 
       {% if payment_totals.balance_due > 0 and payment_totals.total_refunded > 0 and payment_totals.net_paid <= 0 %}
-      <div style="background:rgba(139,92,246,0.07); border:1px solid rgba(139,92,246,0.2); border-radius:var(--radius-md); padding:12px; margin-top:12px; text-align:center;">
-        <span style="font-size:12.5px; font-weight:600; color:#a78bfa;">↩ Fully Refunded</span>
+      <div style="background:rgba(22, 163, 74,0.07); border:1px solid rgba(22, 163, 74,0.2); border-radius:var(--radius-md); padding:12px; margin-top:12px; text-align:center;">
+        <span style="font-size:12.5px; font-weight:600; color:#86efac;">↩ Fully Refunded</span>
       </div>
       {% elif payment_totals.balance_due > 0 %}
-      <div style="background:rgba(239,68,68,0.07); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); padding:12px; margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
-        <div style="font-size:12px; font-weight:600; color:#f87171;">Balance Due</div>
-        <div style="font-family:var(--font-mono); font-size:16px; font-weight:700; color:#f87171;">R {{ payment_totals.balance_due|floatformat:2 }}</div>
+      <div style="background:rgba(100, 116, 139,0.07); border:1px solid rgba(100, 116, 139,0.2); border-radius:var(--radius-md); padding:12px; margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-size:12px; font-weight:600; color:#94a3b8;">Balance Due</div>
+        <div style="font-family:var(--font-mono); font-size:16px; font-weight:700; color:#94a3b8;">R {{ payment_totals.balance_due|floatformat:2 }}</div>
       </div>
       {% if booking.status not in 'Cancelled,No Show,Checked Out' %}
         {% if deposit_outstanding > 0 %}
@@ -337,8 +337,8 @@
       </div>
       {% if change_due > 0 %}
       <div style="background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.3); border-radius:var(--radius-md); padding:12px; margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
-        <div style="font-size:12px; font-weight:600; color:#fbbf24;">Change Due</div>
-        <div style="font-family:var(--font-mono); font-size:16px; font-weight:700; color:#fbbf24;">R {{ change_due }}</div>
+        <div style="font-size:12px; font-weight:600; color:#cbd5e1;">Change Due</div>
+        <div style="font-family:var(--font-mono); font-size:16px; font-weight:700; color:#cbd5e1;">R {{ change_due }}</div>
       </div>
       {% endif %}
       {% endif %}

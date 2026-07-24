@@ -43,11 +43,11 @@
 <div class="stats-row">
   <div class="metric-card"><div class="metric-label">Total Payments</div><div class="metric-value">R {{ payments_total|floatformat:2 }}</div></div>
   <div class="metric-card"><div class="metric-label">Expenses</div><div class="metric-value">R {{ expenses_total|floatformat:2 }}</div></div>
-  <div class="metric-card" style="--accent-color:#f59e0b;"><div class="metric-label">Discounts</div><div class="metric-value">R {{ discounts|floatformat:2 }}</div></div>
-  <div class="metric-card" style="--accent-color:#ef4444;"><div class="metric-label">Refunds</div><div class="metric-value">R {{ refunds|floatformat:2 }}</div></div>
+  <div class="metric-card" style="--accent-color:#94a3b8;"><div class="metric-label">Discounts</div><div class="metric-value">R {{ discounts|floatformat:2 }}</div></div>
+  <div class="metric-card" style="--accent-color:#64748b;"><div class="metric-label">Refunds</div><div class="metric-value">R {{ refunds|floatformat:2 }}</div></div>
 </div>
 
-<div class="card" style="margin-bottom:20px; border-top:3px solid {% if cash_variance_total and cash_variance_total != 0 %}#ef4444{% else %}var(--color-green-500){% endif %};">
+<div class="card" style="margin-bottom:20px; border-top:3px solid {% if cash_variance_total and cash_variance_total != 0 %}#64748b{% else %}var(--color-green-500){% endif %};">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px;">
     <div>
       <div class="section-label" style="margin-bottom:4px;">Cash Reconciliation</div>
@@ -65,7 +65,7 @@
       <div class="metric-label">Cash In</div>
       <div class="metric-value" style="font-size:20px;">R {{ cash_payments|floatformat:2 }}</div>
     </div>
-    <div style="background:rgba(239,68,68,0.06); border-radius:var(--radius-md); padding:14px;">
+    <div style="background:rgba(100, 116, 139,0.06); border-radius:var(--radius-md); padding:14px;">
       <div class="metric-label">Cash Out</div>
       <div class="metric-value" style="font-size:20px;">R {{ cash_expenses|add:cash_booking_refunds|floatformat:2 }}</div>
     </div>

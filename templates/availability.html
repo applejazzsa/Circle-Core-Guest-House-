@@ -101,14 +101,14 @@
 <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px;">
   {% for room in rooms %}
   <div class="card" style="padding:0; overflow:hidden;">
-    <div style="height:3px; background:{% if room.status == 'Available' %}var(--color-green-500){% elif room.status == 'Occupied' %}#3b82f6{% elif room.status == 'Cleaning' %}#f59e0b{% elif room.status == 'Maintenance' %}#ef4444{% else %}var(--color-border-bright){% endif %};"></div>
+    <div style="height:3px; background:{% if room.status == 'Available' %}var(--color-green-500){% elif room.status == 'Occupied' %}#3b82f6{% elif room.status == 'Cleaning' %}#f97316{% elif room.status == 'Maintenance' or room.status == 'Blocked' %}#ef4444{% else %}var(--color-border-bright){% endif %};"></div>
     <div style="padding:20px;">
       <div style="display:flex; align-items:start; justify-content:space-between; gap:12px;">
         <div>
           <div style="font-family:var(--font-display); font-size:15px; font-weight:700; color:var(--color-text-primary);">{{ room.name }}</div>
           <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:3px;">{{ room.room_type }} · max {{ room.max_guests }} guest{{ room.max_guests|pluralize }}</div>
         </div>
-        <span class="badge {% if room.status == 'Available' %}badge-green{% elif room.status == 'Occupied' %}badge-blue{% elif room.status == 'Maintenance' %}badge-red{% else %}badge-gray{% endif %}">{{ room.status }}</span>
+        <span class="badge {% if room.status == 'Available' %}badge-green{% elif room.status == 'Occupied' %}room-status-occupied{% elif room.status == 'Cleaning' %}room-status-cleaning{% elif room.status == 'Maintenance' or room.status == 'Blocked' %}room-status-maintenance{% else %}badge-gray{% endif %}">{{ room.status }}</span>
       </div>
       <div style="font-family:var(--font-mono); font-size:14px; font-weight:600; color:var(--color-green-400); margin-top:14px;">{{ guest_house_settings.currency|default:"R" }} {{ room.price_per_night }}<span style="font-family:var(--font-sans); font-size:11px; font-weight:400; color:var(--color-text-tertiary);">/night</span></div>
     </div>

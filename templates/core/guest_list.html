@@ -43,20 +43,20 @@
     </thead>
     <tbody>
       {% for guest in guests %}
-      <tr {% if guest.is_generic %}style="background:rgba(99,102,241,0.04);"{% endif %}>
+      <tr {% if guest.is_generic %}style="background:rgba(74, 222, 128,0.04);"{% endif %}>
         <td>
           <div style="display:flex; align-items:center; gap:10px;">
             {% if guest.is_generic %}
-            <div class="avatar avatar-sm" style="font-size:10px; flex-shrink:0; background:rgba(99,102,241,0.18); color:#818cf8;">WI</div>
+            <div class="avatar avatar-sm" style="font-size:10px; flex-shrink:0; background:rgba(74, 222, 128,0.18); color:#4ade80;">WI</div>
             {% elif guest.is_vehicle_profile %}
             <div class="avatar avatar-sm" style="font-size:9px; flex-shrink:0; background:var(--color-green-glow); color:var(--color-green-400);">NP</div>
             {% else %}
             <div class="avatar avatar-sm avatar-green" style="font-size:10px; flex-shrink:0;">{{ guest.first_name|first }}{{ guest.last_name|first }}</div>
             {% endif %}
             <div>
-              <div style="font-weight:500; color:{% if guest.is_generic %}#818cf8{% else %}var(--color-text-primary){% endif %}; font-size:14px;">{{ guest.full_name }}</div>
+              <div style="font-weight:500; color:{% if guest.is_generic %}#4ade80{% else %}var(--color-text-primary){% endif %}; font-size:14px;">{{ guest.full_name }}</div>
               {% if guest.is_generic %}
-              <span class="badge" style="font-size:9px; padding:1px 7px; margin-top:2px; background:rgba(99,102,241,0.12); color:#818cf8; border-color:rgba(99,102,241,0.25);">System</span>
+              <span class="badge" style="font-size:9px; padding:1px 7px; margin-top:2px; background:rgba(74, 222, 128,0.12); color:#4ade80; border-color:rgba(74, 222, 128,0.25);">System</span>
               {% elif guest.is_vehicle_profile %}
               <span class="badge badge-green" style="font-size:9px; padding:1px 7px; margin-top:2px;">Number plate</span>
               {% elif guest.is_repeat_guest %}

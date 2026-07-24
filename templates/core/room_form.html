@@ -15,7 +15,7 @@
   .room-form-card textarea.form-input { min-height: 94px; }
   .room-form-card .form-group:last-child { margin-bottom: 0; }
   .room-form-required { color: var(--color-red); }
-  .room-form-alert { margin-bottom: 18px; padding: 12px 14px; border: 1px solid rgba(239,68,68,.35); border-radius: var(--radius-md); background: rgba(239,68,68,.08); color: var(--color-red); font-size: .8125rem; }
+  .room-form-alert { margin-bottom: 18px; padding: 12px 14px; border: 1px solid rgba(100, 116, 139,.35); border-radius: var(--radius-md); background: rgba(100, 116, 139,.08); color: var(--color-red); font-size: .8125rem; }
   .room-form-actions { display: flex; align-items: center; gap: 10px; padding: 4px 0 28px; }
   .room-checkbox { width: 16px; height: 16px; accent-color: var(--color-green-500); }
   @media (max-width: 760px) {
@@ -75,6 +75,13 @@
         </div>
 
         <div class="form-group">
+          <label class="form-label" for="{{ form.pricing_model.id_for_label }}">Pricing model <span class="room-form-required">*</span></label>
+          {{ form.pricing_model }}
+          <div class="form-hint" id="pricing-model-hint">Per Room charges one flat rate for the whole room. Per Person charges by headcount — ideal for dormitories or shared rooms.</div>
+          {% if form.pricing_model.errors %}<div class="form-error" role="alert">{{ form.pricing_model.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="form-group">
           <label class="form-label" for="{{ form.status.id_for_label }}">Availability status <span class="room-form-required">*</span></label>
           {{ form.status }}
           {% if form.status.errors %}<div class="form-error" role="alert">{{ form.status.errors.0 }}</div>{% endif %}
@@ -105,43 +112,45 @@
     <section class="card room-form-card" aria-labelledby="room-pricing-heading">
       <div class="room-form-card__header">
         <h2 class="room-form-card__title" id="room-pricing-heading">Rates and booking types</h2>
-        <p class="room-form-card__description">Enter rates in South African rand. Optional rates can be left blank.</p>
+        <p class="room-form-card__description" id="room-pricing-description">Enter rates in South African rand. Optional rates can be left blank.</p>
       </div>
 
       <div class="room-pricing-grid">
         <div class="form-group">
-          <label class="form-label" for="{{ form.price_per_night.id_for_label }}">Per night (R) <span class="room-form-required">*</span></label>
+          <label class="form-label" id="label-price-per-night" for="{{ form.price_per_night.id_for_label }}">Per night (R) <span class="room-form-required">*</span></label>
           {{ form.price_per_night }}
           {% if form.price_per_night.errors %}<div class="form-error" role="alert">{{ form.price_per_night.errors.0 }}</div>{% endif %}
         </div>
         <div class="form-group">
-          <label class="form-label" for="{{ form.price_per_week.id_for_label }}">Per week (R)</label>
+          <label class="form-label" id="label-price-per-week" for="{{ form.price_per_week.id_for_label }}">Per week (R)</label>
           {{ form.price_per_week }}
           {% if form.price_per_week.errors %}<div class="form-error" role="alert">{{ form.price_per_week.errors.0 }}</div>{% endif %}
         </div>
-        <div class="form-group">
-          <label class="form-label" for="{{ form.price_1_hour.id_for_label }}">1 hour (R)</label>
-          {{ form.price_1_hour }}
-          {% if form.price_1_hour.errors %}<div class="form-error" role="alert">{{ form.price_1_hour.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="{{ form.price_2_hours.id_for_label }}">2 hours (R)</label>
-          {{ form.price_2_hours }}
-          {% if form.price_2_hours.errors %}<div class="form-error" role="alert">{{ form.price_2_hours.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="{{ form.price_3_hours.id_for_label }}">3 hours (R)</label>
-          {{ form.price_3_hours }}
-          {% if form.price_3_hours.errors %}<div class="form-error" role="alert">{{ form.price_3_hours.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="{{ form.price_5_hours.id_for_label }}">5 hours (R)</label>
-          {{ form.price_5_hours }}
-          {% if form.price_5_hours.errors %}<div class="form-error" role="alert">{{ form.price_5_hours.errors.0 }}</div>{% endif %}
+        <div id="hourly-rate-fields" style="display:contents;">
+          <div class="form-group">
+            <label class="form-label" for="{{ form.price_1_hour.id_for_label }}">1 hour (R)</label>
+            {{ form.price_1_hour }}
+            {% if form.price_1_hour.errors %}<div class="form-error" role="alert">{{ form.price_1_hour.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="{{ form.price_2_hours.id_for_label }}">2 hours (R)</label>
+            {{ form.price_2_hours }}
+            {% if form.price_2_hours.errors %}<div class="form-error" role="alert">{{ form.price_2_hours.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="{{ form.price_3_hours.id_for_label }}">3 hours (R)</label>
+            {{ form.price_3_hours }}
+            {% if form.price_3_hours.errors %}<div class="form-error" role="alert">{{ form.price_3_hours.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="{{ form.price_5_hours.id_for_label }}">5 hours (R)</label>
+            {{ form.price_5_hours }}
+            {% if form.price_5_hours.errors %}<div class="form-error" role="alert">{{ form.price_5_hours.errors.0 }}</div>{% endif %}
+          </div>
         </div>
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="booking-types-group">
         <div class="form-label">Booking types allowed</div>
         <div class="checkbox-grid">
           {% for choice in form.booking_types_allowed %}
@@ -161,4 +170,34 @@
     </div>
   </form>
 </div>
+
+<script>
+(function() {
+  var pricingModelInput = document.getElementById('{{ form.pricing_model.id_for_label }}');
+  var nightLabel = document.getElementById('label-price-per-night');
+  var weekLabel = document.getElementById('label-price-per-week');
+  var pricingDescription = document.getElementById('room-pricing-description');
+  var hourlyFields = document.getElementById('hourly-rate-fields');
+  var pricingHint = document.getElementById('pricing-model-hint');
+
+  function applyPricingModel() {
+    var isPerPerson = pricingModelInput && pricingModelInput.value === 'per_person';
+    var requiredMark = '<span class="room-form-required">*</span>';
+    nightLabel.innerHTML = (isPerPerson ? 'Per person / night (R) ' : 'Per night (R) ') + requiredMark;
+    weekLabel.textContent = isPerPerson ? 'Per person / week (R)' : 'Per week (R)';
+    pricingDescription.textContent = isPerPerson
+      ? 'Rates below are charged per guest. The booking total is rate × guests × nights.'
+      : 'Enter rates in South African rand. Optional rates can be left blank.';
+    if (hourlyFields) hourlyFields.style.display = isPerPerson ? 'none' : 'contents';
+    if (pricingHint) {
+      pricingHint.style.color = isPerPerson ? 'var(--color-green-400)' : '';
+    }
+  }
+
+  if (pricingModelInput) {
+    pricingModelInput.addEventListener('change', applyPricingModel);
+    applyPricingModel();
+  }
+})();
+</script>
 {% endblock %}

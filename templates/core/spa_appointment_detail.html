@@ -259,7 +259,7 @@
         </div>
 
         {% elif appt.status == 'cancelled' %}
-        <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;background:rgba(239,68,68,.07);border-radius:var(--radius-md);font-size:13px;font-weight:700;color:#f87171;">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;background:rgba(100, 116, 139,.07);border-radius:var(--radius-md);font-size:13px;font-weight:700;color:#94a3b8;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Appointment Cancelled
         </div>
 
@@ -299,8 +299,8 @@
             <div style="font-size:17px; font-weight:800; font-family:var(--font-mono); color:var(--color-green-400);">R {{ payment_totals.total_paid|floatformat:2 }}</div>
           </div>
           <div style="padding:13px 16px;">
-            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; margin-bottom:3px; color:{% if payment_totals.balance_due > 0 %}#f87171{% else %}var(--color-green-400){% endif %};">Balance</div>
-            <div style="font-size:17px; font-weight:800; font-family:var(--font-mono); color:{% if payment_totals.balance_due > 0 %}#f87171{% else %}var(--color-green-400){% endif %};">R {{ payment_totals.balance_due|floatformat:2 }}</div>
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; margin-bottom:3px; color:{% if payment_totals.balance_due > 0 %}#94a3b8{% else %}var(--color-green-400){% endif %};">Balance</div>
+            <div style="font-size:17px; font-weight:800; font-family:var(--font-mono); color:{% if payment_totals.balance_due > 0 %}#94a3b8{% else %}var(--color-green-400){% endif %};">R {{ payment_totals.balance_due|floatformat:2 }}</div>
           </div>
         </div>
 
@@ -344,7 +344,7 @@
       <!-- Gratuity -->
       {% if appt.status == 'completed' and not appt.tip_amount %}
       <div class="card" style="padding:16px 18px; margin-bottom:14px; border:1px solid rgba(167,139,250,.2);">
-        <div class="sbh" style="color:#a78bfa;">
+        <div class="sbh" style="color:#86efac;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           Record Gratuity
         </div>
@@ -362,21 +362,21 @@
       {% elif appt.tip_amount %}
       <div class="card" style="padding:14px 18px; margin-bottom:14px; border:1px solid rgba(167,139,250,.25);">
         <div style="display:flex; align-items:center; gap:7px; margin-bottom:5px;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#a78bfa;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#a78bfa;">Gratuity</div>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#86efac;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#86efac;">Gratuity</div>
         </div>
-        <div style="font-size:20px; font-weight:800; color:#c084fc; font-family:var(--font-mono);">R {{ appt.tip_amount|floatformat:2 }}</div>
+        <div style="font-size:20px; font-weight:800; color:#4ade80; font-family:var(--font-mono);">R {{ appt.tip_amount|floatformat:2 }}</div>
       </div>
       {% endif %}
 
       <!-- Commission -->
       {% if appt.commission_amount %}
-      <div class="card" style="padding:14px 18px; margin-bottom:14px; border:1px solid rgba(245,158,11,.2);">
+      <div class="card" style="padding:14px 18px; margin-bottom:14px; border:1px solid rgba(148, 163, 184,.2);">
         <div style="display:flex; align-items:center; gap:7px; margin-bottom:5px;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#f59e0b;"><circle cx="12" cy="8" r="5"/><path d="M3 21v-2a7 7 0 0 1 7-7h4a7 7 0 0 1 7 7v2"/></svg>
-          <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#f59e0b;">Therapist Commission</div>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#94a3b8;"><circle cx="12" cy="8" r="5"/><path d="M3 21v-2a7 7 0 0 1 7-7h4a7 7 0 0 1 7 7v2"/></svg>
+          <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8;">Therapist Commission</div>
         </div>
-        <div style="font-size:20px; font-weight:800; color:#fbbf24; font-family:var(--font-mono);">R {{ appt.commission_amount|floatformat:2 }}</div>
+        <div style="font-size:20px; font-weight:800; color:#cbd5e1; font-family:var(--font-mono);">R {{ appt.commission_amount|floatformat:2 }}</div>
         {% if appt.assigned_therapist %}<div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:3px;">{{ appt.assigned_therapist.name }} · {{ appt.assigned_therapist.commission_pct }}%</div>{% endif %}
       </div>
       {% endif %}
@@ -406,13 +406,13 @@
 </div>
 
 <style>
-.svc-bubble{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(59,130,246,.08));display:flex;align-items:center;justify-content:center;color:var(--color-green-400);flex-shrink:0}
+.svc-bubble{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(34, 197, 94,.08));display:flex;align-items:center;justify-content:center;color:var(--color-green-400);flex-shrink:0}
 .sb{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:999px;white-space:nowrap;flex-shrink:0}
-.sb-pending{background:rgba(245,158,11,.12);color:#fbbf24}
+.sb-pending{background:rgba(148, 163, 184,.12);color:#cbd5e1}
 .sb-confirmed{background:rgba(34,197,94,.1);color:var(--color-green-400)}
-.sb-in_progress{background:rgba(59,130,246,.12);color:#60a5fa}
+.sb-in_progress{background:rgba(34, 197, 94,.12);color:#4ade80}
 .sb-completed{background:rgba(34,197,94,.12);color:var(--color-green-400)}
-.sb-cancelled{background:rgba(239,68,68,.1);color:#f87171}
+.sb-cancelled{background:rgba(100, 116, 139,.1);color:#94a3b8}
 .sb-no_show{background:rgba(107,114,128,.15);color:#9ca3af}
 .step{display:flex;flex-direction:column;align-items:center;gap:5px}
 .step-line{flex:1;height:2px;background:var(--color-border);border-radius:2px;margin-top:-14px;min-width:20px}
@@ -424,10 +424,10 @@
 .step-active .step-lbl,.step-done .step-lbl{color:var(--color-green-400);font-weight:700}
 .ir{display:flex;align-items:flex-start;gap:10px}
 .ii{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
-.ii-blue{background:rgba(59,130,246,.1);color:#60a5fa}
+.ii-blue{background:rgba(34, 197, 94,.1);color:#4ade80}
 .ii-green{background:rgba(34,197,94,.1);color:var(--color-green-400)}
-.ii-purple{background:rgba(167,139,250,.1);color:#a78bfa}
-.ii-amber{background:rgba(245,158,11,.1);color:#fbbf24}
+.ii-purple{background:rgba(167,139,250,.1);color:#86efac}
+.ii-amber{background:rgba(148, 163, 184,.1);color:#cbd5e1}
 .il{font-size:10.5px;font-weight:700;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
 .iv{font-size:13.5px;color:var(--color-text-secondary);font-weight:600}
 .is{font-size:11.5px;color:var(--color-text-tertiary);margin-top:2px}
@@ -435,13 +435,13 @@
 .ilink:hover{text-decoration:underline}
 .pp{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px}
 .pp-green{background:rgba(34,197,94,.1);color:var(--color-green-400)}
-.pp-blue{background:rgba(59,130,246,.1);color:#60a5fa}
-.pp-amber{background:rgba(245,158,11,.1);color:#fbbf24}
+.pp-blue{background:rgba(34, 197, 94,.1);color:#4ade80}
+.pp-amber{background:rgba(148, 163, 184,.1);color:#cbd5e1}
 .pp-gray{background:rgba(107,114,128,.1);color:#9ca3af}
 .tag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:999px}
-.tag-purple{background:rgba(167,139,250,.1);color:#a78bfa}
-.tag-amber{background:rgba(245,158,11,.1);color:#fbbf24}
-.tag-blue{background:rgba(59,130,246,.1);color:#60a5fa}
+.tag-purple{background:rgba(167,139,250,.1);color:#86efac}
+.tag-amber{background:rgba(148, 163, 184,.1);color:#cbd5e1}
+.tag-blue{background:rgba(34, 197, 94,.1);color:#4ade80}
 .tag-green{background:rgba(34,197,94,.1);color:var(--color-green-400)}
 .tag-gray{background:rgba(107,114,128,.1);color:#9ca3af}
 .nlbl{font-size:11px;font-weight:700;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:5px}
@@ -454,29 +454,29 @@
 .hist-row:last-child{border-bottom:none}
 .hdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .hdot-completed{background:var(--color-green-500)}
-.hdot-confirmed{background:#60a5fa}
-.hdot-pending{background:#fbbf24}
-.hdot-in_progress{background:#818cf8}
-.hdot-cancelled{background:#f87171}
+.hdot-confirmed{background:#4ade80}
+.hdot-pending{background:#cbd5e1}
+.hdot-in_progress{background:#4ade80}
+.hdot-cancelled{background:#94a3b8}
 .hdot-no_show{background:#6b7280}
 .sbh{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--color-text-tertiary);margin-bottom:14px}
 .ab{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 16px;border-radius:var(--radius-md);font-size:13.5px;font-weight:700;border:none;cursor:pointer;transition:opacity .15s,transform .1s}
 .ab:hover{opacity:.88;transform:translateY(-1px)}
 .ab:active{transform:translateY(0)}
 .ab-green{background:var(--color-green-500);color:#fff}
-.ab-blue{background:#3b82f6;color:#fff}
-.ab-red{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2)}
+.ab-blue{background:#22c55e;color:#fff}
+.ab-red{background:rgba(100, 116, 139,.1);color:#94a3b8;border:1px solid rgba(100, 116, 139,.2)}
 .ab-gray{background:var(--color-bg-subtle);color:var(--color-text-tertiary);border:1px solid var(--color-border)}
 .pmi{width:30px;height:30px;border-radius:8px;background:var(--color-bg-subtle);display:flex;align-items:center;justify-content:center;color:var(--color-text-tertiary);flex-shrink:0}
 .pt{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px}
-.pt-d{background:rgba(99,102,241,.12);color:#818cf8}
+.pt-d{background:rgba(74, 222, 128,.12);color:#4ade80}
 .pt-f{background:rgba(34,197,94,.1);color:var(--color-green-400)}
 .del-btn{background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);padding:6px;border-radius:6px;transition:color .12s,background .12s}
-.del-btn:hover{color:#f87171;background:rgba(239,68,68,.08)}
+.del-btn:hover{color:#94a3b8;background:rgba(100, 116, 139,.08)}
 .cprow{margin-bottom:10px}
 .cprow:last-of-type{margin-bottom:0}
 .cplbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--color-text-tertiary);display:flex;align-items:center;gap:4px;margin-bottom:2px}
-.cpred{color:#f87171}
+.cpred{color:#94a3b8}
 .cpval{font-size:12.5px;color:var(--color-text-primary)}
 .fc{display:block;width:100%;background:var(--color-bg-subtle);border:1px solid var(--color-border-bright);border-radius:var(--radius-md);color:var(--color-text-primary);font-family:var(--font-body);transition:border-color .15s;box-sizing:border-box}
 .fc:focus{outline:none;border-color:var(--color-green-500)}

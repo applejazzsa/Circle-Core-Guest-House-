@@ -27,15 +27,15 @@
       <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary); margin-top:3px;">Appointments</div>
     </div>
     <div class="card" style="padding:18px 20px; text-align:center;">
-      <div style="font-size:22px; font-weight:800; color:#c084fc;">R {{ totals.tips|floatformat:0 }}</div>
+      <div style="font-size:22px; font-weight:800; color:#4ade80;">R {{ totals.tips|floatformat:0 }}</div>
       <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary); margin-top:3px;">Tips Collected</div>
     </div>
     <div class="card" style="padding:18px 20px; text-align:center;">
-      <div style="font-size:22px; font-weight:800; color:#f59e0b;">R {{ totals.commissions|floatformat:0 }}</div>
+      <div style="font-size:22px; font-weight:800; color:#94a3b8;">R {{ totals.commissions|floatformat:0 }}</div>
       <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary); margin-top:3px;">Commissions</div>
     </div>
     <div class="card" style="padding:18px 20px; text-align:center;">
-      <div style="font-size:22px; font-weight:800; color:#60a5fa;">R {{ totals.avg_ticket|floatformat:0 }}</div>
+      <div style="font-size:22px; font-weight:800; color:#4ade80;">R {{ totals.avg_ticket|floatformat:0 }}</div>
       <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-tertiary); margin-top:3px;">Avg Ticket</div>
     </div>
   </div>
@@ -108,8 +108,8 @@
           <td style="padding:11px 16px; font-size:12.5px; color:var(--color-text-secondary);">{{ appt.service.name }}</td>
           <td style="padding:11px 16px; font-size:12.5px; color:var(--color-text-secondary);">{{ appt.display_therapist }}</td>
           <td style="padding:11px 16px; text-align:right; font-size:13px; font-weight:600; color:var(--color-text-primary);">R {{ appt.price_charged|floatformat:2 }}</td>
-          <td style="padding:11px 16px; text-align:right; font-size:12.5px; color:#c084fc;">{% if appt.tip_amount %}R {{ appt.tip_amount|floatformat:2 }}{% else %}—{% endif %}</td>
-          <td style="padding:11px 16px; text-align:right; font-size:12.5px; color:#f59e0b;">{% if appt.commission_amount %}R {{ appt.commission_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td style="padding:11px 16px; text-align:right; font-size:12.5px; color:#4ade80;">{% if appt.tip_amount %}R {{ appt.tip_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td style="padding:11px 16px; text-align:right; font-size:12.5px; color:#94a3b8;">{% if appt.commission_amount %}R {{ appt.commission_amount|floatformat:2 }}{% else %}—{% endif %}</td>
         </tr>
         {% endfor %}
         </tbody>

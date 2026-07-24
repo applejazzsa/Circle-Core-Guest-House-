@@ -147,6 +147,7 @@ class RoomFormTest(CircleCoreTenantTestCase):
         return {
             "name": name,
             "room_type": "Double",
+            "pricing_model": "per_room",
             "price_per_night": "500.00",
             "booking_types_allowed": ["Daily"],
             "max_guests": 2,

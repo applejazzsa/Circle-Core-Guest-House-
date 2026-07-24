@@ -21,8 +21,8 @@
   .notes { font-size: 11.5px; color: #666; margin-top: 3px; font-style: italic; }
   .status-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
   .status-confirmed { background: #d1fae5; color: #065f46; }
-  .status-pending { background: #fef3c7; color: #92400e; }
-  .status-completed { background: #e0e7ff; color: #3730a3; }
+  .status-pending { background: #1f2430; color: #334155; }
+  .status-completed { background: #16281c; color: #15803d; }
   .summary { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px 20px; margin-bottom: 20px; }
   .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
   .summary-item label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #555; margin-bottom: 3px; }
@@ -90,7 +90,7 @@
       <td style="text-align:right; font-weight:600;">R {{ appt.price_charged|floatformat:0 }}</td>
       <td class="notes-col">
         {% if appt.consultation_notes %}<div style="font-size:11.5px; color:#444;">{{ appt.consultation_notes }}</div>{% endif %}
-        {% if appt.guest.spa_profile.allergies %}<div class="notes" style="color:#b91c1c;">⚠ {{ appt.guest.spa_profile.allergies }}</div>{% endif %}
+        {% if appt.guest.spa_profile.allergies %}<div class="notes" style="color:#334155;">⚠ {{ appt.guest.spa_profile.allergies }}</div>{% endif %}
         {% if appt.guest.spa_profile.pressure_preference %}<div class="notes">Pressure: {{ appt.guest.spa_profile.get_pressure_preference_display }}</div>{% endif %}
       </td>
       <td style="text-align:center;">

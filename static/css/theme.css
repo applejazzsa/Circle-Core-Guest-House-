@@ -27,10 +27,10 @@
   --color-border-bright: #2a3142;
   --color-border-green: rgba(34, 197, 94, 0.3);
 
-  --color-red: #ef4444;
-  --color-amber: #f59e0b;
-  --color-blue: #3b82f6;
-  --color-purple: #8b5cf6;
+  --color-red: #64748b;
+  --color-amber: #94a3b8;
+  --color-blue: #22c55e;
+  --color-purple: #16a34a;
 
   /* ── Typography ── */
   --font-display: 'Inter', sans-serif;
@@ -284,28 +284,28 @@ label {
 }
 
 .btn-danger {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  background: rgba(100, 116, 139, 0.1);
+  border-color: rgba(100, 116, 139, 0.3);
+  color: #64748b;
 }
 
-.btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
+.btn-danger:hover { background: rgba(100, 116, 139, 0.2); }
 
 .btn-amber {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.3);
-  color: #f59e0b;
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
 }
 
-.btn-amber:hover { background: rgba(245, 158, 11, 0.2); }
+.btn-amber:hover { background: rgba(148, 163, 184, 0.2); }
 
 .btn-blue {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #60a5fa;
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #4ade80;
 }
 
-.btn-blue:hover { background: rgba(59, 130, 246, 0.2); }
+.btn-blue:hover { background: rgba(34, 197, 94, 0.2); }
 
 .btn-sm {
   padding: 0.375rem 0.75rem;
@@ -350,12 +350,12 @@ label {
 }
 
 .badge-green { background: var(--color-green-glow); color: var(--color-green-400); border: 1px solid var(--color-green-border); }
-.badge-blue { background: rgba(59,130,246,0.1); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
-.badge-amber { background: rgba(245,158,11,0.1); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
-.badge-red { background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+.badge-blue { background: rgba(34, 197, 94,0.1); color: #4ade80; border: 1px solid rgba(34, 197, 94,0.25); }
+.badge-amber { background: rgba(148, 163, 184,0.1); color: #cbd5e1; border: 1px solid rgba(148, 163, 184,0.25); }
+.badge-red { background: rgba(100, 116, 139,0.1); color: #94a3b8; border: 1px solid rgba(100, 116, 139,0.25); }
 .badge-gray { background: rgba(100,116,139,0.1); color: #94a3b8; border: 1px solid rgba(100,116,139,0.2); }
-.badge-purple { background: rgba(139,92,246,0.1); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); }
-.badge-teal { background: rgba(20,184,166,0.1); color: #2dd4bf; border: 1px solid rgba(20,184,166,0.25); }
+.badge-purple { background: rgba(22, 163, 74,0.1); color: #86efac; border: 1px solid rgba(22, 163, 74,0.25); }
+.badge-teal { background: rgba(74, 222, 128,0.1); color: #4ade80; border: 1px solid rgba(74, 222, 128,0.25); }
 
 /* ── Forms ── */
 .form-label {
@@ -605,15 +605,15 @@ textarea.form-input { resize: vertical; min-height: 100px; }
 }
 
 .avatar-blue {
-  background: rgba(59,130,246,0.1);
-  border: 1px solid rgba(59,130,246,0.25);
-  color: #60a5fa;
+  background: rgba(34, 197, 94,0.1);
+  border: 1px solid rgba(34, 197, 94,0.25);
+  color: #4ade80;
 }
 
 .avatar-purple {
-  background: rgba(139,92,246,0.1);
-  border: 1px solid rgba(139,92,246,0.25);
-  color: #a78bfa;
+  background: rgba(22, 163, 74,0.1);
+  border: 1px solid rgba(22, 163, 74,0.25);
+  color: #86efac;
 }
 
 /* ── Status Indicators ── */
@@ -625,11 +625,11 @@ textarea.form-input { resize: vertical; min-height: 100px; }
 }
 
 .status-dot-green { background: var(--color-green-500); box-shadow: 0 0 6px rgba(34,197,94,0.5); }
-.status-dot-amber { background: #f59e0b; }
-.status-dot-red { background: #ef4444; }
-.status-dot-blue { background: #3b82f6; }
+.status-dot-amber { background: #94a3b8; }
+.status-dot-red { background: #64748b; }
+.status-dot-blue { background: #22c55e; }
 .status-dot-gray { background: #64748b; }
-.status-dot-purple { background: #8b5cf6; }
+.status-dot-purple { background: #16a34a; }
 
 /* ── Filter Pill Row ── */
 .filter-row {
@@ -709,21 +709,21 @@ textarea.form-input { resize: vertical; min-height: 100px; }
 }
 
 .alert-warning {
-  background: rgba(245,158,11,0.08);
-  border: 1px solid rgba(245,158,11,0.2);
-  color: #fbbf24;
+  background: rgba(148, 163, 184,0.08);
+  border: 1px solid rgba(148, 163, 184,0.2);
+  color: #cbd5e1;
 }
 
 .alert-error {
-  background: rgba(239,68,68,0.08);
-  border: 1px solid rgba(239,68,68,0.2);
-  color: #fca5a5;
+  background: rgba(100, 116, 139,0.08);
+  border: 1px solid rgba(100, 116, 139,0.2);
+  color: #cbd5e1;
 }
 
 .alert-info {
-  background: rgba(59,130,246,0.08);
-  border: 1px solid rgba(59,130,246,0.2);
-  color: #93c5fd;
+  background: rgba(34, 197, 94,0.08);
+  border: 1px solid rgba(34, 197, 94,0.2);
+  color: #86efac;
 }
 
 /* ── Two-column detail layout ── */
@@ -764,20 +764,33 @@ textarea.form-input { resize: vertical; min-height: 100px; }
   text-align: right;
 }
 
-/* ── Room Status Colors ── */
-.room-status-available { color: var(--color-green-400); }
-.room-status-occupied { color: #60a5fa; }
-.room-status-cleaning { color: #fbbf24; }
-.room-status-maintenance { color: #f87171; }
-.room-status-blocked { color: #94a3b8; }
+/* ── Room status badges (intentional exception to the green/neutral rule:
+     room tiles use red/orange/blue so housekeeping and front desk can
+     scan room state at a glance) ── */
+.room-status-available { background: var(--color-green-glow); color: var(--color-green-400); border: 1px solid var(--color-green-border); }
+.room-status-occupied { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25); }
+.room-status-cleaning { background: rgba(249, 115, 22, 0.1); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.25); }
+.room-status-maintenance { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); }
+.room-status-blocked { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); }
+.room-status-booked { background: rgba(100, 116, 139, 0.1); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.2); }
+
+.room-dot-occupied { background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.5); }
+.room-dot-cleaning { background: #f97316; box-shadow: 0 0 6px rgba(249,115,22,0.5); }
+.room-dot-maintenance { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
+
+.room-bar-available { background: var(--color-green-500); }
+.room-bar-occupied { background: #3b82f6; }
+.room-bar-cleaning { background: #f97316; }
+.room-bar-maintenance { background: #ef4444; }
+.room-bar-booked { background: #64748b; }
 
 /* ── Booking status badge helpers ── */
-.booking-status-confirmed { background: rgba(59,130,246,0.1); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+.booking-status-confirmed { background: rgba(34, 197, 94,0.1); color: #4ade80; border: 1px solid rgba(34, 197, 94,0.25); }
 .booking-status-checked-in { background: var(--color-green-glow); color: var(--color-green-400); border: 1px solid var(--color-green-border); }
 .booking-status-checked-out { background: rgba(100,116,139,0.1); color: #94a3b8; border: 1px solid rgba(100,116,139,0.2); }
-.booking-status-pending { background: rgba(245,158,11,0.1); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
-.booking-status-cancelled { background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
-.booking-status-no-show { background: rgba(139,92,246,0.1); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); }
+.booking-status-pending { background: rgba(148, 163, 184,0.1); color: #cbd5e1; border: 1px solid rgba(148, 163, 184,0.25); }
+.booking-status-cancelled { background: rgba(100, 116, 139,0.1); color: #94a3b8; border: 1px solid rgba(100, 116, 139,0.25); }
+.booking-status-no-show { background: rgba(22, 163, 74,0.1); color: #86efac; border: 1px solid rgba(22, 163, 74,0.25); }
 
 /* ── Page transition ── */
 .main-content { animation: fadeUp 0.2s ease-out; }
@@ -1498,10 +1511,10 @@ textarea.form-input { resize: vertical; min-height: 100px; }
 /* ── Root additions ── */
 :root {
   --glow-green:  rgba(34,  197, 94,  0.18);
-  --glow-blue:   rgba(59,  130, 246, 0.18);
-  --glow-amber:  rgba(245, 158, 11,  0.18);
-  --glow-red:    rgba(239, 68,  68,  0.18);
-  --glow-purple: rgba(139, 92,  246, 0.18);
+  --glow-blue:   rgba(34, 197, 94, 0.18);
+  --glow-amber:  rgba(148, 163, 184,  0.18);
+  --glow-red:    rgba(100, 116, 139,  0.18);
+  --glow-purple: rgba(22, 163, 74, 0.18);
 
   --gradient-sidebar: linear-gradient(180deg, #0b0d12 0%, #0e1118 50%, #090c11 100%);
   --gradient-card:    linear-gradient(145deg, #161b23 0%, #13161b 100%);
@@ -1640,10 +1653,10 @@ textarea.form-input { resize: vertical; min-height: 100px; }
 
 /* ── Glow badge utilities ── */
 .badge-green  { box-shadow: 0 0 8px rgba(34,197,94,0.15);  }
-.badge-blue   { box-shadow: 0 0 8px rgba(59,130,246,0.15); }
-.badge-amber  { box-shadow: 0 0 8px rgba(245,158,11,0.15); }
-.badge-red    { box-shadow: 0 0 8px rgba(239,68,68,0.15);  }
-.badge-purple { box-shadow: 0 0 8px rgba(139,92,246,0.15); }
+.badge-blue   { box-shadow: 0 0 8px rgba(34, 197, 94,0.15); }
+.badge-amber  { box-shadow: 0 0 8px rgba(148, 163, 184,0.15); }
+.badge-red    { box-shadow: 0 0 8px rgba(100, 116, 139,0.15);  }
+.badge-purple { box-shadow: 0 0 8px rgba(22, 163, 74,0.15); }
 
 /* ── Hero number display ── */
 .hero-number {

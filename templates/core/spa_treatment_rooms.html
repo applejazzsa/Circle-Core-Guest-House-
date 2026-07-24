@@ -18,8 +18,8 @@
       <div class="card" style="padding:0; overflow:hidden;">
         {% for room in rooms %}
         <div style="display:flex; align-items:center; gap:16px; padding:15px 20px; border-bottom:1px solid var(--color-border); {% if not room.is_active %}opacity:0.45;{% endif %}">
-          <div style="width:36px; height:36px; border-radius:var(--radius-md); background:rgba(99,102,241,0.1); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+          <div style="width:36px; height:36px; border-radius:var(--radius-md); background:rgba(74, 222, 128,0.1); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
           </div>
           <div style="flex:1; min-width:0;">
             <div style="font-size:14px; font-weight:600; color:var(--color-text-primary);">{{ room.name }}{% if not room.is_active %} <span style="font-size:10px; color:var(--color-text-tertiary);">(inactive)</span>{% endif %}</div>
@@ -55,7 +55,7 @@
         <div style="margin-bottom:13px;">
           <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-secondary); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.07em;">{{ field.label }}</label>
           {{ field }}
-          {% for error in field.errors %}<p style="font-size:12px; color:#f87171; margin:3px 0 0;">{{ error }}</p>{% endfor %}
+          {% for error in field.errors %}<p style="font-size:12px; color:#94a3b8; margin:3px 0 0;">{{ error }}</p>{% endfor %}
         </div>
         {% endfor %}
         <button type="submit" class="btn btn-primary" style="width:100%; margin-top:6px;">Add Room</button>

@@ -13,21 +13,21 @@
   <tr><td>{% include 'emails/_header.html' %}</td></tr>
 
   <tr><td style="background:#13161b;border:1px solid #1e2433;border-radius:16px;overflow:hidden;">
-    <div style="background:linear-gradient(135deg,#d97706,#f59e0b);height:4px;"></div>
+    <div style="background:linear-gradient(135deg,#64748b,#94a3b8);height:4px;"></div>
 
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:36px;">
       <tr><td>
 
         <!-- Badge -->
         <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;">
-          <tr><td style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:6px 16px;">
-            <span style="font-size:11px;font-weight:700;color:#f59e0b;letter-spacing:1.5px;text-transform:uppercase;">⏳ 5 Days Remaining</span>
+          <tr><td style="background:rgba(148, 163, 184,0.1);border:1px solid rgba(148, 163, 184,0.3);border-radius:8px;padding:6px 16px;">
+            <span style="font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:1.5px;text-transform:uppercase;">⏳ 5 Days Remaining</span>
           </td></tr>
         </table>
 
         <h1 style="margin:0 0 14px;font-size:26px;font-weight:800;color:#f1f5f9;line-height:1.2;letter-spacing:-0.5px;">Your trial expires in 5 days</h1>
         <p style="margin:0 0 24px;font-size:15px;color:#94a3b8;line-height:1.7;">
-          Hi {{ tenant.owner_name }}, your Circle Core trial for <strong style="color:#f1f5f9;">{{ tenant.name }}</strong> expires on <strong style="color:#f59e0b;">{{ subscription.expires_at|date:"d F Y" }}</strong>. Subscribe today to keep everything intact.
+          Hi {{ tenant.owner_name }}, your Circle Core trial for <strong style="color:#f1f5f9;">{{ tenant.name }}</strong> expires on <strong style="color:#94a3b8;">{{ subscription.expires_at|date:"d F Y" }}</strong>. Subscribe today to keep everything intact.
         </p>
 
         <!-- What you keep -->

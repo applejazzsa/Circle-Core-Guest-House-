@@ -6,9 +6,9 @@
     </div>
     <span class="badge
       {% if room.status == 'Available' %}badge-green
-      {% elif room.status == 'Occupied' %}badge-blue
-      {% elif room.status == 'Cleaning' %}badge-amber
-      {% elif room.status == 'Maintenance' %}badge-red
+      {% elif room.status == 'Occupied' %}room-status-occupied
+      {% elif room.status == 'Cleaning' %}room-status-cleaning
+      {% elif room.status == 'Maintenance' or room.status == 'Blocked' %}room-status-maintenance
       {% else %}badge-gray{% endif %}" style="font-size:9px; flex-shrink:0;">{{ room.status }}</span>
   </div>
 
@@ -37,7 +37,7 @@
     <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}">
       {% csrf_token %}
       <input type="hidden" name="cleaning_status" value="In Progress">
-      <button type="submit" class="btn btn-sm" style="background:#3b82f6; color:#fff; border-color:#3b82f6;">Start</button>
+      <button type="submit" class="btn btn-sm" style="background:#22c55e; color:#fff; border-color:#22c55e;">Start</button>
     </form>
     {% endif %}
     {% if room.cleaning_status == "In Progress" %}
@@ -52,7 +52,7 @@
     <form method="post" action="{% url 'core:cleaning_set_status' room.pk %}">
       {% csrf_token %}
       <input type="hidden" name="cleaning_status" value="Needs Cleaning">
-      <button type="submit" class="btn btn-ghost btn-sm" style="border-color:rgba(245,158,11,0.3); color:#f59e0b;">Needs Cleaning</button>
+      <button type="submit" class="btn btn-ghost btn-sm" style="border-color:rgba(148, 163, 184,0.3); color:#94a3b8;">Needs Cleaning</button>
     </form>
     {% endif %}
   </div>

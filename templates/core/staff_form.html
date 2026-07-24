@@ -31,7 +31,7 @@
 
       <!-- Username -->
       <div style="margin-bottom:16px;">
-        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Username <span style="color:#f87171;">*</span></label>
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Username <span style="color:#94a3b8;">*</span></label>
         {% if editing %}
         <div style="display:flex; align-items:center; gap:8px; padding:9px 12px; background:var(--color-bg-muted); border:1px solid var(--color-border); border-radius:var(--radius-md); box-sizing:border-box;">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
@@ -58,7 +58,7 @@
       <div style="margin-bottom:16px;">
         <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Phone Number</label>
         <input type="tel" name="phone_number" value="{{ pin_form.phone_number.value|default:'' }}" placeholder="e.g. 082 123 4567" autocomplete="tel"
-          style="width:100%; background:var(--color-bg-subtle); border:1px solid {% if pin_form.phone_number.errors %}#ef4444{% else %}var(--color-border-bright){% endif %}; border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; box-sizing:border-box;">
+          style="width:100%; background:var(--color-bg-subtle); border:1px solid {% if pin_form.phone_number.errors %}#64748b{% else %}var(--color-border-bright){% endif %}; border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; box-sizing:border-box;">
         {% if pin_form.phone_number.errors %}<div class="form-error">{{ pin_form.phone_number.errors.0 }}</div>{% endif %}
         <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:5px;">Required only when staff PIN login is enabled.</div>
       </div>
@@ -67,7 +67,7 @@
       <div style="margin-bottom:16px;">
         <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">
           {% if editing %}New Password <span style="font-weight:400; color:var(--color-text-tertiary);">(leave blank to keep current)</span>
-          {% else %}Password <span style="color:#f87171;">*</span>{% endif %}
+          {% else %}Password <span style="color:#94a3b8;">*</span>{% endif %}
         </label>
         <div style="position:relative;">
           <input id="staff-password-input" type="password" name="{% if editing %}new_password{% else %}password{% endif %}" {% if not editing %}required{% endif %} placeholder="{% if editing %}Enter new password to change it{% else %}Set a strong password{% endif %}" autocomplete="new-password"
@@ -103,17 +103,17 @@
         <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px;">{% if editing and staff_profile.pin_hash %}Reset PIN{% else %}Set PIN{% endif %}</label>
         <input type="password" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="6" autocomplete="new-password"
           placeholder="{% if editing and staff_profile.pin_hash %}Leave blank to keep the current PIN{% else %}4 to 6 digits{% endif %}"
-          style="width:100%; background:var(--color-bg-elevated); border:1px solid {% if pin_form.pin.errors %}#ef4444{% else %}var(--color-border-bright){% endif %}; border-radius:var(--radius-md); padding:10px 12px; color:var(--color-text-primary); font-family:var(--font-mono); letter-spacing:.18em; box-sizing:border-box;">
+          style="width:100%; background:var(--color-bg-elevated); border:1px solid {% if pin_form.pin.errors %}#64748b{% else %}var(--color-border-bright){% endif %}; border-radius:var(--radius-md); padding:10px 12px; color:var(--color-text-primary); font-family:var(--font-mono); letter-spacing:.18em; box-sizing:border-box;">
         {% if pin_form.pin.errors %}<div class="form-error">{{ pin_form.pin.errors.0 }}</div>{% endif %}
         <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:6px;">PINs are hashed and can never be displayed after saving.</div>
         {% if editing and staff_profile.pin_locked_until %}
-        <div style="margin-top:10px; color:#fbbf24; font-size:12px;">PIN login is temporarily locked until {{ staff_profile.pin_locked_until|date:"d M Y H:i" }}. Saving a new PIN clears the lock.</div>
+        <div style="margin-top:10px; color:#cbd5e1; font-size:12px;">PIN login is temporarily locked until {{ staff_profile.pin_locked_until|date:"d M Y H:i" }}. Saving a new PIN clears the lock.</div>
         {% endif %}
       </div>
 
       <!-- Role -->
       <div style="margin-bottom:{% if editing %}16px{% else %}24px{% endif %};">
-        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:10px; letter-spacing:0.04em;">Role <span style="color:#f87171;">*</span></label>
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:10px; letter-spacing:0.04em;">Role <span style="color:#94a3b8;">*</span></label>
         <div style="display:flex; flex-direction:column; gap:8px;">
           {% for role in roles %}
           <label style="display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md); cursor:pointer; transition:border-color 0.15s;"

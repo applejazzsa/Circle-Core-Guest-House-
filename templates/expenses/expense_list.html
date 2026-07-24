@@ -83,7 +83,7 @@
             <a href="{% url 'core:expense_edit' expense.pk %}" class="btn btn-ghost btn-sm">Edit</a>
             <form method="post" action="{% url 'core:expense_delete' expense.pk %}" style="display:inline;" onsubmit="return confirm('Delete this expense?')">
               {% csrf_token %}
-              <button type="submit" class="btn btn-ghost btn-sm" style="color:#f87171; border-color:rgba(239,68,68,0.2);">Delete</button>
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:#94a3b8; border-color:rgba(100, 116, 139,0.2);">Delete</button>
             </form>
           </div>
         </td>

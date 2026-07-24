@@ -8,7 +8,6 @@
   .wrapper { max-width:600px; margin:32px auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.08); }
   .header { background:#0d0f12; padding:28px 32px; }
   .header-logo { display:inline-flex; align-items:center; gap:10px; }
-  .header-icon { width:36px; height:36px; background:#22c55e; border-radius:8px; display:flex; align-items:center; justify-content:center; }
   .header-name { color:#f1f5f9; font-size:16px; font-weight:700; letter-spacing:-0.02em; }
   .header-sub { color:#64748b; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; }
   .body { padding:32px; }
@@ -27,23 +26,16 @@
   .divider { border:none; border-top:1px solid #e2e8f0; margin:24px 0; }
   .badge { display:inline-block; padding:3px 12px; border-radius:999px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; }
   .badge-green { background:#dcfce7; color:#15803d; }
-  .badge-blue { background:#dbeafe; color:#1d4ed8; }
-  .badge-amber { background:#fef3c7; color:#d97706; }
-  .badge-red { background:#fee2e2; color:#dc2626; }
+  .badge-blue { background:#16281c; color:#16a34a; }
+  .badge-amber { background:#1f2430; color:#64748b; }
+  .badge-red { background:#1f2430; color:#475569; }
 </style>
 </head>
 <body>
 <div class="wrapper">
   <div class="header">
     <div class="header-logo">
-      <div class="header-icon">
-        <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
-          <rect x="9" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
-          <rect x="2" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
-          <rect x="9" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
-        </svg>
-      </div>
+      <img src="https://circlecore.co.za/static/branding/circle-core-icon-master.png" width="36" height="36" alt="Circle Core Guest House" style="width:36px;height:36px;border-radius:8px;display:block;">
       <div>
         <div class="header-name">{{ settings.guest_house_name|default:"Circle Core" }}</div>
         <div class="header-sub">Guest House</div>

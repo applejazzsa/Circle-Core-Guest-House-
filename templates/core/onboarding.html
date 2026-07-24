@@ -1,4 +1,5 @@
 {% extends "base_auth.html" %}
+{% load static %}
 {% block title %}Welcome to Circle Core — Get Started{% endblock %}
 
 {% block content %}
@@ -7,14 +8,7 @@
 
     <!-- Header -->
     <div style="text-align:center; margin-bottom:40px;">
-      <div style="width:64px; height:64px; border-radius:16px; background:var(--color-green-500); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; box-shadow:var(--shadow-green);">
-        <svg width="30" height="30" viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
-          <rect x="9" y="2" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
-          <rect x="2" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.5"/>
-          <rect x="9" y="9" width="5" height="5" rx="1" fill="#000" opacity="0.8"/>
-        </svg>
-      </div>
+      <img src="{% static 'branding/circle-core-icon-master.png' %}" alt="Circle Core" style="width:64px; height:64px; border-radius:16px; margin:0 auto 20px; display:block; box-shadow:var(--shadow-green);">
       <h1 style="font-family:var(--font-display); font-size:28px; font-weight:800; color:var(--color-text-primary); letter-spacing:-0.03em; margin-bottom:10px;">
         Welcome to Circle Core{% if gh_settings %}, {{ gh_settings.guest_house_name }}{% endif %}!
       </h1>

@@ -53,7 +53,7 @@
         </div>
         <div>
           <div class="section-label" style="margin-bottom:4px; font-size:9.5px;">Scheduled</div>
-          <div style="font-size:13.5px; {% if maintenance_request.is_overdue %}color:#f87171; font-weight:600;{% else %}color:var(--color-text-secondary);{% endif %}">{{ maintenance_request.scheduled_for|date:"d M Y"|default:"—" }}</div>
+          <div style="font-size:13.5px; {% if maintenance_request.is_overdue %}color:#94a3b8; font-weight:600;{% else %}color:var(--color-text-secondary);{% endif %}">{{ maintenance_request.scheduled_for|date:"d M Y"|default:"—" }}</div>
         </div>
         <div>
           <div class="section-label" style="margin-bottom:4px; font-size:9.5px;">Room Blocked</div>

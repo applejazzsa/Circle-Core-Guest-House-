@@ -13,7 +13,7 @@
       {% csrf_token %}
 
       <div style="margin-bottom:16px;">
-        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Property Name <span style="color:#f87171;">*</span></label>
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--color-text-secondary); margin-bottom:6px; letter-spacing:0.04em;">Property Name <span style="color:#94a3b8;">*</span></label>
         <input type="text" name="name" value="{{ form_values.name }}" required placeholder="e.g. Main Guest House"
           style="width:100%; background:var(--color-bg-subtle); border:1px solid var(--color-border-bright); border-radius:var(--radius-md); padding:9px 12px; color:var(--color-text-primary); font-size:13.5px; font-family:var(--font-body); box-sizing:border-box;"
           onfocus="this.style.borderColor='var(--color-green-500)'" onblur="this.style.borderColor='var(--color-border-bright)'">

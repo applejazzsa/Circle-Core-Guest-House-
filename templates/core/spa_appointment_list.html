@@ -77,26 +77,26 @@
             {% if appt.status == 'completed' %}
             <span class="badge" style="background:rgba(34,197,94,0.12); color:var(--color-green-400);">Completed</span>
             {% elif appt.status == 'in_progress' %}
-            <span class="badge" style="background:rgba(59,130,246,0.12); color:#60a5fa;">In Progress</span>
+            <span class="badge" style="background:rgba(34, 197, 94,0.12); color:#4ade80;">In Progress</span>
             {% elif appt.status == 'confirmed' %}
             <span class="badge" style="background:rgba(34,197,94,0.08); color:var(--color-green-500);">Confirmed</span>
             {% elif appt.status == 'cancelled' %}
-            <span class="badge" style="background:rgba(239,68,68,0.1); color:#f87171;">Cancelled</span>
+            <span class="badge" style="background:rgba(100, 116, 139,0.1); color:#94a3b8;">Cancelled</span>
             {% elif appt.status == 'no_show' %}
             <span class="badge" style="background:rgba(107,114,128,0.15); color:#9ca3af;">No Show</span>
             {% else %}
-            <span class="badge" style="background:rgba(245,158,11,0.1); color:#fbbf24;">Pending</span>
+            <span class="badge" style="background:rgba(148, 163, 184,0.1); color:#cbd5e1;">Pending</span>
             {% endif %}
           </td>
           <td style="padding:13px 16px; text-align:center;">
             {% if appt.payment_status == 'paid' %}
             <span class="badge" style="background:rgba(34,197,94,0.12); color:var(--color-green-400);">Paid</span>
             {% elif appt.payment_status == 'deposit_paid' %}
-            <span class="badge" style="background:rgba(59,130,246,0.1); color:#60a5fa;">Deposit</span>
+            <span class="badge" style="background:rgba(34, 197, 94,0.1); color:#4ade80;">Deposit</span>
             {% elif appt.payment_status == 'refunded' %}
             <span class="badge" style="background:rgba(107,114,128,0.15); color:#9ca3af;">Refunded</span>
             {% else %}
-            <span class="badge" style="background:rgba(245,158,11,0.1); color:#fbbf24;">Unpaid</span>
+            <span class="badge" style="background:rgba(148, 163, 184,0.1); color:#cbd5e1;">Unpaid</span>
             {% endif %}
           </td>
         </tr>

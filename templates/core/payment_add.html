@@ -31,7 +31,7 @@
   .split-metric { padding:13px 15px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-subtle); }
   .split-metric__label { color:var(--color-text-tertiary); font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
   .split-metric__value { margin-top:4px; color:var(--color-text-primary); font:700 17px var(--font-mono); }
-  .payment-errors { margin-bottom:18px; padding:11px 14px; border:1px solid rgba(239,68,68,.3); border-radius:var(--radius-md); background:rgba(239,68,68,.08); color:#f87171; font-size:12.5px; }
+  .payment-errors { margin-bottom:18px; padding:11px 14px; border:1px solid rgba(100, 116, 139,.3); border-radius:var(--radius-md); background:rgba(100, 116, 139,.08); color:#94a3b8; font-size:12.5px; }
   .payment-actions { display:flex; gap:10px; padding-top:4px; }
   @media (max-width:850px) { .payment-layout { grid-template-columns:1fr; } .payment-stack { display:grid; grid-template-columns:1fr 1fr; } }
   @media (max-width:640px) {
@@ -96,7 +96,7 @@
 
   <section class="card payment-card">
     {% if booking.deposit_required <= 0 %}
-    <div style="margin-bottom:18px; padding:12px 14px; border:1px solid rgba(245,158,11,.3); border-radius:var(--radius-md); background:rgba(245,158,11,.08); color:#fbbf24; font-size:12.5px; line-height:1.5;">
+    <div style="margin-bottom:18px; padding:12px 14px; border:1px solid rgba(148, 163, 184,.3); border-radius:var(--radius-md); background:rgba(148, 163, 184,.08); color:#cbd5e1; font-size:12.5px; line-height:1.5;">
       No deposit requirement is set for this booking. Use <strong>Set &amp; Pay</strong> on the booking summary if you want to collect a deposit; otherwise record a normal payment below.
     </div>
     {% endif %}
@@ -262,7 +262,7 @@
     splitAmounts.forEach(function (input) { total += Number(input.value) || 0; });
     splitTotal.textContent = money(total);
     splitRemaining.textContent = total > balance ? 'Over by ' + money(total - balance) : money(balance - total);
-    splitRemaining.style.color = total > balance ? '#f87171' : 'var(--color-text-primary)';
+    splitRemaining.style.color = total > balance ? '#94a3b8' : 'var(--color-text-primary)';
   }
   modeInputs.forEach(function (input) { input.addEventListener('change', updateMode); });
   if (singleAmount) singleAmount.addEventListener('input', updateSingle);

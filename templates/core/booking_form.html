@@ -197,10 +197,10 @@
   .quick-modal-alert {
     margin-bottom: 14px;
     padding: 10px 12px;
-    border: 1px solid rgba(239,68,68,0.25);
+    border: 1px solid rgba(100, 116, 139,0.25);
     border-radius: 9px;
-    background: rgba(239,68,68,0.08);
-    color: #f87171;
+    background: rgba(100, 116, 139,0.08);
+    color: #94a3b8;
     font-size: 12.5px;
   }
   .quick-modal-note {
@@ -208,9 +208,9 @@
     gap: 9px;
     margin-bottom: 16px;
     padding: 11px 12px;
-    border: 1px solid rgba(59,130,246,0.2);
+    border: 1px solid rgba(34, 197, 94,0.2);
     border-radius: 9px;
-    background: rgba(59,130,246,0.06);
+    background: rgba(34, 197, 94,0.06);
     color: var(--color-text-secondary);
     font-size: 12px;
     line-height: 1.5;
@@ -244,7 +244,7 @@
 </div>
 
 {% if walk_in_mode %}
-<div style="max-width:760px; margin-bottom:16px; padding:12px 16px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:var(--radius-md); display:flex; align-items:center; gap:10px; font-size:13.5px; color:#f59e0b; font-weight:500;">
+<div style="max-width:760px; margin-bottom:16px; padding:12px 16px; background:rgba(148, 163, 184,0.08); border:1px solid rgba(148, 163, 184,0.25); border-radius:var(--radius-md); display:flex; align-items:center; gap:10px; font-size:13.5px; color:#94a3b8; font-weight:500;">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
   Walk-in Mode — check-in date set to today
 </div>
@@ -256,7 +256,7 @@
     {{ form.identity_mode }}
 
     {% if form.non_field_errors %}
-    <div style="margin-bottom:16px; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); font-size:13px; color:#f87171;">
+    <div style="margin-bottom:16px; padding:12px 16px; background:rgba(100, 116, 139,0.08); border:1px solid rgba(100, 116, 139,0.2); border-radius:var(--radius-md); font-size:13px; color:#94a3b8;">
       {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
     </div>
     {% endif %}
@@ -265,7 +265,7 @@
     <div class="card" style="margin-bottom:16px;">
       <div class="section-label" style="margin-bottom:16px;">Booking Type</div>
       <div class="grid-3" style="gap:10px;" id="booking-type-cards">
-        <label class="booking-type-label" style="cursor:pointer; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); background:var(--color-bg-subtle); padding:14px 16px; transition:border-color 0.15s, background 0.15s;">
+        <label class="booking-type-label" id="hourly-type-card" style="cursor:pointer; border-radius:var(--radius-md); border:1px solid var(--color-border-bright); background:var(--color-bg-subtle); padding:14px 16px; transition:border-color 0.15s, background 0.15s;">
           <input type="radio" name="booking_type_mode" value="hourly" style="display:none;" checked>
           <div style="font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--color-text-primary);">Hourly</div>
           <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:3px;">Short stay</div>
@@ -342,7 +342,7 @@
 
       <!-- Number plate panel -->
       <div id="id-panel-plate" style="display:none;">
-        <div style="margin-bottom:14px; padding:11px 14px; background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.22); border-radius:var(--radius-md); font-size:12.5px; color:var(--color-text-secondary); display:flex; align-items:center; gap:8px;">
+        <div style="margin-bottom:14px; padding:11px 14px; background:rgba(148, 163, 184,0.07); border:1px solid rgba(148, 163, 184,0.22); border-radius:var(--radius-md); font-size:12.5px; color:var(--color-text-secondary); display:flex; align-items:center; gap:8px;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           A walk-in record will be created automatically. The vehicle number identifies this booking.
         </div>
@@ -380,6 +380,7 @@
         <div class="form-group">
           <label class="form-label" for="{{ form.num_guests.id_for_label }}">Number of Guests</label>
           {{ form.num_guests }}
+          <div class="form-hint" id="num-guests-hint" style="display:none;"></div>
           {% if form.num_guests.errors %}<div class="form-error">{{ form.num_guests.errors.0 }}</div>{% endif %}
         </div>
       </div>
@@ -477,7 +478,7 @@
     </div>
 
     {% if not is_owner %}
-    <div style="max-width:520px; margin-bottom:14px; padding:12px; border:1px solid rgba(245,158,11,0.25); border-radius:var(--radius-md); background:rgba(245,158,11,0.06);">
+    <div style="max-width:520px; margin-bottom:14px; padding:12px; border:1px solid rgba(148, 163, 184,0.25); border-radius:var(--radius-md); background:rgba(148, 163, 184,0.06);">
       <div class="form-label">Owner Approval For Sensitive Changes</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
         <input name="manager_username" placeholder="Owner username" autocomplete="username">
@@ -519,6 +520,8 @@
   const startTimeInput= document.getElementById('{{ form.booking_start_time.id_for_label }}');
   const endTimeInput  = document.getElementById('{{ form.booking_end_time.id_for_label }}');
   const weeksInput    = document.getElementById('weeks_count');
+  const numGuestsInput = document.getElementById('{{ form.num_guests.id_for_label }}');
+  const numGuestsHint = document.getElementById('num-guests-hint');
   const guestSelect   = document.getElementById('{{ form.guest.id_for_label }}');
   const vregField     = document.getElementById('{{ form.vehicle_registration.id_for_label }}');
   const plateInput    = document.getElementById('plate-input');
@@ -715,9 +718,49 @@
     return DURATIONS_BY_MODE[activeMode()] || DURATIONS_BY_MODE.daily;
   }
 
+  function currentRoomPricing() {
+    const roomId = roomSelect ? roomSelect.value : '';
+    return ROOM_PRICES[roomId] || {};
+  }
+
+  function isPerPersonRoom() {
+    return currentRoomPricing().pricing_model === 'per_person';
+  }
+
   function formattedRate(price) {
     const amount = Number(price || 0);
-    return 'R ' + amount.toFixed(2);
+    return 'R ' + amount.toFixed(2) + (isPerPersonRoom() ? ' /person' : '');
+  }
+
+  function updateGuestFieldForRoom() {
+    const pricing = currentRoomPricing();
+    const hourlyCard = document.getElementById('hourly-type-card');
+    if (hourlyCard) {
+      const isPerPerson = pricing.pricing_model === 'per_person';
+      hourlyCard.style.display = isPerPerson ? 'none' : '';
+      const hourlyRadio = document.querySelector('[name="booking_type_mode"][value="hourly"]');
+      if (isPerPerson && hourlyRadio && hourlyRadio.checked) {
+        const dailyRadio = document.querySelector('[name="booking_type_mode"][value="daily"]');
+        if (dailyRadio) { dailyRadio.checked = true; setMode('daily', true); }
+      }
+    }
+
+    if (!numGuestsInput) return;
+    if (pricing.max_guests) numGuestsInput.max = pricing.max_guests;
+
+    if (!numGuestsHint) return;
+    if (pricing.pricing_model !== 'per_person') {
+      numGuestsHint.style.display = 'none';
+      return;
+    }
+    const rate = Number((rateInput && rateInput.value) || 0);
+    const guests = Math.max(Number(numGuestsInput.value || 1), 1);
+    numGuestsHint.style.display = '';
+    if (rate > 0) {
+      numGuestsHint.textContent = 'Priced per person: R ' + rate.toFixed(2) + ' × ' + guests + ' guest' + (guests === 1 ? '' : 's') + ' × nights = booking total.';
+    } else {
+      numGuestsHint.textContent = 'This room is priced per person. Choose a rate to see the per-guest total.';
+    }
   }
 
   function closeRatePicker() {
@@ -897,7 +940,10 @@
   });
 
   if (roomSelect)    roomSelect.addEventListener('change', populateRateChoices);
+  if (roomSelect)    roomSelect.addEventListener('change', updateGuestFieldForRoom);
   if (rateChoice)    rateChoice.addEventListener('change', applySelectedRate);
+  if (rateChoice)    rateChoice.addEventListener('change', updateGuestFieldForRoom);
+  if (numGuestsInput) numGuestsInput.addEventListener('input', updateGuestFieldForRoom);
   if (ratePickerButton) {
     ratePickerButton.addEventListener('click', function() {
       const opening = !ratePickerMenu.classList.contains('is-open');
@@ -949,6 +995,7 @@
     if (daily) daily.checked = true;
   }
   setMode(activeMode(), false);
+  updateGuestFieldForRoom();
   setIdentityMode('{{ form.identity_mode.value|default:"walk_in"|escapejs }}');
   if (plateInput && plateInput.value) plateInput.dispatchEvent(new Event('input'));
 

@@ -39,22 +39,22 @@
     <div class="section-label" style="margin-bottom:8px;">Total Revenue</div>
     <div class="num" style="font-size:26px;">{{ guest_house_settings.currency|default:"R" }} {{ total_revenue }}</div>
   </div>
-  <div class="card" style="border-top:3px solid #ef4444; padding:20px;">
+  <div class="card" style="border-top:3px solid #64748b; padding:20px;">
     <div class="section-label" style="margin-bottom:8px;">Total Expenses</div>
     <div class="num" style="font-size:26px;">{{ guest_house_settings.currency|default:"R" }} {{ total_expenses }}</div>
   </div>
-  <div class="card" style="border-top:3px solid {% if net_profit >= 0 %}var(--color-green-500){% else %}#ef4444{% endif %}; padding:20px;">
+  <div class="card" style="border-top:3px solid {% if net_profit >= 0 %}var(--color-green-500){% else %}#64748b{% endif %}; padding:20px;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
       <div class="section-label">Net Profit</div>
       {% if net_profit >= 0 %}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-green-400)" stroke-width="2.5"><path d="M7 17 17 7M8 7h9v9"/></svg>
       {% else %}
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5"><path d="M7 7l10 10M17 8v9H8"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5"><path d="M7 7l10 10M17 8v9H8"/></svg>
       {% endif %}
     </div>
-    <div class="num" style="font-size:26px; color:{% if net_profit >= 0 %}var(--color-green-400){% else %}#f87171{% endif %};">{{ guest_house_settings.currency|default:"R" }} {{ net_profit }}</div>
+    <div class="num" style="font-size:26px; color:{% if net_profit >= 0 %}var(--color-green-400){% else %}#94a3b8{% endif %};">{{ guest_house_settings.currency|default:"R" }} {{ net_profit }}</div>
   </div>
-  <div class="card" style="border-top:3px solid #8b5cf6; padding:20px;">
+  <div class="card" style="border-top:3px solid #16a34a; padding:20px;">
     <div class="section-label" style="margin-bottom:8px;">Occupancy Rate</div>
     <div class="num" style="font-size:26px;">{{ occupancy_rate }}%</div>
   </div>
@@ -218,7 +218,7 @@
         labels: revenueByWeek.map(function(d) { return d.label; }),
         datasets: [
           { label: "Revenue", data: revenueByWeek.map(function(d) { return d.revenue; }), backgroundColor: "#22c55e", borderRadius: 5 },
-          { label: "Expenses", data: expensesByWeek.map(function(d) { return d.expenses; }), backgroundColor: "#ef4444", borderRadius: 5 }
+          { label: "Expenses", data: expensesByWeek.map(function(d) { return d.expenses; }), backgroundColor: "#64748b", borderRadius: 5 }
         ]
       },
       options: {
@@ -235,7 +235,7 @@
       type: "doughnut",
       data: {
         labels: bookingSources.map(function(d) { return d.source; }),
-        datasets: [{ data: bookingSources.map(function(d) { return d.count; }), backgroundColor: ["#22c55e","#3b82f6","#f59e0b","#8b5cf6","#ef4444","#06b6d4"], borderColor: "#13161b", borderWidth: 3 }]
+        datasets: [{ data: bookingSources.map(function(d) { return d.count; }), backgroundColor: ["#22c55e","#4ade80","#16a34a","#86efac","#15803d","#94a3b8"], borderColor: "#13161b", borderWidth: 3 }]
       },
       options: { maintainAspectRatio: false, responsive: true, cutout: "62%", plugins: { legend: { display: false } } }
     });

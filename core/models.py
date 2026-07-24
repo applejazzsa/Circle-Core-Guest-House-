@@ -144,7 +144,13 @@ class Room(models.Model):
         ("Twin", "Twin"),
         ("Family", "Family"),
         ("Suite", "Suite"),
+        ("En-Suite", "En-Suite"),
         ("Self-Catering", "Self-Catering"),
+        ("Dormitory", "Dormitory"),
+    ]
+    PRICING_MODEL_CHOICES = [
+        ("per_room", "Per Room"),
+        ("per_person", "Per Person"),
     ]
     STATUS_CHOICES = [
         ("Available", "Available"),
@@ -170,6 +176,7 @@ class Room(models.Model):
     )
     name = models.CharField(max_length=150)
     room_type = models.CharField(max_length=20, choices=ROOM_TYPE_CHOICES)
+    pricing_model = models.CharField(max_length=20, choices=PRICING_MODEL_CHOICES, default="per_room")
     price_1_hour = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_2_hours = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_3_hours = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -222,9 +229,13 @@ class Room(models.Model):
             "daily": getattr(settings_obj, "default_price_per_night", None) if settings_obj else None,
             "24_hours": getattr(settings_obj, "default_price_24_hours", None) if settings_obj else None,
         }
-        default_price = default_prices.get(duration_type)
-        if default_price is not None and default_price > 0:
-            return default_price
+        # Per-person rooms are always priced from their own configured rate — a
+        # property-wide "default nightly rate" is a per-room fallback and would
+        # silently replace a per-head rate with an unrelated flat-room amount.
+        if self.pricing_model != "per_person":
+            default_price = default_prices.get(duration_type)
+            if default_price is not None and default_price > 0:
+                return default_price
 
         prices = {
             "1_hour": self.price_1_hour,
@@ -232,12 +243,16 @@ class Room(models.Model):
             "3_hours": self.price_3_hours,
             "5_hours": self.price_5_hours,
             "daily": self.price_per_night,
-            "24_hours": getattr(settings_obj, "default_price_24_hours", None) if settings_obj else None,
+            # No per-room field backs "24 hours" — it only has a property-wide rate,
+            # which isn't a meaningful concept for a per-person room.
+            "24_hours": (None if self.pricing_model == "per_person" else (getattr(settings_obj, "default_price_24_hours", None) if settings_obj else None)),
             "weekly": self.price_per_week,
         }
         price = prices.get(duration_type)
         if price is not None:
             return price
+        if self.pricing_model == "per_person":
+            return None
         return default_prices.get(duration_type)
 
 
@@ -475,6 +490,9 @@ class Booking(models.Model):
         raise ValueError("Could not generate a unique booking reference.")
 
     def compute_totals(self):
+        guests = Decimal(self.num_guests or 1)
+        is_per_person = bool(self.room_id and self.room.pricing_model == "per_person")
+        guest_multiplier = guests if is_per_person else Decimal("1")
         if self.is_hourly:
             if self.check_in_date:
                 self.check_out_date = self.check_in_date
@@ -482,7 +500,8 @@ class Booking(models.Model):
             duration_price = self.room.get_price_for_duration(self.booking_duration_type) if self.room_id else None
             if duration_price is not None:
                 self.rate_per_night = duration_price
-            self.total_amount = max((self.rate_per_night or Decimal("0.00")) - self.discount, Decimal("0.00"))
+            subtotal = (self.rate_per_night or Decimal("0.00")) * guest_multiplier
+            self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
         elif self.check_in_date and self.check_out_date:
             nights = max((self.check_out_date - self.check_in_date).days, 0)
             if self.booking_duration_type == "weekly":
@@ -493,17 +512,17 @@ class Booking(models.Model):
                     weekly_rate = self.rate_per_night * Decimal("7")
                 weeks = Decimal(nights) / Decimal("7")
                 self.rate_per_night = weekly_rate
-                self.total_amount = max((weeks * weekly_rate) - self.discount, Decimal("0.00"))
+                subtotal = weeks * weekly_rate * guest_multiplier
+                self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
             elif self.booking_duration_type == "24_hours":
                 duration_price = self.room.get_price_for_duration(self.booking_duration_type) if self.room_id else None
                 if duration_price is not None:
                     self.rate_per_night = duration_price
-                self.total_amount = max((self.rate_per_night * nights) - self.discount, Decimal("0.00"))
+                subtotal = self.rate_per_night * nights * guest_multiplier
+                self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
             else:
-                self.total_amount = max(
-                    (self.rate_per_night * nights) - self.discount,
-                    Decimal("0.00"),
-                )
+                subtotal = self.rate_per_night * nights * guest_multiplier
+                self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
         if self.pk and self.payments.exists():
             payment_totals = self.payment_totals()
             self.deposit_paid = payment_totals["deposit_paid"]

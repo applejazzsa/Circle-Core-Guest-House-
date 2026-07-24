@@ -92,7 +92,7 @@
     <form method="post" id="quick-checkin-form" novalidate>
       {% csrf_token %}
       {% if form.non_field_errors %}
-      <div style="margin-bottom:16px; padding:13px 16px; border:1px solid rgba(239,68,68,.3); border-radius:var(--radius-md); background:rgba(239,68,68,.08); color:#f87171; font-size:13px;">{{ form.non_field_errors.0 }}</div>
+      <div style="margin-bottom:16px; padding:13px 16px; border:1px solid rgba(100, 116, 139,.3); border-radius:var(--radius-md); background:rgba(100, 116, 139,.08); color:#94a3b8; font-size:13px;">{{ form.non_field_errors.0 }}</div>
       {% endif %}
 
       <div class="card" style="margin-bottom:16px;">
@@ -139,7 +139,7 @@
             </span>
           </label>
           {% empty %}
-          <div style="grid-column:1/-1; color:#f87171;">No rates are configured for this room.</div>
+          <div style="grid-column:1/-1; color:#94a3b8;">No rates are configured for this room.</div>
           {% endfor %}
         </div>
         {% if form.duration.errors %}<div class="form-error" style="margin-top:8px;">{{ form.duration.errors.0 }}</div>{% endif %}

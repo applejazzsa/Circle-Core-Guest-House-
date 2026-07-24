@@ -11,37 +11,37 @@
 
 <div class="kanban-board">
   <!-- Needs Cleaning -->
-  <div class="kanban-col" style="border-top-color:#f59e0b;">
+  <div class="kanban-col" style="border-top-color:#94a3b8;">
     <div class="kanban-col-header">
       <div>
-        <div style="font-weight:700; color:#f59e0b; font-size:13px; text-transform:uppercase; letter-spacing:0.06em;">Needs Cleaning</div>
+        <div style="font-weight:700; color:#94a3b8; font-size:13px; text-transform:uppercase; letter-spacing:0.06em;">Needs Cleaning</div>
         <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">{{ needs_cleaning_rooms|length }} room{{ needs_cleaning_rooms|length|pluralize }}</div>
       </div>
-      <div style="background:rgba(245,158,11,0.12); border-radius:999px; padding:2px 10px; font-family:var(--font-mono); font-size:11px; color:#f59e0b; font-weight:600;">{{ needs_cleaning_rooms|length }}</div>
+      <div style="background:rgba(148, 163, 184,0.12); border-radius:999px; padding:2px 10px; font-family:var(--font-mono); font-size:11px; color:#94a3b8; font-weight:600;">{{ needs_cleaning_rooms|length }}</div>
     </div>
     <div style="padding:12px; display:flex; flex-direction:column; gap:10px;">
       {% for room in needs_cleaning_rooms %}
         {% include "partials/cleaning_room_card.html" with room=room column="needs_cleaning" %}
       {% empty %}
-      <div style="border:1px dashed rgba(245,158,11,0.25); border-radius:var(--radius-md); padding:28px 16px; text-align:center; font-size:12.5px; color:var(--color-text-tertiary);">No rooms need cleaning</div>
+      <div style="border:1px dashed rgba(148, 163, 184,0.25); border-radius:var(--radius-md); padding:28px 16px; text-align:center; font-size:12.5px; color:var(--color-text-tertiary);">No rooms need cleaning</div>
       {% endfor %}
     </div>
   </div>
 
   <!-- In Progress -->
-  <div class="kanban-col" style="border-top-color:#3b82f6;">
+  <div class="kanban-col" style="border-top-color:#22c55e;">
     <div class="kanban-col-header">
       <div>
-        <div style="font-weight:700; color:#60a5fa; font-size:13px; text-transform:uppercase; letter-spacing:0.06em;">In Progress</div>
+        <div style="font-weight:700; color:#4ade80; font-size:13px; text-transform:uppercase; letter-spacing:0.06em;">In Progress</div>
         <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">{{ in_progress_rooms|length }} room{{ in_progress_rooms|length|pluralize }}</div>
       </div>
-      <div style="background:rgba(59,130,246,0.12); border-radius:999px; padding:2px 10px; font-family:var(--font-mono); font-size:11px; color:#60a5fa; font-weight:600;">{{ in_progress_rooms|length }}</div>
+      <div style="background:rgba(34, 197, 94,0.12); border-radius:999px; padding:2px 10px; font-family:var(--font-mono); font-size:11px; color:#4ade80; font-weight:600;">{{ in_progress_rooms|length }}</div>
     </div>
     <div style="padding:12px; display:flex; flex-direction:column; gap:10px;">
       {% for room in in_progress_rooms %}
         {% include "partials/cleaning_room_card.html" with room=room column="in_progress" %}
       {% empty %}
-      <div style="border:1px dashed rgba(59,130,246,0.25); border-radius:var(--radius-md); padding:28px 16px; text-align:center; font-size:12.5px; color:var(--color-text-tertiary);">No cleaning in progress</div>
+      <div style="border:1px dashed rgba(34, 197, 94,0.25); border-radius:var(--radius-md); padding:28px 16px; text-align:center; font-size:12.5px; color:var(--color-text-tertiary);">No cleaning in progress</div>
       {% endfor %}
     </div>
   </div>

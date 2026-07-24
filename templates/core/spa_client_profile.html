@@ -20,7 +20,7 @@
           <div style="margin-bottom:14px;">
             <label style="display:block; font-size:11px; font-weight:600; color:var(--color-text-secondary); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.07em;">{{ field.label }}</label>
             {{ field }}
-            {% for error in field.errors %}<p style="font-size:12px; color:#f87171; margin:3px 0 0;">{{ error }}</p>{% endfor %}
+            {% for error in field.errors %}<p style="font-size:12px; color:#94a3b8; margin:3px 0 0;">{{ error }}</p>{% endfor %}
           </div>
           {% endfor %}
           <button type="submit" class="btn btn-primary" style="margin-top:8px;">Save Profile</button>
@@ -42,7 +42,7 @@
             <div style="font-size:13px; font-weight:700; color:var(--color-text-primary);">R {{ appt.price_charged|floatformat:2 }}</div>
             <div style="font-size:11px; margin-top:2px;
               {% if appt.status == 'completed' %}color:var(--color-green-400);
-              {% elif appt.status == 'cancelled' %}color:#f87171;
+              {% elif appt.status == 'cancelled' %}color:#94a3b8;
               {% else %}color:var(--color-text-tertiary);{% endif %}">
               {{ appt.get_status_display }}
             </div>
@@ -85,7 +85,7 @@
       <div class="card" style="padding:20px;">
         <h3 style="font-size:12px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.08em; margin:0 0 12px;">Consultation Notes</h3>
         {% if profile.allergies %}<div style="margin-bottom:8px;"><div style="font-size:10.5px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:2px;">Allergies</div><div style="font-size:12.5px; color:var(--color-text-primary);">{{ profile.allergies }}</div></div>{% endif %}
-        {% if profile.contraindications %}<div style="margin-bottom:8px;"><div style="font-size:10.5px; font-weight:700; color:#f87171; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:2px;">Contraindications</div><div style="font-size:12.5px; color:var(--color-text-primary);">{{ profile.contraindications }}</div></div>{% endif %}
+        {% if profile.contraindications %}<div style="margin-bottom:8px;"><div style="font-size:10.5px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:2px;">Contraindications</div><div style="font-size:12.5px; color:var(--color-text-primary);">{{ profile.contraindications }}</div></div>{% endif %}
         {% if profile.pressure_preference %}<div style="margin-bottom:8px;"><div style="font-size:10.5px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:2px;">Pressure</div><div style="font-size:12.5px; color:var(--color-text-primary);">{{ profile.get_pressure_preference_display }}</div></div>{% endif %}
         {% if profile.skin_type %}<div style="margin-bottom:8px;"><div style="font-size:10.5px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:2px;">Skin Type</div><div style="font-size:12.5px; color:var(--color-text-primary);">{{ profile.skin_type }}</div></div>{% endif %}
         {% if profile.general_notes %}<div><div style="font-size:10.5px; font-weight:700; color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:2px;">Notes</div><div style="font-size:12.5px; color:var(--color-text-primary); line-height:1.5;">{{ profile.general_notes }}</div></div>{% endif %}

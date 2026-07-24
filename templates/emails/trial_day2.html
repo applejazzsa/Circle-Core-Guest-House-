@@ -13,7 +13,7 @@
   <tr><td>{% include 'emails/_header.html' %}</td></tr>
 
   <tr><td style="background:#13161b;border:1px solid #1e2433;border-radius:16px;overflow:hidden;">
-    <div style="background:linear-gradient(135deg,#b91c1c,#ef4444);height:4px;"></div>
+    <div style="background:linear-gradient(135deg,#334155,#64748b);height:4px;"></div>
 
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:40px 36px;">
       <tr><td>
@@ -21,7 +21,7 @@
         <!-- Countdown -->
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
           <tr><td align="center">
-            <div style="font-size:80px;font-weight:900;color:#f87171;line-height:1;letter-spacing:-4px;">48</div>
+            <div style="font-size:80px;font-weight:900;color:#94a3b8;line-height:1;letter-spacing:-4px;">48</div>
             <div style="font-size:14px;font-weight:600;color:#64748b;margin-top:6px;letter-spacing:2px;text-transform:uppercase;">Hours Remaining</div>
           </td></tr>
         </table>
@@ -30,25 +30,25 @@
           Don't lose access to {{ tenant.name }}
         </h1>
         <p style="margin:0 0 28px;font-size:15px;color:#94a3b8;line-height:1.7;text-align:center;">
-          Hi {{ tenant.owner_name }}, your trial ends on <strong style="color:#f87171;">{{ subscription.expires_at|date:"d F Y" }}</strong>. Subscribe now to avoid any disruption.
+          Hi {{ tenant.owner_name }}, your trial ends on <strong style="color:#94a3b8;">{{ subscription.expires_at|date:"d F Y" }}</strong>. Subscribe now to avoid any disruption.
         </p>
 
         <!-- CTA -->
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
           <tr><td align="center">
-            <a href="{{ login_url }}" style="display:inline-block;background:#ef4444;color:#fff;font-size:16px;font-weight:700;padding:16px 48px;border-radius:10px;text-decoration:none;">
+            <a href="{{ login_url }}" style="display:inline-block;background:#64748b;color:#fff;font-size:16px;font-weight:700;padding:16px 48px;border-radius:10px;text-decoration:none;">
               Secure My Account — R {{ subscription.plan.monthly_price|floatformat:0 }}/mo
             </a>
           </td></tr>
         </table>
 
         <!-- What happens next -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:10px;margin-bottom:24px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:rgba(100, 116, 139,0.06);border:1px solid rgba(100, 116, 139,0.2);border-radius:10px;margin-bottom:24px;">
           <tr><td style="padding:18px 22px;">
-            <div style="font-size:11px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">What happens after your trial ends</div>
+            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">What happens after your trial ends</div>
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr><td style="padding:4px 0;font-size:13px;color:#94a3b8;"><span style="color:#f59e0b;margin-right:6px;">→</span> Days 1–5: <strong style="color:#f1f5f9;">Grace period</strong> — full access with a warning banner</td></tr>
-              <tr><td style="padding:4px 0;font-size:13px;color:#94a3b8;"><span style="color:#f87171;margin-right:6px;">→</span> After 5 days: <strong style="color:#f1f5f9;">Read-only mode</strong> — view your data, no new records</td></tr>
+              <tr><td style="padding:4px 0;font-size:13px;color:#94a3b8;"><span style="color:#94a3b8;margin-right:6px;">→</span> Days 1–5: <strong style="color:#f1f5f9;">Grace period</strong> — full access with a warning banner</td></tr>
+              <tr><td style="padding:4px 0;font-size:13px;color:#94a3b8;"><span style="color:#94a3b8;margin-right:6px;">→</span> After 5 days: <strong style="color:#f1f5f9;">Read-only mode</strong> — view your data, no new records</td></tr>
               <tr><td style="padding:4px 0;font-size:13px;color:#94a3b8;"><span style="color:#22c55e;margin-right:6px;">→</span> Subscribe anytime to restore full access instantly</td></tr>
             </table>
           </td></tr>

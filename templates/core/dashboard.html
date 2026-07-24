@@ -51,21 +51,21 @@
 
 <!-- ── Row 1: Room metrics ─────────────────────────────── -->
 {% if can_manage_system %}
-<div class="owner-watch-card card" style="margin-bottom:20px; padding:16px 20px; border-left:3px solid {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#f59e0b{% else %}var(--color-green-500){% endif %}; border-color: {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}rgba(245,158,11,0.3){% else %}rgba(34,197,94,0.25){% endif %};">
+<div class="owner-watch-card card" style="margin-bottom:20px; padding:16px 20px; border-left:3px solid {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#94a3b8{% else %}var(--color-green-500){% endif %}; border-color: {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}rgba(148, 163, 184,0.3){% else %}rgba(34,197,94,0.25){% endif %};">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
     <div style="display:flex; align-items:center; gap:14px; flex:1; min-width:0;">
-      <div style="width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:{% if owner_exception_count or owner_refund_count or owner_open_shift_count %}rgba(245,158,11,0.1){% else %}rgba(34,197,94,0.1){% endif %}; border:1px solid {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}rgba(245,158,11,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#f59e0b{% else %}#22c55e{% endif %}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.4 9.4-8 10-4.6-.6-8-5-8-10V6l8-4z"/></svg>
+      <div style="width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:{% if owner_exception_count or owner_refund_count or owner_open_shift_count %}rgba(148, 163, 184,0.1){% else %}rgba(34,197,94,0.1){% endif %}; border:1px solid {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}rgba(148, 163, 184,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#94a3b8{% else %}#22c55e{% endif %}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.4 9.4-8 10-4.6-.6-8-5-8-10V6l8-4z"/></svg>
       </div>
       <div style="min-width:0;">
-        <div class="section-label" style="margin-bottom:2px; color:{% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#f59e0b{% else %}var(--color-green-500){% endif %};">Owner Watch</div>
+        <div class="section-label" style="margin-bottom:2px; color:{% if owner_exception_count or owner_refund_count or owner_open_shift_count %}#94a3b8{% else %}var(--color-green-500){% endif %};">Owner Watch</div>
         <div style="font-size:13px; color:var(--color-text-secondary); line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
           {% if owner_exception_count or owner_refund_count or owner_open_shift_count %}
           {{ owner_exception_count }} exception{{ owner_exception_count|pluralize }}, {{ owner_refund_count }} refund{{ owner_refund_count|pluralize }}, {{ owner_open_shift_count }} open shift{{ owner_open_shift_count|pluralize }} today —
           {% else %}
           No risky activity flagged today —
           {% endif %}
-          {% if owner_locked_today %}<span style="color:var(--color-green-400); font-weight:700;">Daily close is locked.</span>{% else %}<span style="color:#f59e0b; font-weight:700;">Daily close is still open.</span>{% endif %}
+          {% if owner_locked_today %}<span style="color:var(--color-green-400); font-weight:700;">Daily close is locked.</span>{% else %}<span style="color:#94a3b8; font-weight:700;">Daily close is still open.</span>{% endif %}
         </div>
       </div>
     </div>
@@ -90,10 +90,10 @@
     <div class="metric-sub">rooms configured</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:#ef4444; --glow-clr:var(--glow-red); --accent-border:rgba(239,68,68,0.3);">
+  <div class="metric-card" style="--accent-color:#64748b; --glow-clr:var(--glow-red); --accent-border:rgba(100, 116, 139,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div class="metric-label">Booked</div>
-      <div class="metric-icon" style="--icon-from:rgba(239,68,68,0.2); --icon-to:rgba(239,68,68,0.05); --icon-border:rgba(239,68,68,0.3); --icon-color:#f87171;">
+      <div class="metric-icon" style="--icon-from:rgba(100, 116, 139,0.2); --icon-to:rgba(100, 116, 139,0.05); --icon-border:rgba(100, 116, 139,0.3); --icon-color:#94a3b8;">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </div>
     </div>
@@ -101,10 +101,10 @@
     <div class="metric-sub">confirmed reservations</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:var(--color-blue); --glow-clr:var(--glow-blue); --accent-border:rgba(59,130,246,0.3);">
+  <div class="metric-card" style="--accent-color:var(--color-blue); --glow-clr:var(--glow-blue); --accent-border:rgba(34, 197, 94,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div class="metric-label">Occupied</div>
-      <div class="metric-icon" style="--icon-from:rgba(59,130,246,0.2); --icon-to:rgba(59,130,246,0.05); --icon-border:rgba(59,130,246,0.3); --icon-color:#60a5fa;">
+      <div class="metric-icon" style="--icon-from:rgba(34, 197, 94,0.2); --icon-to:rgba(34, 197, 94,0.05); --icon-border:rgba(34, 197, 94,0.3); --icon-color:#4ade80;">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
       </div>
     </div>
@@ -123,10 +123,10 @@
     <div class="metric-sub">of {{ total_rooms }} total</div>
   </div>
 
-  <a href="{% url 'core:cleaning' %}" class="metric-card" style="--accent-color:var(--color-amber); --glow-clr:var(--glow-amber); --accent-border:rgba(245,158,11,0.3); text-decoration:none;">
+  <a href="{% url 'core:cleaning' %}" class="metric-card" style="--accent-color:var(--color-amber); --glow-clr:var(--glow-amber); --accent-border:rgba(148, 163, 184,0.3); text-decoration:none;">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div class="metric-label">Needs Cleaning</div>
-      <div class="metric-icon" style="--icon-from:rgba(245,158,11,0.2); --icon-to:rgba(245,158,11,0.05); --icon-border:rgba(245,158,11,0.3); --icon-color:#fbbf24;">
+      <div class="metric-icon" style="--icon-from:rgba(148, 163, 184,0.2); --icon-to:rgba(148, 163, 184,0.05); --icon-border:rgba(148, 163, 184,0.3); --icon-color:#cbd5e1;">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6v14m8-14v14M5 20h14"/></svg>
       </div>
     </div>
@@ -144,23 +144,23 @@
     <div class="metric-sub">collected payments</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:{% if outstanding_balances > 0 %}var(--color-red){% else %}var(--color-green-500){% endif %}; --glow-clr:{% if outstanding_balances > 0 %}var(--glow-red){% else %}var(--glow-green){% endif %}; --accent-border:{% if outstanding_balances > 0 %}rgba(239,68,68,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
+  <div class="metric-card" style="--accent-color:{% if outstanding_balances > 0 %}var(--color-red){% else %}var(--color-green-500){% endif %}; --glow-clr:{% if outstanding_balances > 0 %}var(--glow-red){% else %}var(--glow-green){% endif %}; --accent-border:{% if outstanding_balances > 0 %}rgba(100, 116, 139,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
     <div class="metric-label">Outstanding</div>
-    <div class="metric-value" style="font-size:1.85rem; margin-top:12px; {% if outstanding_balances > 0 %}-webkit-text-fill-color:#f87171; color:#f87171;{% endif %}">
+    <div class="metric-value" style="font-size:1.85rem; margin-top:12px; {% if outstanding_balances > 0 %}-webkit-text-fill-color:#94a3b8; color:#94a3b8;{% endif %}">
       {{ guest_house_settings.currency|default:"R" }} {{ outstanding_balances }}
     </div>
     <div class="metric-sub">{% if outstanding_balances > 0 %}requires collection{% else %}all settled{% endif %}</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:var(--color-blue); --glow-clr:var(--glow-blue); --accent-border:rgba(59,130,246,0.3);">
+  <div class="metric-card" style="--accent-color:var(--color-blue); --glow-clr:var(--glow-blue); --accent-border:rgba(34, 197, 94,0.3);">
     <div class="metric-label">Bookings This Month</div>
     <div class="metric-value" style="margin-top:12px;">{{ bookings_this_month }}</div>
     <div class="metric-sub">active arrivals</div>
   </div>
 
-  <div class="metric-card" style="--accent-color:var(--color-purple); --glow-clr:var(--glow-purple); --accent-border:rgba(139,92,246,0.3);">
+  <div class="metric-card" style="--accent-color:var(--color-purple); --glow-clr:var(--glow-purple); --accent-border:rgba(22, 163, 74,0.3);">
     <div class="metric-label">Occupancy Rate</div>
-    <div class="metric-value" style="margin-top:12px; -webkit-text-fill-color:#a78bfa; color:#a78bfa;">{{ occupancy_rate }}%</div>
+    <div class="metric-value" style="margin-top:12px; -webkit-text-fill-color:#86efac; color:#86efac;">{{ occupancy_rate }}%</div>
     <div class="metric-sub">month to date</div>
   </div>
 </div>
@@ -227,10 +227,10 @@
           {% for booking in todays_checkouts %}
           <div style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:10px; margin-bottom:8px;">
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-              <div class="avatar avatar-sm" style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); color:#fbbf24; font-size:11px;">{{ booking.guest.first_name|first }}{{ booking.guest.last_name|first }}</div>
+              <div class="avatar avatar-sm" style="background:rgba(148, 163, 184,0.1); border:1px solid rgba(148, 163, 184,0.25); color:#cbd5e1; font-size:11px;">{{ booking.guest.first_name|first }}{{ booking.guest.last_name|first }}</div>
               <div style="min-width:0;">
                 <div style="font-size:12.5px; font-weight:500; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ booking.guest.full_name }}</div>
-                <div style="font-size:11px; color:{% if booking.balance_due > 0 %}#f87171{% else %}var(--color-text-tertiary){% endif %};">
+                <div style="font-size:11px; color:{% if booking.balance_due > 0 %}#94a3b8{% else %}var(--color-text-tertiary){% endif %};">
                   {% if booking.balance_due > 0 %}R {{ booking.balance_due|floatformat:2 }} due{% else %}Settled{% endif %}
                 </div>
               </div>
@@ -313,7 +313,7 @@
           <div style="font-size:13px; font-weight:500; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ booking.guest.full_name }}</div>
           <div style="font-size:11px; color:var(--color-text-tertiary);">{{ booking.room.name }} · {{ booking.status }}</div>
         </div>
-        <div style="font-family:var(--font-body); font-size:13px; font-weight:600; color:#f87171; flex-shrink:0;">R {{ booking.balance_due|floatformat:2 }}</div>
+        <div style="font-family:var(--font-body); font-size:13px; font-weight:600; color:#94a3b8; flex-shrink:0;">R {{ booking.balance_due|floatformat:2 }}</div>
       </a>
       {% endfor %}
     </div>
@@ -338,7 +338,7 @@
               <div style="font-size:12.5px; font-weight:500; color:var(--color-text-primary); display:flex; align-items:center; gap:6px;">
                 {{ room.name }}
                 {% if room.has_urgent_maintenance %}
-                <span style="color:#f87171;" title="Urgent maintenance">
+                <span style="color:#94a3b8;" title="Urgent maintenance">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 </span>
                 {% endif %}
@@ -347,16 +347,16 @@
             </div>
             <span class="badge
               {% if room.status == 'Available' %}badge-green
-              {% elif room.status == 'Booked' %}badge-red
-              {% elif room.status == 'Occupied' %}badge-blue
-              {% elif room.status == 'Cleaning' %}badge-amber
-              {% elif room.status == 'Maintenance' %}badge-red
+              {% elif room.status == 'Booked' %}room-status-booked
+              {% elif room.status == 'Occupied' %}room-status-occupied
+              {% elif room.status == 'Cleaning' %}room-status-cleaning
+              {% elif room.status == 'Maintenance' or room.status == 'Blocked' %}room-status-maintenance
               {% else %}badge-gray{% endif %}" style="font-size:10px; padding:2px 8px;">
               {{ room.status }}
             </span>
           </div>
           <div style="display:flex; align-items:center; gap:5px; margin-top:6px;">
-            <span class="status-dot {% if room.cleaning_status == 'Clean' %}status-dot-green{% elif room.cleaning_status == 'Needs Cleaning' %}status-dot-amber{% else %}status-dot-blue{% endif %}" style="width:5px; height:5px;"></span>
+            <span class="status-dot {% if room.cleaning_status == 'Clean' %}status-dot-green{% elif room.cleaning_status == 'Needs Cleaning' %}room-dot-cleaning{% else %}room-dot-occupied{% endif %}" style="width:5px; height:5px;"></span>
             <span style="font-size:10px; color:var(--color-text-tertiary);">{{ room.cleaning_status }}</span>
           </div>
         </a>
@@ -378,7 +378,7 @@
       </div>
       <div style="font-size:12px; color:var(--color-text-tertiary); margin-bottom:12px;">{{ open_maintenance_count }} open request{{ open_maintenance_count|pluralize }}</div>
       {% for req in urgent_maintenance_requests %}
-      <a href="{% url 'core:maintenance_detail' req.pk %}" style="display:block; background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-md); padding:10px; margin-bottom:6px; text-decoration:none;">
+      <a href="{% url 'core:maintenance_detail' req.pk %}" style="display:block; background:rgba(100, 116, 139,0.06); border:1px solid rgba(100, 116, 139,0.2); border-radius:var(--radius-md); padding:10px; margin-bottom:6px; text-decoration:none;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
           <span style="font-size:12.5px; font-weight:500; color:var(--color-text-primary);">{{ req.title }}</span>
           <span class="badge badge-red" style="font-size:9px;">{{ req.get_priority_display }}</span>
@@ -412,7 +412,7 @@
       {% for item in low_stock_inventory_items %}
       <a href="{% url 'core:inventory_detail' item.pk %}" style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--color-border); text-decoration:none;">
         <span style="font-size:12.5px; color:var(--color-text-secondary);">{{ item.name }}</span>
-        <span style="font-family:var(--font-mono); font-size:11px; color:#fbbf24;">{{ item.current_stock|floatformat:0 }} {{ item.unit }}</span>
+        <span style="font-family:var(--font-mono); font-size:11px; color:#cbd5e1;">{{ item.current_stock|floatformat:0 }} {{ item.unit }}</span>
       </a>
       {% empty %}
       <div style="font-size:12px; color:var(--color-green-400); text-align:center; padding:8px 0;">All levels healthy</div>

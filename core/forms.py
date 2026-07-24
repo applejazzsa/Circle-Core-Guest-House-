@@ -251,6 +251,7 @@ class RoomForm(forms.ModelForm):
         fields = [
             "name",
             "room_type",
+            "pricing_model",
             "price_per_night",
             "price_per_week",
             "price_1_hour",
@@ -422,6 +423,8 @@ class BookingForm(forms.ModelForm):
 
         if num_guests is not None and num_guests < 1:
             raise forms.ValidationError("Number of guests must be at least 1.")
+        if num_guests and room and num_guests > room.max_guests:
+            self.add_error("num_guests", f"{room.name} sleeps a maximum of {room.max_guests} guest{'s' if room.max_guests != 1 else ''}.")
         if discount < 0:
             raise forms.ValidationError("Discount cannot be negative.")
         if deposit_required < 0:
@@ -463,16 +466,18 @@ class BookingForm(forms.ModelForm):
                 candidate.booking_end_time = cleaned_data.get("booking_end_time")
                 candidate.status = cleaned_data.get("status") or "Pending"
                 candidate.rate_per_night = cleaned_data.get("rate_per_night") or configured_rate
+                candidate.num_guests = num_guests or 1
                 candidate.discount = discount
                 candidate.deposit_required = deposit_required
+                guest_multiplier = Decimal(num_guests or 1) if room.pricing_model == "per_person" else Decimal("1")
                 if duration_type in ["1_hour", "2_hours", "3_hours", "5_hours"]:
-                    subtotal = configured_rate
+                    subtotal = configured_rate * guest_multiplier
                 else:
                     nights = max((candidate.check_out_date - candidate.check_in_date).days, 0)
                     if duration_type == "weekly":
-                        subtotal = configured_rate * (Decimal(nights) / Decimal("7"))
+                        subtotal = configured_rate * (Decimal(nights) / Decimal("7")) * guest_multiplier
                     else:
-                        subtotal = configured_rate * nights
+                        subtotal = configured_rate * nights * guest_multiplier
                 candidate.compute_totals()
                 if discount > subtotal:
                     raise forms.ValidationError("Discount cannot be bigger than the booking subtotal.")

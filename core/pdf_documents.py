@@ -94,16 +94,18 @@ def _response(buffer, filename):
 
 
 def _quantity_label(booking):
+    is_per_person = bool(booking.room_id and booking.room.pricing_model == "per_person")
+    guest_suffix = f" × {booking.num_guests} guests" if is_per_person and booking.num_guests > 1 else ""
     if booking.is_hourly:
-        return booking.duration_label
+        return booking.duration_label + guest_suffix
     if booking.booking_duration_type == "weekly":
         weeks = max((Decimal(booking.num_nights) / Decimal("7")), Decimal("1.00"))
-        return f"{weeks.normalize()} week" + ("" if weeks == 1 else "s")
+        return f"{weeks.normalize()} week" + ("" if weeks == 1 else "s") + guest_suffix
     if booking.booking_duration_type == "24_hours":
         quantity = max(booking.num_nights, 1)
-        return f"{quantity} x 24-hour"
+        return f"{quantity} x 24-hour" + guest_suffix
     quantity = max(booking.num_nights, 1)
-    return f"{quantity} night" + ("" if quantity == 1 else "s")
+    return f"{quantity} night" + ("" if quantity == 1 else "s") + guest_suffix
 
 
 def render_booking_invoice_pdf(booking, settings, payment_totals, vat_amount=Decimal("0.00")):

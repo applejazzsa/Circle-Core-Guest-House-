@@ -79,7 +79,7 @@
         <td style="font-family:var(--font-mono); font-size:13px; color:var(--color-text-primary); font-weight:500;">{{ guest_house_settings.currency|default:"R" }} {{ booking.total_amount|floatformat:2 }}</td>
         <td>
           {% if booking.balance_due > 0 %}
-          <span style="font-family:var(--font-mono); font-size:13px; color:#f87171; font-weight:500;">{{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due|floatformat:2 }}</span>
+          <span style="font-family:var(--font-mono); font-size:13px; color:#94a3b8; font-weight:500;">{{ guest_house_settings.currency|default:"R" }} {{ booking.balance_due|floatformat:2 }}</span>
           {% else %}
           <span style="font-size:12px; color:var(--color-green-400);">Settled</span>
           {% endif %}

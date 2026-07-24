@@ -30,7 +30,7 @@
 
   {% if messages %}
   {% for msg in messages %}
-  <div style="margin-bottom:16px; padding:11px 16px; background:{% if 'error' in msg.tags %}rgba(239,68,68,0.08){% else %}rgba(34,197,94,0.08){% endif %}; border:1px solid {% if 'error' in msg.tags %}rgba(239,68,68,0.25){% else %}rgba(34,197,94,0.25){% endif %}; border-radius:var(--radius-md); font-size:13px; color:{% if 'error' in msg.tags %}#f87171{% else %}var(--color-green-400){% endif %};">{{ msg }}</div>
+  <div style="margin-bottom:16px; padding:11px 16px; background:{% if 'error' in msg.tags %}rgba(100, 116, 139,0.08){% else %}rgba(34,197,94,0.08){% endif %}; border:1px solid {% if 'error' in msg.tags %}rgba(100, 116, 139,0.25){% else %}rgba(34,197,94,0.25){% endif %}; border-radius:var(--radius-md); font-size:13px; color:{% if 'error' in msg.tags %}#94a3b8{% else %}var(--color-green-400){% endif %};">{{ msg }}</div>
   {% endfor %}
   {% endif %}
 
@@ -132,10 +132,10 @@
           {% for field in svc_form %}
           <div style="margin-bottom:12px;">
             <label style="display:block; font-size:10px; font-weight:600; color:var(--color-text-secondary); margin-bottom:4px; text-transform:uppercase; letter-spacing:.07em;">
-              {{ field.label }}{% if field.field.required %} <span style="color:#f87171;">*</span>{% endif %}
+              {{ field.label }}{% if field.field.required %} <span style="color:#94a3b8;">*</span>{% endif %}
             </label>
             {{ field }}
-            {% for e in field.errors %}<p style="font-size:11px; color:#f87171; margin:3px 0 0;">{{ e }}</p>{% endfor %}
+            {% for e in field.errors %}<p style="font-size:11px; color:#94a3b8; margin:3px 0 0;">{{ e }}</p>{% endfor %}
           </div>
           {% endfor %}
           <button type="submit" class="btn btn-primary" style="width:100%; margin-top:10px;">Add Service</button>
@@ -164,7 +164,7 @@
                 {% if thr.specialties %} · {{ thr.specialties|truncatechars:40 }}{% endif %}
               </div>
             </div>
-            <div style="font-size:12px; font-weight:700; color:#fbbf24; flex-shrink:0;">{{ thr.commission_pct }}% commission</div>
+            <div style="font-size:12px; font-weight:700; color:#cbd5e1; flex-shrink:0;">{{ thr.commission_pct }}% commission</div>
             <button type="button" class="btn btn-ghost btn-sm thr-edit-toggle" data-pk="{{ thr.pk }}">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
@@ -224,10 +224,10 @@
           {% for field in therapist_form %}
           <div style="margin-bottom:12px;">
             <label style="display:block;font-size:10px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em;">
-              {{ field.label }}{% if field.field.required %} <span style="color:#f87171;">*</span>{% endif %}
+              {{ field.label }}{% if field.field.required %} <span style="color:#94a3b8;">*</span>{% endif %}
             </label>
             {{ field }}
-            {% for e in field.errors %}<p style="font-size:11px;color:#f87171;margin:3px 0 0;">{{ e }}</p>{% endfor %}
+            {% for e in field.errors %}<p style="font-size:11px;color:#94a3b8;margin:3px 0 0;">{{ e }}</p>{% endfor %}
           </div>
           {% endfor %}
           <button type="submit" class="btn btn-primary" style="width:100%;margin-top:10px;">Add Therapist</button>
@@ -246,8 +246,8 @@
         {% for room in rooms %}
         <div style="background:var(--color-bg-elevated); border:1px solid var(--color-border); border-radius:var(--radius-md); margin-bottom:8px; overflow:hidden; {% if not room.is_active %}opacity:.5;{% endif %}">
           <div style="display:flex; align-items:center; gap:14px; padding:14px 16px;">
-            <div style="width:36px; height:36px; border-radius:var(--radius-md); background:rgba(99,102,241,0.1); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <div style="width:36px; height:36px; border-radius:var(--radius-md); background:rgba(74, 222, 128,0.1); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </div>
             <div style="flex:1;">
               <div style="font-size:13.5px; font-weight:600; color:var(--color-text-primary);">{{ room.name }}{% if not room.is_active %} <span style="font-size:10px;color:var(--color-text-tertiary);font-weight:400;">(inactive)</span>{% endif %}</div>
@@ -300,10 +300,10 @@
           {% for field in room_form %}
           <div style="margin-bottom:12px;">
             <label style="display:block;font-size:10px;font-weight:600;color:var(--color-text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em;">
-              {{ field.label }}{% if field.field.required %} <span style="color:#f87171;">*</span>{% endif %}
+              {{ field.label }}{% if field.field.required %} <span style="color:#94a3b8;">*</span>{% endif %}
             </label>
             {{ field }}
-            {% for e in field.errors %}<p style="font-size:11px;color:#f87171;margin:3px 0 0;">{{ e }}</p>{% endfor %}
+            {% for e in field.errors %}<p style="font-size:11px;color:#94a3b8;margin:3px 0 0;">{{ e }}</p>{% endfor %}
           </div>
           {% endfor %}
           <button type="submit" class="btn btn-primary" style="width:100%;margin-top:10px;">Add Room</button>

@@ -1,83 +1,381 @@
 {% extends "base_auth.html" %}
+{% load static %}
 {% block title %}Sign in to Circle Core Guest House{% endblock %}
 
+{% block extra_head %}
+<style>
+  .auth-shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    background: var(--color-bg-base);
+  }
+
+  /* ── Left brand panel ── */
+  .auth-brand {
+    position: relative;
+    overflow: hidden;
+    padding: 56px 64px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background: radial-gradient(120% 90% at 0% 0%, #101a14 0%, #0b0d12 46%, #0a0c10 100%);
+    border-right: 1px solid var(--color-border);
+  }
+
+  .auth-brand::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 42px 42px;
+    -webkit-mask-image: radial-gradient(80% 70% at 30% 20%, #000 0%, transparent 75%);
+    mask-image: radial-gradient(80% 70% at 30% 20%, #000 0%, transparent 75%);
+    pointer-events: none;
+  }
+
+  .auth-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(64px);
+    pointer-events: none;
+    opacity: 0.55;
+  }
+
+  .auth-orb-1 {
+    width: 420px; height: 420px;
+    top: -140px; left: -100px;
+    background: radial-gradient(circle, rgba(34,197,94,0.35), transparent 70%);
+    animation: orb-drift-a 22s ease-in-out infinite;
+  }
+
+  .auth-orb-2 {
+    width: 360px; height: 360px;
+    bottom: -160px; right: -80px;
+    background: radial-gradient(circle, rgba(34, 197, 94,0.22), transparent 70%);
+    animation: orb-drift-b 26s ease-in-out infinite;
+  }
+
+  .auth-orb-3 {
+    width: 260px; height: 260px;
+    bottom: 30%; left: 12%;
+    background: radial-gradient(circle, rgba(22, 163, 74,0.16), transparent 70%);
+    animation: orb-drift-a 30s ease-in-out infinite reverse;
+  }
+
+  @keyframes orb-drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(30px, 24px) scale(1.08); }
+  }
+
+  @keyframes orb-drift-b {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-26px, -20px) scale(1.06); }
+  }
+
+  .auth-brand-mark {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+
+  .auth-brand-mark-icon {
+    width: 38px; height: 38px;
+    border-radius: 11px;
+    background: var(--color-green-500);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 24px rgba(34,197,94,0.35), 0 0 8px rgba(34,197,94,0.2);
+    flex-shrink: 0;
+  }
+
+  .auth-brand-mark-text { font-family: var(--font-display); font-weight: 800; font-size: 15px; letter-spacing: -0.01em; color: var(--color-text-primary); line-height: 1.2; }
+  .auth-brand-mark-sub { font-size: 10.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-text-tertiary); }
+
+  .auth-brand-body { position: relative; max-width: 440px; }
+
+  .auth-eyebrow {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--color-green-400);
+    background: var(--color-green-glow);
+    border: 1px solid var(--color-green-border);
+    border-radius: var(--radius-full);
+    padding: 5px 13px;
+    margin-bottom: 22px;
+  }
+
+  .auth-headline {
+    font-family: var(--font-display);
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.12;
+    color: var(--color-text-primary);
+    margin-bottom: 16px;
+  }
+
+  .auth-headline em {
+    font-style: normal;
+    background: linear-gradient(135deg, var(--color-green-400) 0%, var(--color-green-500) 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  .auth-subcopy {
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--color-text-secondary);
+    max-width: 380px;
+  }
+
+  .auth-feature-list { position: relative; display: flex; flex-direction: column; gap: 16px; margin-top: 40px; }
+
+  .auth-feature {
+    display: flex; align-items: flex-start; gap: 12px;
+    font-size: 13.5px; color: var(--color-text-secondary);
+  }
+
+  .auth-feature-icon {
+    width: 26px; height: 26px; flex-shrink: 0; margin-top: 1px;
+    border-radius: 8px;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border-bright);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--color-green-400);
+  }
+
+  .auth-brand-footer {
+    position: relative;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11.5px; color: var(--color-text-tertiary);
+    padding-top: 28px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  /* ── Right form panel ── */
+  .auth-form-panel {
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px 24px;
+    position: relative;
+  }
+
+  .auth-form-wrap { width: 100%; max-width: 400px; }
+
+  .auth-form-header { text-align: center; margin-bottom: 26px; }
+
+  .auth-mobile-mark {
+    display: block;
+    width: 52px; height: 52px; border-radius: 13px;
+    margin: 0 auto 18px;
+    box-shadow: var(--shadow-green);
+    object-fit: contain;
+  }
+
+  @media (min-width: 1024px) { .auth-mobile-mark { display: none; } }
+
+  .auth-form-eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--color-text-tertiary); margin-bottom: 8px;
+  }
+
+  .auth-form-title {
+    font-family: var(--font-display); font-size: 1.6rem; font-weight: 800;
+    letter-spacing: -0.03em; color: var(--color-text-primary); margin: 0;
+  }
+
+  .auth-form-hint { font-size: 12.5px; color: var(--color-text-tertiary); margin-top: 8px; }
+
+  .auth-card {
+    position: relative;
+    padding: 26px;
+    border-radius: var(--radius-xl);
+    background: var(--gradient-card);
+    border: 1px solid var(--color-border-bright);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.04) inset;
+    overflow: hidden;
+  }
+
+  .auth-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--color-green-500), transparent);
+    opacity: 0.7;
+  }
+
+  .auth-input-icon {
+    position: absolute; left: 13px; top: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    width: 15px;
+    color: var(--color-text-tertiary);
+    pointer-events: none;
+    line-height: 0;
+  }
+
+  .auth-input-icon svg { display: block; }
+
+  .auth-input-wrap { position: relative; }
+  .auth-input-wrap .form-input { padding-left: 38px; }
+
+  .auth-footnote {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    font-size: 11.5px; color: var(--color-text-tertiary);
+    margin-top: 22px;
+  }
+
+  .auth-page-footer {
+    text-align: center; font-size: 11.5px; color: var(--color-text-tertiary);
+    margin-top: 26px;
+  }
+
+  /* ── Responsive overrides (kept last so they win the cascade) ── */
+  @media (max-width: 1023px) {
+    .auth-shell { grid-template-columns: 1fr; }
+    .auth-brand { display: none; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<main style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:var(--color-bg-base);">
-  <div style="width:100%; max-width:420px;">
-    <div style="text-align:center; margin-bottom:28px;">
+<div class="auth-shell">
+
+  <!-- Brand panel -->
+  <aside class="auth-brand">
+    <div class="auth-orb auth-orb-1"></div>
+    <div class="auth-orb auth-orb-2"></div>
+    <div class="auth-orb auth-orb-3"></div>
+
+    <div class="auth-brand-mark">
       {% if guest_house_settings.logo %}
-      <img src="{{ guest_house_settings.logo.url }}" alt="{{ guest_house_settings.guest_house_name }}" style="width:56px; height:56px; border-radius:12px; object-fit:contain; margin:0 auto 14px; display:block;">
+      <img src="{{ guest_house_settings.logo.url }}" alt="{{ guest_house_settings.guest_house_name }}" style="width:38px; height:38px; border-radius:11px; object-fit:contain;">
       {% else %}
-      <div style="width:56px; height:56px; border-radius:13px; background:var(--color-green-500); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; box-shadow:var(--shadow-green);">
-        <svg width="26" height="26" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" fill="#000" opacity=".8"/><rect x="9" y="2" width="5" height="5" rx="1" fill="#000" opacity=".5"/><rect x="2" y="9" width="5" height="5" rx="1" fill="#000" opacity=".5"/><rect x="9" y="9" width="5" height="5" rx="1" fill="#000" opacity=".8"/></svg>
-      </div>
+      <img src="{% static 'branding/circle-core-icon-master.png' %}" alt="Circle Core" style="width:38px; height:38px; border-radius:11px;">
       {% endif %}
-      <h1 style="font-family:var(--font-display); font-size:22px; font-weight:800; color:var(--color-text-primary); letter-spacing:-.03em; margin:0;">Sign in to Circle Core Guest House</h1>
-      <p style="font-size:12.5px; color:var(--color-text-tertiary); margin-top:7px;">Choose the sign-in method provided by your administrator.</p>
+      <div>
+        <div class="auth-brand-mark-text">{{ guest_house_settings.guest_house_name|default:"Circle Core" }}</div>
+        <div class="auth-brand-mark-sub">Guest House</div>
+      </div>
     </div>
 
-    <div class="card" style="padding:24px;">
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; padding:4px; border-radius:var(--radius-md); background:var(--color-bg-subtle); margin-bottom:20px;">
-        <button type="button" id="email-tab" onclick="showLogin('email')" style="border:0; border-radius:7px; padding:10px 8px; cursor:pointer; font-size:12.5px; font-weight:700;">Email Login</button>
-        <button type="button" id="pin-tab" onclick="showLogin('pin')" style="border:0; border-radius:7px; padding:10px 8px; cursor:pointer; font-size:12.5px; font-weight:700;">Staff PIN Login</button>
-      </div>
+    <div class="auth-brand-body">
+      <span class="auth-eyebrow"><span class="status-dot status-dot-green"></span>All systems operational</span>
+      <h1 class="auth-headline">Run your property like <em>clockwork</em>.</h1>
+      <p class="auth-subcopy">Bookings, guests, housekeeping, and revenue — one calm, precise dashboard built for South African guest houses.</p>
 
-      {% if login_failed %}
-      <div role="alert" style="margin-bottom:18px; padding:11px 14px; background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.22); border-radius:var(--radius-md); font-size:13px; color:#f87171;">
-        Unable to sign in with those details.
+      <div class="auth-feature-list">
+        <div class="auth-feature">
+          <span class="auth-feature-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          Real-time rooms, bookings &amp; availability
+        </div>
+        <div class="auth-feature">
+          <span class="auth-feature-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          Automated payments &amp; reconciliation
+        </div>
+        <div class="auth-feature">
+          <span class="auth-feature-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          Role-based access for owners &amp; staff
+        </div>
       </div>
+    </div>
+
+    <div class="auth-brand-footer">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Secured with encrypted sessions &amp; role-based access control
+    </div>
+  </aside>
+
+  <!-- Form panel -->
+  <main class="auth-form-panel">
+    <div class="auth-form-wrap">
+
+      {% if guest_house_settings.logo %}
+      <img src="{{ guest_house_settings.logo.url }}" alt="{{ guest_house_settings.guest_house_name }}" class="auth-mobile-mark">
+      {% else %}
+      <img src="{% static 'branding/circle-core-icon-master.png' %}" alt="Circle Core" class="auth-mobile-mark">
       {% endif %}
 
-      <section id="email-panel">
-        <form method="post" autocomplete="on">
-          {% csrf_token %}
-          <input type="hidden" name="login_method" value="email">
-          <input type="hidden" name="next" value="{{ next }}">
-          <div class="form-group">
-            <label class="form-label" for="id_username">Email or Username</label>
-            <input class="form-input" type="text" name="username" id="id_username" value="{{ email_form.username.value|default:'' }}" required autocomplete="username" {% if login_method != 'pin' %}autofocus{% endif %}>
-          </div>
-          <div class="form-group" style="margin-bottom:22px;">
-            <label class="form-label" for="id_password">Password</label>
-            <input class="form-input" type="password" name="password" id="id_password" required autocomplete="current-password">
-          </div>
-          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; min-height:44px;">Sign In</button>
-        </form>
-        <div style="text-align:center; margin-top:15px;"><a href="{% url 'password_reset' %}" style="font-size:12.5px; color:var(--color-text-secondary); text-decoration:none;">Forgot password?</a></div>
-      </section>
+      <div class="auth-form-header">
+        <div class="auth-form-eyebrow">Circle Core Guest House</div>
+        <h2 class="auth-form-title">Welcome back</h2>
+        <p class="auth-form-hint">Choose the sign-in method provided by your administrator.</p>
+      </div>
 
-      <section id="pin-panel" style="display:none;">
-        <form method="post" autocomplete="on">
-          {% csrf_token %}
-          <input type="hidden" name="login_method" value="pin">
-          <input type="hidden" name="next" value="{{ next }}">
-          <div class="form-group">
-            <label class="form-label" for="id_phone_number">Phone Number</label>
-            <input class="form-input" type="tel" name="phone_number" id="id_phone_number" value="{{ pin_form.phone_number.value|default:'' }}" required autocomplete="tel" inputmode="tel" placeholder="082 123 4567">
-          </div>
-          <div class="form-group" style="margin-bottom:22px;">
-            <label class="form-label" for="id_pin">PIN</label>
-            <input class="form-input" type="password" name="pin" id="id_pin" required minlength="4" maxlength="6" pattern="[0-9]{4,6}" autocomplete="current-password" inputmode="numeric" placeholder="4–6 digits" style="font-family:var(--font-mono); font-size:20px; letter-spacing:.22em; text-align:center;">
-          </div>
-          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; min-height:48px;">Sign In with PIN</button>
-        </form>
-        <p style="font-size:11.5px; line-height:1.5; color:var(--color-text-tertiary); text-align:center; margin-top:14px;">After five unsuccessful attempts, PIN login is locked for 15 minutes. Contact the owner if you need your PIN reset.</p>
-      </section>
+      <div class="auth-card">
+        <div class="tab-nav" style="margin-bottom:20px;">
+          <button type="button" id="email-tab" class="tab-btn" onclick="showLogin('email')">Email Login</button>
+          <button type="button" id="pin-tab" class="tab-btn" onclick="showLogin('pin')">Staff PIN Login</button>
+        </div>
+
+        {% if login_failed %}
+        <div class="alert alert-error" role="alert" style="margin-bottom:18px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          Unable to sign in with those details.
+        </div>
+        {% endif %}
+
+        <section id="email-panel">
+          <form method="post" autocomplete="on">
+            {% csrf_token %}
+            <input type="hidden" name="login_method" value="email">
+            <input type="hidden" name="next" value="{{ next }}">
+            <div class="form-group">
+              <label class="form-label" for="id_username">Email or Username</label>
+              <div class="auth-input-wrap">
+                <span class="auth-input-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span>
+                <input class="form-input" type="text" name="username" id="id_username" value="{{ email_form.username.value|default:'' }}" required autocomplete="username" {% if login_method != 'pin' %}autofocus{% endif %}>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:22px;">
+              <label class="form-label" for="id_password">Password</label>
+              <div class="auth-input-wrap">
+                <span class="auth-input-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+                <input class="form-input" type="password" name="password" id="id_password" required autocomplete="current-password">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; min-height:44px;">Sign In</button>
+          </form>
+          <div style="text-align:center; margin-top:15px;"><a href="{% url 'password_reset' %}" style="font-size:12.5px; color:var(--color-text-secondary); text-decoration:none;">Forgot password?</a></div>
+        </section>
+
+        <section id="pin-panel" style="display:none;">
+          <form method="post" autocomplete="on">
+            {% csrf_token %}
+            <input type="hidden" name="login_method" value="pin">
+            <input type="hidden" name="next" value="{{ next }}">
+            <div class="form-group">
+              <label class="form-label" for="id_phone_number">Phone Number</label>
+              <div class="auth-input-wrap">
+                <span class="auth-input-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
+                <input class="form-input" type="tel" name="phone_number" id="id_phone_number" value="{{ pin_form.phone_number.value|default:'' }}" required autocomplete="tel" inputmode="tel" placeholder="082 123 4567">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:22px;">
+              <label class="form-label" for="id_pin">PIN</label>
+              <input class="form-input" type="password" name="pin" id="id_pin" required minlength="4" maxlength="6" pattern="[0-9]{4,6}" autocomplete="current-password" inputmode="numeric" placeholder="4–6 digits" style="font-family:var(--font-mono); font-size:20px; letter-spacing:.22em; text-align:center;">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; min-height:48px;">Sign In with PIN</button>
+          </form>
+          <p style="font-size:11.5px; line-height:1.5; color:var(--color-text-tertiary); text-align:center; margin-top:14px;">After five unsuccessful attempts, PIN login is locked for 15 minutes. Contact the owner if you need your PIN reset.</p>
+        </section>
+      </div>
+
+      <div class="auth-footnote">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Your session is encrypted end-to-end
+      </div>
+      <div class="auth-page-footer">Circle Core Guest House · A product of Circle Core Technologies (Pty) Ltd</div>
     </div>
-  </div>
-</main>
+  </main>
+</div>
 
 <script>
 function showLogin(method) {
   const pin = method === 'pin';
   document.getElementById('email-panel').style.display = pin ? 'none' : '';
   document.getElementById('pin-panel').style.display = pin ? '' : 'none';
-  const active = 'var(--color-green-500)';
-  const inactive = 'transparent';
-  document.getElementById('email-tab').style.background = pin ? inactive : active;
-  document.getElementById('email-tab').style.color = pin ? 'var(--color-text-secondary)' : '#07110a';
-  document.getElementById('pin-tab').style.background = pin ? active : inactive;
-  document.getElementById('pin-tab').style.color = pin ? '#07110a' : 'var(--color-text-secondary)';
+  document.getElementById('email-tab').classList.toggle('active', !pin);
+  document.getElementById('pin-tab').classList.toggle('active', pin);
   if (pin) document.getElementById('id_phone_number').focus();
 }
 showLogin('{{ login_method|default:"email" }}');

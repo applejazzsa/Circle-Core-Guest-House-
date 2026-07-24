@@ -45,7 +45,7 @@
   }
 
   .days-number {
-    color: {% if subscription.days_remaining <= 7 %}#f87171{% elif subscription.days_remaining <= 14 %}#f59e0b{% else %}var(--color-green-400){% endif %};
+    color: {% if subscription.days_remaining <= 7 %}#94a3b8{% elif subscription.days_remaining <= 14 %}#94a3b8{% else %}var(--color-green-400){% endif %};
     font-family: var(--font-body);
     font-size: 44px;
     font-weight: 800;
@@ -161,7 +161,7 @@
       <div class="section-label">Days Remaining</div>
       <div class="days-number">{{ subscription.days_remaining }}</div>
       <div style="height:7px; background:var(--color-bg-subtle); border-radius:999px; overflow:hidden;">
-        <div style="height:100%; width:{{ progress_pct }}%; background:{% if subscription.days_remaining <= 7 %}#ef4444{% elif subscription.days_remaining <= 14 %}#f59e0b{% else %}var(--color-green-500){% endif %}; border-radius:999px; transition:width 0.3s;"></div>
+        <div style="height:100%; width:{{ progress_pct }}%; background:{% if subscription.days_remaining <= 7 %}#64748b{% elif subscription.days_remaining <= 14 %}#94a3b8{% else %}var(--color-green-500){% endif %}; border-radius:999px; transition:width 0.3s;"></div>
       </div>
     </div>
   </div>
