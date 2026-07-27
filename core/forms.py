@@ -254,6 +254,7 @@ class RoomForm(forms.ModelForm):
             "room_category",
             "rate_plan",
             "pricing_model",
+            "booking_mode",
             "price_per_night",
             "price_per_week",
             "price_1_hour",
@@ -277,6 +278,9 @@ class RoomForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.prop is None and self.instance and self.instance.pk:
             self.prop = self.instance.prop
+        settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
+        if not (settings_obj and settings_obj.shared_capacity_booking_enabled):
+            self.fields.pop("booking_mode", None)
         for field_name, field in self.fields.items():
             if field_name == "booking_types_allowed":
                 field.widget.attrs.update({"class": "room-checkbox"})

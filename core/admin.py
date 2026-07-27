@@ -166,10 +166,10 @@ class RoomTypeAdmin(admin.ModelAdmin):
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
     list_display = [
-        "name", "room_type", "room_category", "rate_plan",
+        "name", "room_type", "room_category", "rate_plan", "booking_mode",
         "price_per_night", "price_per_week", "max_guests", "status", "cleaning_status",
     ]
-    list_filter = ["room_type", "room_category", "rate_plan", "status", "cleaning_status"]
+    list_filter = ["room_type", "room_category", "rate_plan", "booking_mode", "status", "cleaning_status"]
     search_fields = ["name", "description"]
     list_editable = ["status", "cleaning_status"]
 

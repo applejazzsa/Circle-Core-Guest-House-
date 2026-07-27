@@ -142,6 +142,92 @@ class RoomModelTest(CircleCoreTenantTestCase):
         self.assertEqual(room.price_per_night, Decimal("750"))
 
 
+class SharedCapacityFeatureFlagTest(CircleCoreTenantTestCase):
+    def test_new_tenant_defaults_to_feature_disabled(self):
+        # A freshly created settings row simulates a brand-new tenant that has
+        # never touched this setting.
+        settings_obj = GuestHouseSettings.objects.create()
+        self.assertFalse(settings_obj.shared_capacity_booking_enabled)
+
+    def test_existing_tenant_defaults_to_feature_disabled(self):
+        # This test's own tenant schema was migrated from scratch, like every
+        # pre-existing tenant that has never opted in.
+        settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+        self.assertFalse(settings_obj.shared_capacity_booking_enabled)
+
+    def test_existing_room_defaults_to_whole_room(self):
+        room = make_room()
+        self.assertEqual(room.booking_mode, "WHOLE_ROOM")
+
+    def test_whole_room_effective_when_feature_disabled(self):
+        settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+        settings_obj.shared_capacity_booking_enabled = False
+        settings_obj.save()
+
+        room = make_room()
+        room.booking_mode = "SHARED_CAPACITY"
+        room.save()
+
+        self.assertEqual(room.effective_booking_mode, "WHOLE_ROOM")
+
+    def test_shared_capacity_effective_only_when_tenant_feature_enabled(self):
+        room = make_room()
+        room.booking_mode = "SHARED_CAPACITY"
+        room.save()
+
+        settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+        settings_obj.shared_capacity_booking_enabled = False
+        settings_obj.save()
+        self.assertEqual(room.effective_booking_mode, "WHOLE_ROOM")
+
+        settings_obj.shared_capacity_booking_enabled = True
+        settings_obj.save()
+        self.assertEqual(room.effective_booking_mode, "SHARED_CAPACITY")
+
+    def test_tenant_settings_do_not_affect_other_tenant(self):
+        settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+        settings_obj.shared_capacity_booking_enabled = True
+        settings_obj.save()
+
+        with schema_context("public"):
+            other_tenant = GuestHouseTenant(
+                schema_name="shared_cap_other",
+                name="Other Guest House",
+                owner_name="Other Owner",
+                owner_email="shared-cap-other@example.com",
+                owner_phone="0830000001",
+                is_active=True,
+                is_verified=True,
+            )
+            other_tenant.save()
+            Domain.objects.create(domain="shared-cap-other.test.com", tenant=other_tenant, is_primary=True)
+        try:
+            with tenant_context(other_tenant):
+                other_settings, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+                self.assertFalse(other_settings.shared_capacity_booking_enabled)
+        finally:
+            with schema_context("public"):
+                other_tenant.delete(allow_hard_delete=True)
+
+    def test_migration_0041_is_reversible(self):
+        from django.db import connection
+        from django.db.migrations.executor import MigrationExecutor
+
+        def room_columns():
+            with connection.cursor() as cursor:
+                return [c.name for c in connection.introspection.get_table_description(cursor, "core_room")]
+
+        self.assertIn("booking_mode", room_columns())
+        try:
+            MigrationExecutor(connection).migrate([("core", "0040_room_type_and_rate_plan_models")])
+            self.assertNotIn("booking_mode", room_columns())
+        finally:
+            # Always leave the schema fully migrated again, regardless of outcome,
+            # so later tests in this run never see a partially-migrated schema.
+            MigrationExecutor(connection).migrate([("core", "0041_shared_capacity_feature_flag")])
+        self.assertIn("booking_mode", room_columns())
+
+
 class RoomFormTest(CircleCoreTenantTestCase):
     def room_data(self, name="Room 2"):
         return {

@@ -210,6 +210,10 @@ class Room(models.Model):
         ("per_room", "Per Room"),
         ("per_person", "Per Person"),
     ]
+    BOOKING_MODE_CHOICES = [
+        ("WHOLE_ROOM", "Whole Room"),
+        ("SHARED_CAPACITY", "Shared Capacity"),
+    ]
     STATUS_CHOICES = [
         ("Available", "Available"),
         ("Booked", "Booked"),
@@ -241,6 +245,7 @@ class Room(models.Model):
         RatePlan, null=True, blank=True, on_delete=models.SET_NULL, related_name="rooms"
     )
     pricing_model = models.CharField(max_length=20, choices=PRICING_MODEL_CHOICES, default="per_room")
+    booking_mode = models.CharField(max_length=20, choices=BOOKING_MODE_CHOICES, default="WHOLE_ROOM")
     price_1_hour = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_2_hours = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_3_hours = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -276,6 +281,15 @@ class Room(models.Model):
     @base_price.setter
     def base_price(self, value):
         self.price_per_night = value
+
+    @property
+    def effective_booking_mode(self):
+        """Shared capacity only ever applies when the tenant has explicitly enabled it."""
+        if self.booking_mode == "SHARED_CAPACITY":
+            settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
+            if settings_obj and settings_obj.shared_capacity_booking_enabled:
+                return "SHARED_CAPACITY"
+        return "WHOLE_ROOM"
 
     def booking_types_list(self):
         return [item.strip() for item in self.booking_types_allowed.split(",") if item.strip()]
@@ -920,6 +934,10 @@ class GuestHouseSettings(models.Model):
     seasonal_note = models.TextField(blank=True, help_text="Note shown on availability page")
     pdf_primary_color = models.CharField(max_length=7, default="#c9a84c", help_text="Brand colour used across all PDF exports (hex, e.g. #c9a84c)")
     onboarding_complete = models.BooleanField(default=False)
+    shared_capacity_booking_enabled = models.BooleanField(
+        default=False,
+        help_text="Allow rooms configured as Shared Capacity to take multiple overlapping bookings up to room capacity.",
+    )
 
     class Meta:
         verbose_name = "Guest House Settings"
