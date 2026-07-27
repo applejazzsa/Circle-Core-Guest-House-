@@ -137,6 +137,64 @@ class OfflineConflict(models.Model):
     resolved_at = models.DateTimeField(null=True, blank=True)
 
 
+class RatePlan(models.Model):
+    PRICING_BASIS_CHOICES = [
+        ("per_person_per_night", "Per Person Per Night"),
+        ("per_room_per_night", "Per Room Per Night"),
+    ]
+
+    name = models.CharField(max_length=100, unique=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default="ZAR")
+    pricing_basis = models.CharField(max_length=25, choices=PRICING_BASIS_CHOICES, default="per_person_per_night")
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def apply_to_rooms(self):
+        for room in self.rooms.all():
+            room.save()
+
+
+class RoomType(models.Model):
+    GENDER_RESTRICTION_CHOICES = [
+        ("none", "No Restriction"),
+        ("ladies", "Ladies Only"),
+        ("gentlemen", "Gentlemen Only"),
+    ]
+    BATHROOM_TYPE_CHOICES = [
+        ("private", "Private"),
+        ("communal", "Communal"),
+        ("pending", "Pending Confirmation"),
+    ]
+
+    name = models.CharField(max_length=100, unique=True)
+    bathroom_type = models.CharField(max_length=10, choices=BATHROOM_TYPE_CHOICES, default="private")
+    bathroom_description = models.CharField(max_length=255, blank=True)
+    gender_restriction = models.CharField(max_length=10, choices=GENDER_RESTRICTION_CHOICES, default="none")
+    is_wheelchair_accessible = models.BooleanField(default=False)
+    area = models.CharField(max_length=100, blank=True)
+    default_rate_plan = models.ForeignKey(
+        RatePlan, null=True, blank=True, on_delete=models.SET_NULL, related_name="room_types"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "Room Types"
+
+    def __str__(self):
+        return self.name
+
+
 class Room(models.Model):
     ROOM_TYPE_CHOICES = [
         ("Single", "Single"),
@@ -176,6 +234,12 @@ class Room(models.Model):
     )
     name = models.CharField(max_length=150)
     room_type = models.CharField(max_length=20, choices=ROOM_TYPE_CHOICES)
+    room_category = models.ForeignKey(
+        RoomType, null=True, blank=True, on_delete=models.SET_NULL, related_name="rooms"
+    )
+    rate_plan = models.ForeignKey(
+        RatePlan, null=True, blank=True, on_delete=models.SET_NULL, related_name="rooms"
+    )
     pricing_model = models.CharField(max_length=20, choices=PRICING_MODEL_CHOICES, default="per_room")
     price_1_hour = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_2_hours = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -196,6 +260,14 @@ class Room(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if self.rate_plan_id:
+            self.price_per_night = self.rate_plan.amount
+            self.pricing_model = (
+                "per_person" if self.rate_plan.pricing_basis == "per_person_per_night" else "per_room"
+            )
+        super().save(*args, **kwargs)
 
     @property
     def base_price(self):

@@ -8,9 +8,9 @@ from django.core.exceptions import ValidationError
 from PIL import Image, UnidentifiedImageError
 
 from .models import (
-    Booking, BookingRefund, Expense, Guest, GuestHouseSettings, InventoryItem, Payment, Room,
-    SpaAppointment, SpaClientProfile, SpaPackage, SpaPackageItem, SpaPayment, SpaService,
-    SpaServiceProduct, SpaTherapist, SpaTreatmentRoom, SpaVoucher, SpaWaitlist, StaffProfile,
+    Booking, BookingRefund, Expense, Guest, GuestHouseSettings, InventoryItem, Payment, RatePlan,
+    Room, RoomType, SpaAppointment, SpaClientProfile, SpaPackage, SpaPackageItem, SpaPayment,
+    SpaService, SpaServiceProduct, SpaTherapist, SpaTreatmentRoom, SpaVoucher, SpaWaitlist, StaffProfile,
 )
 
 
@@ -251,6 +251,8 @@ class RoomForm(forms.ModelForm):
         fields = [
             "name",
             "room_type",
+            "room_category",
+            "rate_plan",
             "pricing_model",
             "price_per_night",
             "price_per_week",

@@ -15,8 +15,10 @@ from .models import (
     InventoryTransaction,
     MaintenanceRequest,
     Payment,
+    RatePlan,
     Room,
     RoomInventoryAssignment,
+    RoomType,
     StaffProfile,
     Subscription,
     SubscriptionPlan,
@@ -138,10 +140,36 @@ class GuestAdmin(admin.ModelAdmin):
     readonly_fields = ["created_at"]
 
 
+@admin.register(RatePlan)
+class RatePlanAdmin(admin.ModelAdmin):
+    list_display = ["name", "amount", "currency", "pricing_basis", "is_active", "updated_at"]
+    list_filter = ["pricing_basis", "is_active", "currency"]
+    search_fields = ["name", "description"]
+    actions = ["reapply_to_linked_rooms"]
+
+    @admin.action(description="Reapply rate to all linked rooms")
+    def reapply_to_linked_rooms(self, request, queryset):
+        for rate_plan in queryset:
+            rate_plan.apply_to_rooms()
+
+
+@admin.register(RoomType)
+class RoomTypeAdmin(admin.ModelAdmin):
+    list_display = [
+        "name", "bathroom_type", "gender_restriction", "is_wheelchair_accessible",
+        "area", "default_rate_plan", "is_active",
+    ]
+    list_filter = ["bathroom_type", "gender_restriction", "is_wheelchair_accessible", "is_active"]
+    search_fields = ["name", "area", "bathroom_description"]
+
+
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
-    list_display = ["name", "room_type", "price_per_night", "price_per_week", "max_guests", "status", "cleaning_status"]
-    list_filter = ["room_type", "status", "cleaning_status"]
+    list_display = [
+        "name", "room_type", "room_category", "rate_plan",
+        "price_per_night", "price_per_week", "max_guests", "status", "cleaning_status",
+    ]
+    list_filter = ["room_type", "room_category", "rate_plan", "status", "cleaning_status"]
     search_fields = ["name", "description"]
     list_editable = ["status", "cleaning_status"]
 
