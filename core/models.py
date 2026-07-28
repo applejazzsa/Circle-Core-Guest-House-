@@ -591,39 +591,48 @@ class Booking(models.Model):
         raise ValueError("Could not generate a unique booking reference.")
 
     def compute_totals(self):
-        guests = Decimal(self.num_guests or 1)
-        is_per_person = bool(self.room_id and self.room.pricing_model == "per_person")
-        guest_multiplier = guests if is_per_person else Decimal("1")
-        if self.is_hourly:
-            if self.check_in_date:
-                self.check_out_date = self.check_in_date
-            self.booking_end_time = self.compute_hourly_end_time()
-            duration_price = self.room.get_price_for_duration(self.booking_duration_type) if self.room_id else None
-            if duration_price is not None:
-                self.rate_per_night = duration_price
-            subtotal = (self.rate_per_night or Decimal("0.00")) * guest_multiplier
+        if self.pk and self.room_allocations.exists():
+            # Multi-room booking: each RoomAllocation already carries its own
+            # priced line_total (allocated_guests x nights x its own PPPN rate
+            # snapshot) — the booking total is simply their sum, minus the
+            # existing discount rule. No tax is applied here, matching the
+            # single-room path below, which has never applied one either.
+            subtotal = sum((allocation.line_total for allocation in self.room_allocations.all()), Decimal("0.00"))
             self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
-        elif self.check_in_date and self.check_out_date:
-            nights = max((self.check_out_date - self.check_in_date).days, 0)
-            if self.booking_duration_type == "weekly":
-                weekly_rate = None
-                if self.room_id:
-                    weekly_rate = self.room.price_per_week
-                if weekly_rate is None:
-                    weekly_rate = self.rate_per_night * Decimal("7")
-                weeks = Decimal(nights) / Decimal("7")
-                self.rate_per_night = weekly_rate
-                subtotal = weeks * weekly_rate * guest_multiplier
-                self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
-            elif self.booking_duration_type == "24_hours":
+        else:
+            guests = Decimal(self.num_guests or 1)
+            is_per_person = bool(self.room_id and self.room.pricing_model == "per_person")
+            guest_multiplier = guests if is_per_person else Decimal("1")
+            if self.is_hourly:
+                if self.check_in_date:
+                    self.check_out_date = self.check_in_date
+                self.booking_end_time = self.compute_hourly_end_time()
                 duration_price = self.room.get_price_for_duration(self.booking_duration_type) if self.room_id else None
                 if duration_price is not None:
                     self.rate_per_night = duration_price
-                subtotal = self.rate_per_night * nights * guest_multiplier
+                subtotal = (self.rate_per_night or Decimal("0.00")) * guest_multiplier
                 self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
-            else:
-                subtotal = self.rate_per_night * nights * guest_multiplier
-                self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
+            elif self.check_in_date and self.check_out_date:
+                nights = max((self.check_out_date - self.check_in_date).days, 0)
+                if self.booking_duration_type == "weekly":
+                    weekly_rate = None
+                    if self.room_id:
+                        weekly_rate = self.room.price_per_week
+                    if weekly_rate is None:
+                        weekly_rate = self.rate_per_night * Decimal("7")
+                    weeks = Decimal(nights) / Decimal("7")
+                    self.rate_per_night = weekly_rate
+                    subtotal = weeks * weekly_rate * guest_multiplier
+                    self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
+                elif self.booking_duration_type == "24_hours":
+                    duration_price = self.room.get_price_for_duration(self.booking_duration_type) if self.room_id else None
+                    if duration_price is not None:
+                        self.rate_per_night = duration_price
+                    subtotal = self.rate_per_night * nights * guest_multiplier
+                    self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
+                else:
+                    subtotal = self.rate_per_night * nights * guest_multiplier
+                    self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
         if self.pk and self.payments.exists():
             payment_totals = self.payment_totals()
             self.deposit_paid = payment_totals["deposit_paid"]

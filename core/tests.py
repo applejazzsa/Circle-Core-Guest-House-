@@ -5,23 +5,40 @@ Run with: python manage.py test core
 
 import datetime
 import json
+import threading
 import uuid
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
 from django.db import connection, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.db.utils import IntegrityError
-from django.test import Client
+from django.test import Client, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 from django_tenants.test.cases import TenantTestCase
-from django_tenants.utils import schema_context, tenant_context
+from django_tenants.utils import (
+    get_public_schema_name,
+    get_tenant_domain_model,
+    get_tenant_model,
+    schema_context,
+    tenant_context,
+)
 
 from tenants.models import Domain, GuestHouseTenant
 
 from .availability import check_availability
+from .booking_transactions import (
+    cancel_multi_room_booking,
+    check_in_multi_room_booking,
+    check_out_multi_room_booking,
+    create_multi_room_booking,
+    edit_multi_room_booking,
+    reinstate_multi_room_booking,
+)
 from .forms import RoomForm
 from .models import (
     Booking,
@@ -62,6 +79,62 @@ class CircleCoreTenantTestCase(TenantTestCase):
     @classmethod
     def setup_domain(cls, domain):
         domain.is_primary = True
+
+
+class ConcurrencyTenantTestCase(TransactionTestCase):
+    """
+    Like CircleCoreTenantTestCase, but built on TransactionTestCase instead of
+    TestCase. TestCase wraps every test method's writes in a savepoint that
+    is rolled back at the end — never actually committed to Postgres — which
+    makes them invisible to any other database connection. That's fine for
+    ordinary tests, but genuine cross-thread concurrency testing needs a
+    second thread's own connection to actually see the first thread's
+    committed fixture data and locks. TransactionTestCase commits for real
+    and resets via truncation instead, which is what real concurrency tests
+    require here.
+    """
+
+    schema_name = "concurrency_test"
+    domain_name = "concurrency-test.test.com"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        call_command("migrate_schemas", schema_name=get_public_schema_name(), interactive=False, verbosity=0)
+        if cls.domain_name not in settings.ALLOWED_HOSTS:
+            settings.ALLOWED_HOSTS = list(settings.ALLOWED_HOSTS) + [cls.domain_name]
+
+        tenant_model = get_tenant_model()
+        domain_model = get_tenant_domain_model()
+        cls.tenant, _ = tenant_model.objects.get_or_create(
+            schema_name=cls.schema_name,
+            defaults=dict(
+                name="Concurrency Test House",
+                owner_name="Concurrency Owner",
+                owner_email=f"{cls.schema_name}@example.com",
+                owner_phone="0810000099",
+                is_active=True,
+                is_verified=True,
+            ),
+        )
+        domain_model.objects.get_or_create(
+            domain=cls.domain_name, tenant=cls.tenant, defaults={"is_primary": True}
+        )
+        connection.set_tenant(cls.tenant)
+
+    @classmethod
+    def tearDownClass(cls):
+        connection.set_schema_to_public()
+        if cls.domain_name in settings.ALLOWED_HOSTS:
+            settings.ALLOWED_HOSTS.remove(cls.domain_name)
+        super().tearDownClass()
+
+    def _fixture_teardown(self):
+        # Truncate this tenant schema's own tables between tests, but stay
+        # inside the tenant schema — the default implementation would flush
+        # relative to whatever schema is active, which is exactly this one
+        # since setUpClass already switched the connection to it.
+        super()._fixture_teardown()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -166,6 +239,37 @@ def make_reserving_booking(room, guest, check_in, check_out, num_guests=1, statu
             line_total=room.price_per_night * num_guests * nights,
         )
     return booking
+
+
+def run_concurrently(schema_name, funcs):
+    """
+    Run each zero-arg callable in funcs on its own thread with its own DB
+    connection, synchronized with a Barrier so they all reach their
+    transaction at (as close as Python threading allows to) the same moment —
+    a genuine race for the same locked row(s), not just sequential execution
+    that happens to look like a race. Returns a list of (result, exception)
+    tuples in the same order as funcs.
+    """
+    barrier = threading.Barrier(len(funcs))
+    results = [None] * len(funcs)
+
+    def run(index, func):
+        from django.db import connection as thread_connection
+        try:
+            with schema_context(schema_name):
+                barrier.wait(timeout=10)
+                results[index] = (func(), None)
+        except Exception as exc:
+            results[index] = (None, exc)
+        finally:
+            thread_connection.close()
+
+    threads = [threading.Thread(target=run, args=(i, f)) for i, f in enumerate(funcs)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=15)
+    return results
 
 
 def activate_trial(owner):
@@ -782,6 +886,235 @@ class AvailabilityServiceTest(CircleCoreTenantTestCase):
 
         negative_guests = check_availability(room, self.d(5), self.d(7), -1)
         self.assertFalse(negative_guests.available)
+
+
+class BookingTransactionConcurrencyTest(ConcurrencyTenantTestCase):
+    def setUp(self):
+        self.today = timezone.localdate()
+        self.schema_name = connection.schema_name
+
+    def d(self, offset):
+        return self.today + datetime.timedelta(days=offset)
+
+    def test_two_simultaneous_requests_for_final_shared_spaces(self):
+        enable_shared_capacity()
+        room = make_shared_room("Concurrency Shared", price=180, max_guests=6)
+        prop = room.prop
+        guest_a = make_guest(first_name="Alice", phone="0812220001")
+        guest_b = make_guest(first_name="Bob", phone="0812220002")
+        ci, co = self.d(200), self.d(202)
+
+        def attempt(guest, guests):
+            def _run():
+                return create_multi_room_booking(
+                    guest=guest, prop=prop, check_in=ci, check_out=co,
+                    allocations=[{"room": room, "allocated_guests": guests}],
+                    total_guests=guests, status="Confirmed",
+                )
+            return _run
+
+        # Combined demand (4 + 4 = 8) exceeds the room's capacity of 6, so
+        # only one of these two simultaneous attempts may succeed.
+        results = run_concurrently(self.schema_name, [attempt(guest_a, 4), attempt(guest_b, 4)])
+
+        successes = [r for r, e in results if e is None]
+        failures = [e for r, e in results if e is not None]
+        self.assertEqual(len(successes), 1, f"expected exactly 1 success, got results={results}")
+        self.assertEqual(len(failures), 1)
+        self.assertIsInstance(failures[0], ValidationError)
+
+        with schema_context(self.schema_name):
+            total_allocated = sum(
+                a.allocated_guests for a in RoomAllocation.objects.filter(room=room, booking__status="Confirmed")
+            )
+            self.assertEqual(total_allocated, 4)  # only the winner's allocation was ever committed
+
+    def test_only_one_request_succeeds_when_combined_demand_exceeds_capacity(self):
+        enable_shared_capacity()
+        room = make_shared_room("Concurrency Shared Exact", price=180, max_guests=5)
+        prop = room.prop
+        guest_a = make_guest(first_name="Carol", phone="0812220003")
+        guest_b = make_guest(first_name="Dave", phone="0812220004")
+        ci, co = self.d(210), self.d(212)
+
+        def attempt(guest, guests):
+            def _run():
+                return create_multi_room_booking(
+                    guest=guest, prop=prop, check_in=ci, check_out=co,
+                    allocations=[{"room": room, "allocated_guests": guests}],
+                    total_guests=guests, status="Confirmed",
+                )
+            return _run
+
+        # 3 + 3 = 6 > capacity of 5 — still only one can fit.
+        results = run_concurrently(self.schema_name, [attempt(guest_a, 3), attempt(guest_b, 3)])
+        successes = [r for r, e in results if e is None]
+        self.assertEqual(len(successes), 1)
+
+    def test_two_simultaneous_whole_room_bookings(self):
+        room = make_room("Concurrency Whole Room", price=500)
+        prop = room.prop
+        guest_a = make_guest(first_name="Erin", phone="0812220005")
+        guest_b = make_guest(first_name="Frank", phone="0812220006")
+        ci, co = self.d(220), self.d(222)
+
+        def attempt(guest):
+            def _run():
+                return create_multi_room_booking(
+                    guest=guest, prop=prop, check_in=ci, check_out=co,
+                    allocations=[{"room": room, "allocated_guests": 1}],
+                    total_guests=1, status="Confirmed",
+                )
+            return _run
+
+        results = run_concurrently(self.schema_name, [attempt(guest_a), attempt(guest_b)])
+        successes = [r for r, e in results if e is None]
+        failures = [e for r, e in results if e is not None]
+        self.assertEqual(len(successes), 1)
+        self.assertEqual(len(failures), 1)
+
+    def test_multi_room_transaction_rollback(self):
+        room1 = make_shared_room("Rollback Room 1", price=180, max_guests=6)
+        room2 = make_shared_room("Rollback Room 2", price=260, max_guests=3)
+        enable_shared_capacity()
+        prop = room1.prop
+        guest = make_guest(phone="0812220007")
+        ci, co = self.d(230), self.d(232)
+
+        with self.assertRaises(ValidationError) as ctx:
+            create_multi_room_booking(
+                guest=guest, prop=prop, check_in=ci, check_out=co,
+                allocations=[
+                    {"room": room1, "allocated_guests": 5},   # fits (5 <= 6)
+                    {"room": room2, "allocated_guests": 4},   # does not fit (4 > 3)
+                ],
+                total_guests=9, status="Confirmed",
+            )
+        self.assertTrue(any("Rollback Room 2" in msg or "3 of 4" in msg for msg in ctx.exception.messages))
+
+        # All-or-nothing: room1's half must not have been committed either.
+        self.assertEqual(RoomAllocation.objects.filter(room=room1).count(), 0)
+        self.assertEqual(Booking.objects.filter(guest=guest).count(), 0)
+
+    def test_booking_date_change(self):
+        room = make_room("Date Change Room", price=400)
+        prop = room.prop
+        guest = make_guest(phone="0812220008")
+        booking = create_multi_room_booking(
+            guest=guest, prop=prop, check_in=self.d(240), check_out=self.d(242),
+            allocations=[{"room": room, "allocated_guests": 1}], total_guests=1, status="Confirmed",
+        )
+        moved = edit_multi_room_booking(booking, check_in=self.d(250), check_out=self.d(253))
+        self.assertEqual(moved.check_in_date, self.d(250))
+        self.assertEqual(moved.check_out_date, self.d(253))
+        self.assertEqual(moved.room_allocations.count(), 1)
+        self.assertEqual(moved.total_amount, Decimal("400.00") * 3)
+
+    def test_room_move(self):
+        room_a = make_room("Move From Room", price=400)
+        room_b = make_room("Move To Room", price=550)
+        prop = room_a.prop
+        guest = make_guest(phone="0812220009")
+        booking = create_multi_room_booking(
+            guest=guest, prop=prop, check_in=self.d(260), check_out=self.d(262),
+            allocations=[{"room": room_a, "allocated_guests": 1}], total_guests=1, status="Confirmed",
+        )
+        moved = edit_multi_room_booking(
+            booking, allocations=[{"room": room_b, "allocated_guests": 1}], total_guests=1,
+        )
+        self.assertEqual(moved.room_id, room_b.pk)
+        allocation = moved.room_allocations.get()
+        self.assertEqual(allocation.room_id, room_b.pk)
+        self.assertEqual(moved.total_amount, Decimal("550.00") * 2)
+        # Room A is free again for the same dates.
+        self.assertTrue(check_availability(room_a, self.d(260), self.d(262), 1).available)
+
+    def test_cancellation_releases_capacity(self):
+        room = make_room("Cancel Release Room", price=400)
+        prop = room.prop
+        guest = make_guest(phone="0812220010")
+        booking = create_multi_room_booking(
+            guest=guest, prop=prop, check_in=self.d(270), check_out=self.d(272),
+            allocations=[{"room": room, "allocated_guests": 1}], total_guests=1, status="Confirmed",
+        )
+        self.assertFalse(check_availability(room, self.d(270), self.d(272), 1).available)
+
+        cancel_multi_room_booking(booking)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, "Cancelled")
+        self.assertTrue(check_availability(room, self.d(270), self.d(272), 1).available)
+
+    def test_reinstatement_rechecks_capacity(self):
+        room = make_room("Reinstate Room", price=400)
+        prop = room.prop
+        guest = make_guest(phone="0812220011")
+        other_guest = make_guest(first_name="Other", phone="0812220012")
+        booking = create_multi_room_booking(
+            guest=guest, prop=prop, check_in=self.d(280), check_out=self.d(282),
+            allocations=[{"room": room, "allocated_guests": 1}], total_guests=1, status="Confirmed",
+        )
+        cancel_multi_room_booking(booking)
+
+        # Reinstating into a still-free room succeeds.
+        reinstated = reinstate_multi_room_booking(booking, new_status="Confirmed")
+        self.assertEqual(reinstated.status, "Confirmed")
+
+        cancel_multi_room_booking(booking)
+        # Someone else takes the room while it was cancelled...
+        create_multi_room_booking(
+            guest=other_guest, prop=prop, check_in=self.d(280), check_out=self.d(282),
+            allocations=[{"room": room, "allocated_guests": 1}], total_guests=1, status="Confirmed",
+        )
+        # ...so reinstating the original booking must now be rejected.
+        with self.assertRaises(ValidationError):
+            reinstate_multi_room_booking(booking, new_status="Confirmed")
+
+    def test_tenant_isolation(self):
+        room = make_room("Tx Isolation Room", price=400)
+        prop = room.prop
+        guest = make_guest(phone="0812220013")
+        booking = create_multi_room_booking(
+            guest=guest, prop=prop, check_in=self.d(290), check_out=self.d(292),
+            allocations=[{"room": room, "allocated_guests": 1}], total_guests=1, status="Confirmed",
+        )
+
+        # A random suffix keeps this schema name unique across repeated test
+        # runs (this test class uses TransactionTestCase — real commits, no
+        # automatic rollback — so relying solely on the `finally` cleanup
+        # below for cross-run isolation would risk residue accumulating).
+        suffix = uuid.uuid4().hex[:8]
+        other_schema = f"tx_other_{suffix}"
+        with schema_context("public"):
+            other_tenant = GuestHouseTenant(
+                schema_name=other_schema,
+                name="Other Guest House",
+                owner_name="Other Owner",
+                owner_email=f"tx-other-{suffix}@example.com",
+                owner_phone="0830000004",
+                is_active=True,
+                is_verified=True,
+            )
+            other_tenant.save()
+            Domain.objects.create(domain=f"tx-other-{suffix}.test.com", tenant=other_tenant, is_primary=True)
+        try:
+            with tenant_context(other_tenant):
+                # A same-named room in a completely different schema must not
+                # see, conflict with, or be confused with the booking above.
+                other_room = make_room("Tx Isolation Room", price=999)
+                other_prop = other_room.prop
+                other_guest = make_guest(phone="0812220014")
+                other_booking = create_multi_room_booking(
+                    guest=other_guest, prop=other_prop, check_in=self.d(290), check_out=self.d(292),
+                    allocations=[{"room": other_room, "allocated_guests": 1}], total_guests=1, status="Confirmed",
+                )
+                self.assertEqual(Booking.objects.filter(pk=other_booking.pk).count(), 1)
+                self.assertEqual(other_booking.room_id, other_room.pk)
+
+            # Back in this test's own schema: unaffected, still exactly 1 booking.
+            self.assertEqual(Booking.objects.filter(pk=booking.pk).count(), 1)
+        finally:
+            with schema_context("public"):
+                other_tenant.delete(allow_hard_delete=True)
 
 
 # ── View tests ────────────────────────────────────────────────────────────────
