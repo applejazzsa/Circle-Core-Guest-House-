@@ -20,7 +20,17 @@
   </div>
   <div class="page-header-actions">
     {% if not is_cleaner %}
-    {% if room.status != "Available" or room.cleaning_status != "Clean" %}
+    {% if is_shared_capacity %}
+    {% if room.status == "Maintenance" or room.status == "Blocked" or room.status == "Cleaning" %}
+    <button type="button" class="btn btn-ghost" disabled aria-disabled="true" style="opacity:0.45; cursor:not-allowed;">Unavailable</button>
+    {% elif shared_remaining <= 0 %}
+    <button type="button" class="btn btn-ghost" disabled aria-disabled="true" style="opacity:0.45; cursor:not-allowed;">Full</button>
+    {% elif shared_occupied > 0 %}
+    <a href="{% url 'core:room_add_shared_guest' room.pk %}" class="btn btn-primary">Add Another Guest</a>
+    {% else %}
+    <a href="{% url 'core:room_add_shared_guest' room.pk %}" class="btn btn-primary">Check In Guest</a>
+    {% endif %}
+    {% elif room.status != "Available" or room.cleaning_status != "Clean" %}
     <span class="btn btn-ghost" style="opacity:0.45; cursor:not-allowed;">Unavailable</span>
     {% else %}
     <a href="{% url 'core:booking_add' %}?room={{ room.pk }}&amp;source=Walk-in&amp;status=Confirmed" class="btn btn-primary">Check In Now</a>
@@ -212,6 +222,35 @@
 
   <!-- Right: Quick actions -->
   <div style="display:flex; flex-direction:column; gap:16px;">
+    {% if is_shared_capacity %}
+    <div id="occupants">
+    {% if active_occupants %}
+    <div class="card" style="padding:20px; border:1px solid rgba(100, 116, 139,0.3); background:rgba(100, 116, 139,0.04);">
+      <div class="section-label" style="margin-bottom:4px; color:#94a3b8;">Currently Checked In — {{ shared_occupied }} / {{ room.max_guests }}</div>
+      <p style="font-size:11.5px; color:var(--color-text-tertiary); margin-bottom:12px;">Every guest below has their own booking, invoice and payment balance. Checking one out never affects the others.</p>
+      {% for occupant in active_occupants %}
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; {% if not forloop.last %}border-bottom:1px solid var(--color-border);{% endif %}">
+        <div style="min-width:0;">
+          <div style="font-size:13px; font-weight:600; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ occupant.guest.full_name }}</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary); font-family:var(--font-mono);">{{ occupant.booking_reference }} · {{ occupant.num_guests }} space{{ occupant.num_guests|pluralize }}</div>
+        </div>
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+          <a href="{% url 'core:booking_detail' occupant.pk %}" class="btn btn-ghost btn-sm">View</a>
+          <form method="post" action="{% url 'core:booking_checkout' occupant.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm">Check Out</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="padding:20px;">
+      <p style="font-size:12.5px; color:var(--color-text-tertiary); margin:0;">No guests currently checked in to this room.</p>
+    </div>
+    {% endif %}
+    </div>
+    {% else %}
     {% if active_booking %}
     <div class="card" style="padding:20px; border:1px solid rgba(100, 116, 139,0.3); background:rgba(100, 116, 139,0.04);">
       <div class="section-label" style="margin-bottom:4px; color:#94a3b8;">Guest Checked In</div>
@@ -224,11 +263,22 @@
       </form>
     </div>
     {% endif %}
+    {% endif %}
     <div class="card" style="padding:20px;">
       <div class="section-label" style="margin-bottom:14px;">Quick Actions</div>
       <div style="display:flex; flex-direction:column; gap:8px;">
         {% if not is_cleaner %}
-        {% if room.status == "Maintenance" or room.status == "Blocked" or room.status == "Booked" or room.status == "Occupied" %}
+        {% if is_shared_capacity %}
+        {% if room.status == "Maintenance" or room.status == "Blocked" or room.status == "Cleaning" %}
+        <button type="button" class="btn btn-ghost" disabled aria-disabled="true" style="justify-content:center; opacity:0.45; cursor:not-allowed;">Room Unavailable</button>
+        {% elif shared_remaining <= 0 %}
+        <button type="button" class="btn btn-ghost" disabled aria-disabled="true" style="justify-content:center; opacity:0.45; cursor:not-allowed;">Room Full</button>
+        {% elif shared_occupied > 0 %}
+        <a href="{% url 'core:room_add_shared_guest' room.pk %}" class="btn btn-primary" style="justify-content:center;">Add Another Guest</a>
+        {% else %}
+        <a href="{% url 'core:room_add_shared_guest' room.pk %}" class="btn btn-primary" style="justify-content:center;">Check In Guest</a>
+        {% endif %}
+        {% elif room.status == "Maintenance" or room.status == "Blocked" or room.status == "Booked" or room.status == "Occupied" %}
         <span class="btn btn-ghost" style="justify-content:center; opacity:0.45; cursor:not-allowed;">Room Unavailable</span>
         {% else %}
         <a href="{% url 'core:booking_add' %}?room={{ room.pk }}" class="btn btn-primary" style="justify-content:center;">New Booking</a>

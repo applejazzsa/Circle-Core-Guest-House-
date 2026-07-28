@@ -2,12 +2,15 @@
 Transactional, multi-room booking operations built on top of
 core/availability.py::check_availability() and the RoomAllocation model.
 
-This module is additive: it does not replace or get called by the existing
-single-room booking_add/booking_edit/booking_cancel/booking_checkin/
-booking_checkout views in core/views.py, which continue to work completely
-unchanged for every tenant. It gives a whole-new capability — a booking made
-of one or more room allocations, validated and priced all-or-nothing inside a
-single locked transaction — ready for a future multi-room booking UI to call.
+This module is additive: single-room WHOLE_ROOM bookings still go through
+the plain booking_add/booking_edit/booking_cancel views in core/views.py
+completely unchanged. For SHARED_CAPACITY rooms, core/views.py's
+booking_checkin/booking_checkout now delegate here (see
+check_in_multi_room_booking/check_out_multi_room_booking below) so that one
+occupant checking in/out never disturbs any other occupant of the same room
+— every tenant without the feature enabled is entirely untouched, since
+Room.effective_booking_mode can only ever be SHARED_CAPACITY when the
+tenant's own flag is on.
 
 Every function here follows the same shape:
   1. transaction.atomic()
@@ -22,30 +25,35 @@ Every function here follows the same shape:
   5. Recalculate pricing per allocation and for the booking as a whole.
   6. Save the booking and its allocations.
 
-Room-status side effects (Available/Occupied/Cleaning/...) are only applied
-for WHOLE_ROOM rooms here, matching _sync_room_status in core/views.py.
-Deriving a correct partial-occupancy status for SHARED_CAPACITY rooms was
-explicitly deferred to a later phase in the original design doc, and isn't
-touched by this module — mutating a shared dormitory's single `status` field
-just because one of several concurrent bookings checked in/out would be
-wrong, not merely incomplete.
+Room-status side effects (Available/Occupied/Cleaning/...): for WHOLE_ROOM
+rooms these mirror _sync_room_status in core/views.py exactly. For
+SHARED_CAPACITY rooms, the room's single `status` field only ever moves on
+the two edges that make sense for a shared dormitory — the first check-in
+into an empty room, and the last check-out that leaves it empty — never on
+every individual occupant's own check-in/check-out, since other occupants
+may still be present. The room's real partial-occupancy state is (and
+remains) computed on the fly by shared_room_status_label()/
+occupancy_snapshot(), not stored.
 """
 
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 
 from .availability import check_availability
-from .models import Booking, Room, RoomAllocation
+from .models import AuditLog, Booking, GuestHouseSettings, Payment, Room, RoomAllocation
 
 
-def _price_allocation(room, allocated_guests, check_in, check_out):
+def _price_allocation(room, allocated_guests, check_in, check_out, rate_override=None):
     nights = max((check_out - check_in).days, 0)
-    rate = room.get_price_for_duration("daily")
-    if rate is None or rate <= 0:
-        rate = room.price_per_night
+    if rate_override is not None:
+        rate = rate_override
+    else:
+        rate = room.get_price_for_duration("daily")
+        if rate is None or rate <= 0:
+            rate = room.price_per_night
     guest_multiplier = Decimal(allocated_guests) if room.pricing_model == "per_person" else Decimal("1")
     line_total = Decimal(rate) * guest_multiplier * nights
     return {"room": room, "allocated_guests": allocated_guests, "rate_per_night": rate, "line_total": line_total}
@@ -91,7 +99,7 @@ def _validate_allocations(rooms_by_id, allocation_requests, check_in, check_out,
             errors.append(result.reason)
             continue
 
-        plans.append(_price_allocation(room, guests, check_in, check_out))
+        plans.append(_price_allocation(room, guests, check_in, check_out, rate_override=request.get("rate_override")))
 
     if total_guests is not None:
         allocated_sum = sum(r["allocated_guests"] for r in allocation_requests if r["allocated_guests"])
@@ -151,6 +159,107 @@ def create_multi_room_booking(
             )
         booking.save(skip_conflict_check=True)  # second save: room_allocations now exist, so total_amount reflects the full multi-room sum
         return booking
+
+
+def create_individual_shared_room_booking(
+    *, guest, room, check_in, check_out, allocated_guests=1, rate=None,
+    booking_source="Walk-in", payment_info=None, notes="", staff_user=None,
+    tenant=None, prop=None, status="Confirmed",
+):
+    """
+    Book one independently paying guest (or a small family/group sharing a
+    single payment account, when allocated_guests > 1) into a
+    SHARED_CAPACITY room, alongside whichever other guests already occupy it.
+
+    Every call is a thin, validated wrapper around create_multi_room_booking()
+    with exactly one room in the allocation list — it creates a brand-new
+    Booking + its own RoomAllocation and never reads or rewrites any other
+    booking already on the room. Existing occupants are only ever
+    re-validated for remaining capacity (under the same room lock), never
+    modified.
+
+    tenant is accepted for audit-trail context only: this app isolates
+    tenants by Postgres schema (see tenants/models.py, config/settings.py
+    TENANT_APPS) — there is no tenant_id column on Room to check against,
+    same as every other model in this app. The real "this room belongs to
+    this tenant" guarantee is structural: the caller must already be
+    operating against the correct tenant's schema (exactly how every other
+    view in core/views.py resolves rooms via the request's active Property),
+    and _lock_rooms() below re-fetches the room fresh under whatever schema
+    is currently connected — a room id that doesn't exist in the current
+    schema fails closed with "Room id ... could not be found." Passing prop
+    additionally re-verifies the room belongs to the expected Property, the
+    same check create_multi_room_booking() already applies for group bookings.
+
+    Raises ValidationError (with .messages) and writes nothing if any check
+    fails. Returns the saved Booking.
+    """
+    settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
+    if not settings_obj or not settings_obj.shared_capacity_booking_enabled:
+        raise ValidationError(["Shared-capacity booking is not enabled for this property."])
+
+    if room.effective_booking_mode != "SHARED_CAPACITY":
+        raise ValidationError([f"{room.name} is not configured for shared-capacity booking."])
+
+    if room.status in ("Maintenance", "Blocked", "Cleaning"):
+        labels = {"Maintenance": "under maintenance", "Blocked": "blocked", "Cleaning": "currently being cleaned"}
+        raise ValidationError([f"{room.name} is {labels.get(room.status, room.status.lower())} and cannot be booked."])
+
+    if not isinstance(allocated_guests, int) or isinstance(allocated_guests, bool) or allocated_guests < 1:
+        raise ValidationError(["Allocated guest spaces must be a positive whole number."])
+
+    # prop is only used for the same "belongs to this property" check
+    # create_multi_room_booking() already applies for group bookings — it is
+    # deliberately NOT defaulted to room.prop here, since room may be a stale
+    # Python object read under a different tenant's schema (see the tenant
+    # note in this function's docstring); the real "does this room actually
+    # exist in the caller's own tenant schema" guarantee comes from
+    # _lock_rooms() re-fetching it fresh under whichever schema is currently
+    # connected, a moment from now.
+    booking = create_multi_room_booking(
+        guest=guest,
+        prop=prop,
+        check_in=check_in,
+        check_out=check_out,
+        allocations=[{"room": room, "allocated_guests": allocated_guests, "rate_override": rate}],
+        total_guests=allocated_guests,
+        booking_source=booking_source,
+        status=status,
+        notes=notes,
+    )
+
+    if payment_info:
+        Payment.objects.create(
+            booking=booking,
+            amount=payment_info["amount"],
+            payment_method=payment_info.get("payment_method", "Cash"),
+            payment_type=payment_info.get("payment_type", "Payment"),
+            reference=payment_info.get("reference", ""),
+            notes=payment_info.get("notes", ""),
+        )
+        booking.refresh_from_db()
+
+    allocation = booking.room_allocations.get(room=room)
+    AuditLog.objects.create(
+        actor=staff_user,
+        action="create",
+        object_type="Booking",
+        object_id=str(booking.pk),
+        object_repr=str(booking)[:255],
+        after={
+            "tenant_schema": tenant.schema_name if tenant is not None else connection.schema_name,
+            "booking_reference": booking.booking_reference,
+            "guest": getattr(guest, "full_name", str(guest)),
+            "room": room.name,
+            "allocated_guests": allocated_guests,
+            "check_in_date": check_in.isoformat(),
+            "check_out_date": check_out.isoformat(),
+            "rate_per_night": str(allocation.rate_per_night),
+            "calculated_amount": str(allocation.line_total),
+        },
+        reason="Individual shared-capacity guest booking",
+    )
+    return booking
 
 
 def edit_multi_room_booking(
@@ -222,10 +331,21 @@ def cancel_multi_room_booking(booking):
     """Cancelling always succeeds — it only ever releases capacity, never consumes it."""
     with transaction.atomic():
         _lock_rooms(room.pk for room in _booking_rooms(booking))
+        was_checked_in = booking.status == "Checked In"
         booking.status = "Cancelled"
         booking.save(skip_conflict_check=True)
         for room in _booking_rooms(booking):
             if room.effective_booking_mode == "WHOLE_ROOM" and room.status not in ("Maintenance", "Blocked"):
+                room.status = "Available"
+                room.save(update_fields=["status"])
+            elif (
+                room.effective_booking_mode == "SHARED_CAPACITY"
+                and was_checked_in
+                and room.status not in ("Maintenance", "Blocked")
+                and not _other_checked_in_bookings_exist(room, booking.pk)
+            ):
+                # Matches the WHOLE_ROOM convention above: cancelling always
+                # just releases the room, it never implies a cleaning turnover.
                 room.status = "Available"
                 room.save(update_fields=["status"])
         return booking
@@ -259,6 +379,14 @@ def reinstate_multi_room_booking(booking, new_status="Confirmed"):
         return booking
 
 
+def _other_checked_in_bookings_exist(room, exclude_booking_id):
+    return (
+        Booking.objects.filter(room=room, status="Checked In")
+        .exclude(pk=exclude_booking_id)
+        .exists()
+    )
+
+
 def check_in_multi_room_booking(booking):
     with transaction.atomic():
         _lock_rooms(room.pk for room in _booking_rooms(booking))
@@ -269,6 +397,13 @@ def check_in_multi_room_booking(booking):
         booking.save(skip_conflict_check=True)
         for room in _booking_rooms(booking):
             if room.effective_booking_mode == "WHOLE_ROOM":
+                room.status = "Occupied"
+                room.save(update_fields=["status"])
+            elif room.status == "Available":
+                # First occupant into an empty shared room — flip the room's
+                # own display status the same way a WHOLE_ROOM check-in would,
+                # without implying anything about remaining shared capacity
+                # (that's computed separately by shared_room_status_label()).
                 room.status = "Occupied"
                 room.save(update_fields=["status"])
         return booking
@@ -284,6 +419,15 @@ def check_out_multi_room_booking(booking):
         booking.save(skip_conflict_check=True)
         for room in _booking_rooms(booking):
             if room.effective_booking_mode == "WHOLE_ROOM":
+                room.status = "Cleaning"
+                room.cleaning_status = "Needs Cleaning"
+                room.save(update_fields=["status", "cleaning_status"])
+            elif room.status not in ("Maintenance", "Blocked") and not _other_checked_in_bookings_exist(room, booking.pk):
+                # This was the last occupant still checked into this shared
+                # room — now, and only now, does it actually need cleaning.
+                # Any other occupant still checked in must never see their
+                # room flip to "Cleaning" because someone else in the same
+                # dormitory left.
                 room.status = "Cleaning"
                 room.cleaning_status = "Needs Cleaning"
                 room.save(update_fields=["status", "cleaning_status"])

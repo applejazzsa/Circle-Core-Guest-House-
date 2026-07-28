@@ -34,17 +34,19 @@ from django_tenants.utils import (
 
 from tenants.models import Domain, GuestHouseTenant
 
-from .availability import check_availability
+from .availability import check_availability, occupancy_snapshot
 from .booking_transactions import (
     cancel_multi_room_booking,
     check_in_multi_room_booking,
     check_out_multi_room_booking,
+    create_individual_shared_room_booking,
     create_multi_room_booking,
     edit_multi_room_booking,
     reinstate_multi_room_booking,
 )
 from .forms import RoomForm
 from .models import (
+    AuditLog,
     Booking,
     Guest,
     GuestHouseSettings,
@@ -2545,3 +2547,473 @@ class SearchViewTest(CircleCoreTenantTestCase):
         response = self.client.get(reverse("core:search"), {"q": "Alice"})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Alice")
+
+
+class IndividualSharedRoomBookingTest(CircleCoreTenantTestCase):
+    """
+    create_individual_shared_room_booking(): one independently paying guest
+    (or a small family/group sharing one payment account, when
+    allocated_guests > 1) added into an already-partially-occupied
+    SHARED_CAPACITY room, without ever touching any other guest's booking.
+    """
+
+    def setUp(self):
+        self.owner = make_owner()
+        activate_trial(self.owner)
+        self.client.login(username="owner", password="testpass123")
+        self.today = timezone.localdate()
+
+    def d(self, offset):
+        return self.today + datetime.timedelta(days=offset)
+
+    def test_add_one_guest_to_empty_shared_room(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest = make_guest(first_name="Ada", phone="0814440001")
+        ci, co = self.d(10), self.d(13)
+
+        booking = create_individual_shared_room_booking(
+            guest=guest, room=room, check_in=ci, check_out=co,
+            allocated_guests=1, staff_user=self.owner,
+        )
+
+        self.assertEqual(booking.room_allocations.count(), 1)
+        allocation = booking.room_allocations.get()
+        self.assertEqual(allocation.allocated_guests, 1)
+        self.assertEqual(allocation.room_id, room.pk)
+        self.assertEqual(occupancy_snapshot(room, ci), (1, 7, 6))
+        self.assertEqual(booking.total_amount, Decimal("180.00") * 1 * 3)
+
+    def test_add_another_guest_to_partially_occupied_room(self):
+        # The exact Room 02 example from the business requirement:
+        # capacity 7, existing occupancy 1, +1 new guest -> 2 / 7 occupied.
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest_a = make_guest(first_name="Ada", phone="0814440002")
+        guest_b = make_guest(first_name="Ben", phone="0814440003")
+        ci, co = self.d(20), self.d(23)
+
+        booking_a = create_individual_shared_room_booking(
+            guest=guest_a, room=room, check_in=ci, check_out=co,
+            allocated_guests=1, staff_user=self.owner,
+        )
+        self.assertEqual(occupancy_snapshot(room, ci), (1, 7, 6))
+
+        booking_b = create_individual_shared_room_booking(
+            guest=guest_b, room=room, check_in=ci, check_out=co,
+            allocated_guests=1, staff_user=self.owner,
+        )
+
+        self.assertEqual(occupancy_snapshot(room, ci), (2, 7, 5))
+        self.assertNotEqual(booking_a.pk, booking_b.pk)
+        self.assertEqual(Booking.objects.filter(room_allocations__room=room).distinct().count(), 2)
+
+    def test_existing_booking_remains_unchanged(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest_a = make_guest(first_name="Ada", phone="0814440004")
+        guest_b = make_guest(first_name="Ben", phone="0814440005")
+        ci, co = self.d(30), self.d(33)
+
+        booking_a = create_individual_shared_room_booking(
+            guest=guest_a, room=room, check_in=ci, check_out=co,
+            allocated_guests=1, staff_user=self.owner,
+        )
+        before = _model_snapshot_for_test(booking_a)
+
+        create_individual_shared_room_booking(
+            guest=guest_b, room=room, check_in=ci, check_out=co,
+            allocated_guests=1, staff_user=self.owner,
+        )
+
+        booking_a.refresh_from_db()
+        self.assertEqual(before, _model_snapshot_for_test(booking_a))
+        self.assertEqual(booking_a.room_allocations.count(), 1)
+        self.assertEqual(booking_a.room_allocations.get().allocated_guests, 1)
+
+    def test_separate_booking_reference_generated(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest_a = make_guest(first_name="Ada", phone="0814440006")
+        guest_b = make_guest(first_name="Ben", phone="0814440007")
+        ci, co = self.d(40), self.d(42)
+
+        booking_a = create_individual_shared_room_booking(
+            guest=guest_a, room=room, check_in=ci, check_out=co, allocated_guests=1, staff_user=self.owner,
+        )
+        booking_b = create_individual_shared_room_booking(
+            guest=guest_b, room=room, check_in=ci, check_out=co, allocated_guests=1, staff_user=self.owner,
+        )
+
+        self.assertTrue(booking_a.booking_reference)
+        self.assertTrue(booking_b.booking_reference)
+        self.assertNotEqual(booking_a.booking_reference, booking_b.booking_reference)
+
+    def test_separate_invoice_generated(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest_a = make_guest(first_name="Ada", phone="0814440008")
+        guest_b = make_guest(first_name="Ben", phone="0814440009")
+        ci, co = self.d(50), self.d(53)
+
+        booking_a = create_individual_shared_room_booking(
+            guest=guest_a, room=room, check_in=ci, check_out=co, allocated_guests=1, staff_user=self.owner,
+        )
+        booking_b = create_individual_shared_room_booking(
+            guest=guest_b, room=room, check_in=ci, check_out=co, allocated_guests=1, staff_user=self.owner,
+        )
+
+        resp_a = self.client.get(reverse("core:booking_invoice_pdf", args=[booking_a.pk]))
+        resp_b = self.client.get(reverse("core:booking_invoice_pdf", args=[booking_b.pk]))
+        self.assertEqual(resp_a.status_code, 200)
+        self.assertEqual(resp_b.status_code, 200)
+
+        text_a = extract_reportlab_pdf_text(resp_a.content)
+        text_b = extract_reportlab_pdf_text(resp_b.content)
+        self.assertIn(booking_a.booking_reference.encode(), text_a)
+        self.assertIn(booking_b.booking_reference.encode(), text_b)
+        self.assertNotIn(booking_b.booking_reference.encode(), text_a)
+        self.assertNotIn(booking_a.booking_reference.encode(), text_b)
+
+    def test_separate_payment_balance_maintained(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest_a = make_guest(first_name="Ada", phone="0814440010")
+        guest_b = make_guest(first_name="Ben", phone="0814440011")
+        ci, co = self.d(60), self.d(63)  # 3 nights, matches the R540 pricing example
+
+        booking_a = create_individual_shared_room_booking(
+            guest=guest_a, room=room, check_in=ci, check_out=co, allocated_guests=1, staff_user=self.owner,
+            payment_info={"amount": Decimal("540.00"), "payment_method": "Cash", "payment_type": "Payment"},
+        )
+        booking_b = create_individual_shared_room_booking(
+            guest=guest_b, room=room, check_in=ci, check_out=co, allocated_guests=1, staff_user=self.owner,
+        )
+
+        self.assertEqual(booking_a.total_amount, Decimal("540.00"))
+        self.assertEqual(booking_a.payments.count(), 1)
+        self.assertEqual(booking_b.payments.count(), 0)
+        self.assertEqual(booking_a.balance_due, Decimal("0.00"))
+        self.assertEqual(booking_b.balance_due, Decimal("540.00"))
+
+    def test_exact_final_capacity_succeeds(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest_a = make_guest(first_name="Ada", phone="0814440012")
+        guest_b = make_guest(first_name="Ben", phone="0814440013")
+        ci, co = self.d(70), self.d(72)
+
+        create_individual_shared_room_booking(
+            guest=guest_a, room=room, check_in=ci, check_out=co, allocated_guests=6, staff_user=self.owner,
+        )
+        booking_b = create_individual_shared_room_booking(
+            guest=guest_b, room=room, check_in=ci, check_out=co, allocated_guests=1, staff_user=self.owner,
+        )
+
+        self.assertEqual(occupancy_snapshot(room, ci), (7, 7, 0))
+        self.assertIsNotNone(booking_b.pk)
+
+    def test_capacity_plus_one_fails(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest_a = make_guest(first_name="Ada", phone="0814440014")
+        guest_b = make_guest(first_name="Ben", phone="0814440015")
+        ci, co = self.d(80), self.d(82)
+
+        create_individual_shared_room_booking(
+            guest=guest_a, room=room, check_in=ci, check_out=co, allocated_guests=7, staff_user=self.owner,
+        )
+
+        with self.assertRaises(ValidationError) as ctx:
+            create_individual_shared_room_booking(
+                guest=guest_b, room=room, check_in=ci, check_out=co, allocated_guests=1, staff_user=self.owner,
+            )
+        self.assertTrue(any("only has 0 of 1" in msg for msg in ctx.exception.messages), ctx.exception.messages)
+        self.assertEqual(Booking.objects.filter(guest=guest_b).count(), 0)
+        self.assertEqual(occupancy_snapshot(room, ci), (7, 7, 0))
+
+    def test_cross_tenant_room_selection_fails(self):
+        enable_shared_capacity()
+        make_room("Home Filler")
+        guest = make_guest(phone="0814440098")
+
+        with schema_context("public"):
+            other_tenant = GuestHouseTenant(
+                schema_name="individual_booking_other",
+                name="Other Guest House",
+                owner_name="Other Owner",
+                owner_email="individual-other@example.com",
+                owner_phone="0830000098",
+                is_active=True,
+                is_verified=True,
+            )
+            other_tenant.save()
+            Domain.objects.create(domain="individual-booking-other.test.com", tenant=other_tenant, is_primary=True)
+        try:
+            with tenant_context(other_tenant):
+                # Burn through a few pks so the foreign room's id is guaranteed
+                # not to coincidentally exist in this (local) tenant's schema.
+                for _ in range(5):
+                    make_room(f"Filler {_}")
+                foreign_room = make_shared_room("Foreign Shared Room", price=180, max_guests=7)
+                foreign_room_id = foreign_room.pk
+
+            self.assertFalse(
+                Room.objects.filter(pk=foreign_room_id).exists(),
+                "test setup invalid: foreign room id coincidentally exists locally too",
+            )
+
+            with self.assertRaises(ValidationError) as ctx:
+                create_individual_shared_room_booking(
+                    guest=guest, room=foreign_room,
+                    check_in=self.d(90), check_out=self.d(92),
+                    allocated_guests=1, staff_user=self.owner,
+                )
+            self.assertTrue(any("could not be found" in msg for msg in ctx.exception.messages), ctx.exception.messages)
+            self.assertEqual(Booking.objects.filter(guest=guest).count(), 0)
+        finally:
+            with schema_context("public"):
+                other_tenant.delete(allow_hard_delete=True)
+
+    def test_feature_disabled_tenant_retains_old_behaviour(self):
+        # Flag left at its default False, even though the room itself is
+        # already marked SHARED_CAPACITY (e.g. mid-configuration) — the
+        # tenant-level flag is the master kill-switch.
+        room = make_room("Room 02", price=180)
+        room.booking_mode = "SHARED_CAPACITY"
+        room.max_guests = 7
+        room.pricing_model = "per_person"
+        room.save()
+        guest = make_guest(phone="0814440099")
+
+        with self.assertRaises(ValidationError) as ctx:
+            create_individual_shared_room_booking(
+                guest=guest, room=room, check_in=self.d(95), check_out=self.d(97),
+                allocated_guests=1, staff_user=self.owner,
+            )
+        self.assertIn("not enabled", ctx.exception.messages[0])
+        self.assertEqual(Booking.objects.filter(guest=guest).count(), 0)
+
+        # The add-guest screen doesn't exist at all for this tenant.
+        response = self.client.get(reverse("core:room_add_shared_guest", args=[room.pk]))
+        self.assertEqual(response.status_code, 404)
+
+        # The room list keeps its plain whole-room quick action untouched.
+        list_response = self.client.get(reverse("core:room_list"))
+        self.assertContains(list_response, "Check In")
+        self.assertNotContains(list_response, "Add Guest")
+
+    def test_audit_log_records_staff_action(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest = make_guest(first_name="Ada", phone="0814440100")
+        ci, co = self.d(100), self.d(103)
+
+        booking = create_individual_shared_room_booking(
+            guest=guest, room=room, check_in=ci, check_out=co,
+            allocated_guests=1, staff_user=self.owner,
+        )
+
+        log = AuditLog.objects.filter(object_type="Booking", object_id=str(booking.pk)).order_by("-created_at").first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.actor, self.owner)
+        self.assertEqual(log.after["room"], room.name)
+        self.assertEqual(log.after["allocated_guests"], 1)
+        self.assertEqual(log.after["booking_reference"], booking.booking_reference)
+        self.assertEqual(log.after["calculated_amount"], str(booking.room_allocations.get().line_total))
+
+
+def _model_snapshot_for_test(booking):
+    return {
+        "check_in_date": booking.check_in_date,
+        "check_out_date": booking.check_out_date,
+        "num_guests": booking.num_guests,
+        "total_amount": booking.total_amount,
+        "balance_due": booking.balance_due,
+        "status": booking.status,
+        "booking_reference": booking.booking_reference,
+        "rate_per_night": booking.rate_per_night,
+    }
+
+
+class IndividualSharedRoomBookingConcurrencyTest(ConcurrencyTenantTestCase):
+    """Two staff members must not be able to sell the same final shared-room
+    space — mirrors BookingTransactionConcurrencyTest's pattern exactly, but
+    exercises create_individual_shared_room_booking() directly."""
+
+    def setUp(self):
+        self.today = timezone.localdate()
+        self.schema_name = connection.schema_name
+
+    def d(self, offset):
+        return self.today + datetime.timedelta(days=offset)
+
+    def test_simultaneous_final_space_requests_cannot_overbook(self):
+        enable_shared_capacity()
+        room = make_shared_room("Concurrency Individual Room", price=180, max_guests=7)
+        # Pre-fill 6 of 7 spaces so exactly one more single-guest booking fits.
+        create_individual_shared_room_booking(
+            guest=make_guest(first_name="Filler", phone="0814550000"),
+            room=room, check_in=self.d(100), check_out=self.d(102), allocated_guests=6,
+        )
+        guest_a = make_guest(first_name="Ada", phone="0814550001")
+        guest_b = make_guest(first_name="Ben", phone="0814550002")
+        ci, co = self.d(100), self.d(102)
+
+        def attempt(guest):
+            def _run():
+                return create_individual_shared_room_booking(
+                    guest=guest, room=room, check_in=ci, check_out=co, allocated_guests=1,
+                )
+            return _run
+
+        results = run_concurrently(self.schema_name, [attempt(guest_a), attempt(guest_b)])
+        successes = [r for r, e in results if e is None]
+        failures = [e for r, e in results if e is not None]
+        self.assertEqual(len(successes), 1, f"expected exactly 1 success, got results={results}")
+        self.assertEqual(len(failures), 1)
+        self.assertIsInstance(failures[0], ValidationError)
+
+        with schema_context(self.schema_name):
+            self.assertEqual(occupancy_snapshot(room, ci), (7, 7, 0))
+
+
+class RoomListSharedCapacityInterfaceTest(CircleCoreTenantTestCase):
+    """
+    /rooms/ interface for tenant-gated shared-capacity rooms: the room card
+    must let staff book/check in another guest without ever touching the
+    guest already staying in the room. Covers every card state (empty,
+    partially occupied, full, out-of-service) plus the feature-disabled
+    fallback to the plain whole-room card every other tenant still gets.
+    """
+
+    def setUp(self):
+        self.owner = make_owner()
+        activate_trial(self.owner)
+        self.client.login(username="owner", password="testpass123")
+
+    def test_empty_shared_room_shows_check_in_guest(self):
+        enable_shared_capacity()
+        make_shared_room("Room 02", price=180, max_guests=7)
+
+        response = self.client.get(reverse("core:room_list"))
+
+        self.assertContains(response, "Check In Guest")
+        self.assertNotContains(response, "Add Another Guest")
+        self.assertNotContains(response, "View Occupants")
+        self.assertContains(response, "0 / 7 occupied")
+        self.assertContains(response, "7 spaces remaining")
+        self.assertContains(response, "per person per night")
+        self.assertContains(response, "Available")
+
+    def test_partially_occupied_room_shows_add_another_guest(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest = make_guest(first_name="Ada", phone="0815550001")
+        today = timezone.localdate()
+        create_individual_shared_room_booking(
+            guest=guest, room=room,
+            check_in=today, check_out=today + datetime.timedelta(days=2),
+            allocated_guests=1, staff_user=self.owner,
+        )
+
+        response = self.client.get(reverse("core:room_list"))
+
+        self.assertContains(response, "Add Another Guest")
+        self.assertContains(response, "View Occupants")
+        self.assertContains(response, "View Room")
+        self.assertContains(response, "1 / 7 occupied")
+        self.assertContains(response, "6 spaces remaining")
+        self.assertNotContains(response, "Check In Guest")
+
+    def test_full_shared_room_disables_add_another_guest(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest = make_guest(first_name="Ada", phone="0815550002")
+        today = timezone.localdate()
+        create_individual_shared_room_booking(
+            guest=guest, room=room,
+            check_in=today, check_out=today + datetime.timedelta(days=2),
+            allocated_guests=7, staff_user=self.owner,
+        )
+
+        response = self.client.get(reverse("core:room_list"))
+
+        self.assertContains(response, "Full")
+        self.assertContains(response, "View Occupants")
+        self.assertNotContains(response, "Add Another Guest")
+        self.assertNotContains(response, "Check In Guest")
+        # The disabled action must be a real, non-clickable button — not just
+        # a plain link relying on colour to look inactive.
+        self.assertContains(response, "disabled")
+
+    def test_out_of_service_shared_room_disables_regardless_of_capacity(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        room.status = "Maintenance"
+        room.save()
+
+        response = self.client.get(reverse("core:room_list"))
+
+        self.assertContains(response, "Unavailable")
+        self.assertNotContains(response, "Check In Guest")
+        self.assertNotContains(response, "Add Another Guest")
+
+    def test_feature_disabled_tenant_retains_existing_card(self):
+        # Flag left at its default False — the room-card interface, wording
+        # and quick action must be byte-for-byte what every other tenant
+        # already had, even though this room is internally marked
+        # SHARED_CAPACITY (e.g. mid-configuration).
+        room = make_room("Room 02", price=180)
+        room.booking_mode = "SHARED_CAPACITY"
+        room.max_guests = 7
+        room.pricing_model = "per_person"
+        room.save()
+
+        response = self.client.get(reverse("core:room_list"))
+
+        self.assertContains(response, "Check In</a>")
+        self.assertNotContains(response, "Check In Guest")
+        self.assertNotContains(response, "Add Another Guest")
+        self.assertNotContains(response, "View Occupants")
+        self.assertNotContains(response, "Partially Occupied")
+        self.assertNotContains(response, "spaces remaining")
+
+    def test_add_another_guest_link_has_correct_room_context(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest = make_guest(first_name="Ada", phone="0815550003")
+        today = timezone.localdate()
+        create_individual_shared_room_booking(
+            guest=guest, room=room,
+            check_in=today, check_out=today + datetime.timedelta(days=2),
+            allocated_guests=1, staff_user=self.owner,
+        )
+
+        response = self.client.get(reverse("core:room_list"))
+
+        expected_url = reverse("core:room_add_shared_guest", args=[room.pk])
+        self.assertContains(response, f'href="{expected_url}"')
+
+    def test_existing_occupant_not_altered_by_viewing_the_interface(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 02", price=180, max_guests=7)
+        guest = make_guest(first_name="Ada", phone="0815550004")
+        today = timezone.localdate()
+        booking = create_individual_shared_room_booking(
+            guest=guest, room=room,
+            check_in=today, check_out=today + datetime.timedelta(days=2),
+            allocated_guests=1, staff_user=self.owner,
+        )
+        before = _model_snapshot_for_test(booking)
+
+        # Merely viewing the room list, room detail and the add-guest form
+        # must never mutate the existing occupant's booking.
+        self.client.get(reverse("core:room_list"))
+        self.client.get(reverse("core:room_detail", args=[room.pk]))
+        self.client.get(reverse("core:room_add_shared_guest", args=[room.pk]))
+
+        booking.refresh_from_db()
+        self.assertEqual(before, _model_snapshot_for_test(booking))
+        self.assertEqual(booking.room_allocations.count(), 1)
+        self.assertEqual(booking.room_allocations.get().allocated_guests, 1)

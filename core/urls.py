@@ -48,6 +48,7 @@ urlpatterns = [
     path("rooms/<int:pk>/", views.room_detail, name="room_detail"),
     path("rooms/<int:pk>/edit/", views.room_edit, name="room_edit"),
     path("rooms/<int:pk>/delete/", views.room_delete, name="room_delete"),
+    path("rooms/<int:pk>/add-guest/", views.room_add_shared_guest, name="room_add_shared_guest"),
     path("cleaning/", views.cleaning_board, name="cleaning"),
     path("cleaning/proofs/", views.cleaning_proof_review, name="cleaning_proof_review"),
     path("cleaning/proofs/<int:pk>/photo/", views.cleaning_proof_photo, name="cleaning_proof_photo"),

@@ -86,7 +86,12 @@ from .availability import (
     occupancy_snapshot,
     shared_room_status_label,
 )
-from .booking_transactions import create_multi_room_booking
+from .booking_transactions import (
+    check_in_multi_room_booking,
+    check_out_multi_room_booking,
+    create_individual_shared_room_booking,
+    create_multi_room_booking,
+)
 from .pdf_utils import generate_pdf
 from .pdf_documents import render_booking_invoice_pdf, render_payment_receipt_pdf
 from .subscriptions import trial_end
@@ -971,6 +976,7 @@ def room_list(request):
         if room.pk in shared_room_ids:
             occupied = occupancy_today.get((room.pk, today), {"occupied": 0})["occupied"]
             room.shared_occupied = occupied
+            room.shared_remaining = max(room.max_guests - occupied, 0)
             room.shared_status_label = shared_room_status_label(occupied, room.max_guests, room.status)
         else:
             room.shared_occupied = None
@@ -1100,7 +1106,20 @@ def room_detail(request, pk):
     )
     booking_history_count = booking_history.count()
     booking_history_revenue = booking_history.aggregate(total=Sum("total_amount"))["total"] or Decimal("0.00")
-    active_booking = room.bookings.filter(status="Checked In").order_by("-check_in_time").first()
+    is_shared_capacity = room.effective_booking_mode == "SHARED_CAPACITY"
+    active_booking = None
+    active_occupants = []
+    shared_occupied = shared_remaining = None
+    if is_shared_capacity:
+        # Every occupant of a shared room checked in independently, so the
+        # room detail page must list every one of them — not just one — each
+        # with its own, independent checkout action.
+        active_occupants = list(
+            room.bookings.select_related("guest").filter(status="Checked In").order_by("check_in_time")
+        )
+        shared_occupied, _cap, shared_remaining = occupancy_snapshot(room, today)
+    else:
+        active_booking = room.bookings.filter(status="Checked In").order_by("-check_in_time").first()
 
     return render(
         request,
@@ -1114,6 +1133,10 @@ def room_detail(request, pk):
             "history_period": history_period,
             "history_label": history_label,
             "active_booking": active_booking,
+            "is_shared_capacity": is_shared_capacity,
+            "active_occupants": active_occupants,
+            "shared_occupied": shared_occupied,
+            "shared_remaining": shared_remaining,
             "is_cleaner": is_cleaner(request.user),
         },
     )
@@ -2381,6 +2404,142 @@ def group_booking_add(request):
 
 
 @login_required
+def room_add_shared_guest(request, pk):
+    """Add one more independently paying guest (or a small family/group
+    sharing one payment account) into an already-partially-occupied
+    SHARED_CAPACITY room, without touching any other guest's booking.
+
+    Only reachable at all when the tenant has shared_capacity_booking_enabled
+    and the target room's own booking_mode is SHARED_CAPACITY — every other
+    tenant/room gets a plain 404, exactly like group_booking_add, so nothing
+    here can ever affect a WHOLE_ROOM tenant.
+    """
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    _group_booking_gate(request)
+
+    active_prop, property_rooms = _property_rooms(request)
+    room = get_object_or_404(property_rooms.select_related("room_category", "rate_plan"), pk=pk)
+    if room.effective_booking_mode != "SHARED_CAPACITY":
+        raise Http404("This room does not accept individual shared-capacity bookings.")
+
+    guest_choices = list(Guest.objects.filter(is_generic=False).order_by("last_name", "first_name"))
+    today = timezone.localdate()
+    occupied_today, _cap, remaining_today = occupancy_snapshot(room, today)
+
+    errors = []
+    identity_mode = "walk_in"
+    selected_guest_id = ""
+    check_in_value = today.isoformat()
+    check_out_value = (today + datetime.timedelta(days=1)).isoformat()
+    allocated_guests_value = "1"
+    booking_source_value = "Walk-in"
+    notes_value = ""
+    collect_payment = False
+    payment_amount_value = ""
+    payment_method_value = "Cash"
+    payment_type_value = "Payment"
+    payment_reference_value = ""
+
+    if request.method == "POST":
+        identity_mode = request.POST.get("identity_mode", "walk_in")
+        selected_guest_id = request.POST.get("guest", "")
+        check_in_value = request.POST.get("check_in_date", check_in_value)
+        check_out_value = request.POST.get("check_out_date", check_out_value)
+        allocated_guests_value = request.POST.get("allocated_guests", "1")
+        booking_source_value = request.POST.get("booking_source", "Walk-in")
+        notes_value = request.POST.get("notes", "")
+        collect_payment = request.POST.get("collect_payment") == "on"
+        payment_amount_value = request.POST.get("payment_amount", "")
+        payment_method_value = request.POST.get("payment_method", "Cash")
+        payment_type_value = request.POST.get("payment_type", "Payment")
+        payment_reference_value = request.POST.get("payment_reference", "")
+
+        check_in = _parse_date(check_in_value)
+        check_out = _parse_date(check_out_value)
+
+        try:
+            allocated_guests = int(allocated_guests_value)
+        except (TypeError, ValueError):
+            allocated_guests = None
+            errors.append("Enter a whole number of guest spaces.")
+
+        if identity_mode == "guest" and selected_guest_id:
+            guest = Guest.objects.filter(pk=selected_guest_id, is_generic=False).first()
+            if guest is None:
+                errors.append("Select a valid guest, or use walk-in.")
+        else:
+            guest = Guest.get_generic()
+
+        payment_info = None
+        if collect_payment:
+            try:
+                payment_amount = Decimal(payment_amount_value)
+                if payment_amount <= 0:
+                    raise ValueError
+            except Exception:
+                payment_amount = None
+                errors.append("Enter a valid payment amount, or leave payment unticked.")
+            if payment_amount is not None:
+                payment_info = {
+                    "amount": payment_amount,
+                    "payment_method": payment_method_value,
+                    "payment_type": payment_type_value,
+                    "reference": payment_reference_value,
+                }
+
+        if not errors:
+            try:
+                booking = create_individual_shared_room_booking(
+                    guest=guest,
+                    room=room,
+                    check_in=check_in,
+                    check_out=check_out,
+                    allocated_guests=allocated_guests,
+                    booking_source=booking_source_value,
+                    payment_info=payment_info,
+                    notes=notes_value,
+                    staff_user=request.user,
+                    prop=active_prop,
+                )
+            except ValidationError as exc:
+                errors.extend(exc.messages)
+            else:
+                settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+                notify_booking_created(booking, settings_obj)
+                messages.success(request, f"{booking.booking_reference}: guest added to {room.name}.")
+                return redirect("core:booking_detail", pk=booking.pk)
+
+    return render(
+        request,
+        "core/room_add_guest_form.html",
+        {
+            "title": f"Add Guest — {room.name}",
+            "room": room,
+            "occupied_today": occupied_today,
+            "remaining_today": remaining_today,
+            "guest_choices": guest_choices,
+            "errors": errors,
+            "identity_mode": identity_mode,
+            "selected_guest_id": selected_guest_id,
+            "check_in_value": check_in_value,
+            "check_out_value": check_out_value,
+            "allocated_guests_value": allocated_guests_value,
+            "booking_source_value": booking_source_value,
+            "notes_value": notes_value,
+            "collect_payment": collect_payment,
+            "payment_amount_value": payment_amount_value,
+            "payment_method_value": payment_method_value,
+            "payment_type_value": payment_type_value,
+            "payment_reference_value": payment_reference_value,
+            "booking_source_choices": Booking.BOOKING_SOURCE_CHOICES,
+            "payment_method_choices": Payment.PAYMENT_METHOD_CHOICES,
+        },
+    )
+
+
+@login_required
 def booking_detail(request, pk):
     blocked = _cleaner_blocked(request)
     if blocked:
@@ -3249,7 +3408,7 @@ def booking_checkin(request, pk):
     if blocked:
         return blocked
     active_prop = get_active_property(request)
-    booking = get_object_or_404(Booking, pk=pk, room__prop=active_prop)
+    booking = get_object_or_404(Booking.objects.select_related("room"), pk=pk, room__prop=active_prop)
     if _is_date_locked(booking.check_in_date):
         return _locked_day_response(request, booking.check_in_date, "core:booking_detail", pk=pk)
     if request.method == "POST":
@@ -3260,13 +3419,20 @@ def booking_checkin(request, pk):
         from django.core.exceptions import ValidationError as DjangoValidationError
         before = _model_snapshot(booking, ["status", "check_in_time"])
         try:
-            with db_transaction.atomic():
-                booking.status = "Checked In"
-                booking.check_in_time = timezone.now()
-                booking.save()
-                booking.room.status = "Occupied"
-                booking.room.save()
-        except DjangoValidationError as exc:
+            if booking.room.effective_booking_mode == "SHARED_CAPACITY":
+                # A shared dormitory may hold several other independently
+                # checked-in guests — only this one booking's own status may
+                # change, and the room's own status only moves on the empty
+                # -> first-occupant edge (see check_in_multi_room_booking).
+                booking = check_in_multi_room_booking(booking)
+            else:
+                with db_transaction.atomic():
+                    booking.status = "Checked In"
+                    booking.check_in_time = timezone.now()
+                    booking.save()
+                    booking.room.status = "Occupied"
+                    booking.room.save()
+        except (DjangoValidationError, ValidationError) as exc:
             messages.error(request, f"Check-in failed: {'; '.join(exc.messages)}")
             return redirect("core:booking_detail", pk=pk)
         _audit(request, "update", booking, before=before, after=_model_snapshot(booking, ["status", "check_in_time"]))
@@ -3282,7 +3448,7 @@ def booking_checkout(request, pk):
     if blocked:
         return blocked
     active_prop = get_active_property(request)
-    booking = get_object_or_404(Booking, pk=pk, room__prop=active_prop)
+    booking = get_object_or_404(Booking.objects.select_related("room"), pk=pk, room__prop=active_prop)
     if _is_date_locked(timezone.localdate()):
         return _locked_day_response(request, timezone.localdate(), "core:booking_detail", pk=pk)
     if request.method == "POST":
@@ -3293,15 +3459,21 @@ def booking_checkout(request, pk):
         from django.core.exceptions import ValidationError as DjangoValidationError
         before = _model_snapshot(booking, ["status", "check_out_time", "balance_due"])
         try:
-            with db_transaction.atomic():
-                booking.status = "Checked Out"
-                booking.check_out_time = timezone.now()
-                booking.save()
-                room = booking.room
-                room.status = "Cleaning"
-                room.cleaning_status = "Needs Cleaning"
-                room.save()
-        except DjangoValidationError as exc:
+            if booking.room.effective_booking_mode == "SHARED_CAPACITY":
+                # Other occupants of this same shared room may still be
+                # checked in — the room only turns "Cleaning" once this was
+                # the last one (see check_out_multi_room_booking).
+                booking = check_out_multi_room_booking(booking)
+            else:
+                with db_transaction.atomic():
+                    booking.status = "Checked Out"
+                    booking.check_out_time = timezone.now()
+                    booking.save()
+                    room = booking.room
+                    room.status = "Cleaning"
+                    room.cleaning_status = "Needs Cleaning"
+                    room.save()
+        except (DjangoValidationError, ValidationError) as exc:
             messages.error(request, f"Check-out failed: {'; '.join(exc.messages)}")
             return redirect("core:booking_detail", pk=pk)
         _audit(request, "update", booking, before=before, after=_model_snapshot(booking, ["status", "check_out_time", "balance_due"]), reason="Checkout forced room to cleaning workflow")

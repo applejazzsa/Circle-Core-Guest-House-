@@ -52,11 +52,9 @@
           {% if room.shared_status_label == 'Available' %}badge-green
           {% elif room.shared_status_label == 'Partially Occupied' %}badge-amber
           {% elif room.shared_status_label == 'Full' %}room-status-occupied
-          {% else %}room-status-maintenance{% endif %}">
-          {% if room.shared_status_label == 'Available' %}Available
-          {% elif room.shared_status_label == 'Partially Occupied' %}{{ room.shared_occupied }} / {{ room.max_guests }} occupied
-          {% elif room.shared_status_label == 'Full' %}{{ room.shared_occupied }} / {{ room.max_guests }} full
-          {% else %}Out of Service{% endif %}
+          {% else %}room-status-maintenance{% endif %}"
+          aria-label="Shared-capacity status: {{ room.shared_status_label }}, {{ room.shared_occupied }} of {{ room.max_guests }} occupied">
+          {{ room.shared_status_label }}
         </span>
         {% else %}
         <span class="badge
@@ -81,6 +79,33 @@
       </div>
       {% endif %}
 
+      {% if room.shared_occupied is not None %}
+      <!-- Shared-capacity summary: occupied/remaining spaces, PPPN rate, operational status.
+           All of this is informational — the server always revalidates capacity fresh when a
+           booking is actually submitted, never trusting these numbers as-is. -->
+      <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px; margin-bottom:14px;">
+        {% if room.shared_status_label != 'Out of Service' %}
+        <div style="display:flex; justify-content:space-between; font-size:12.5px; color:var(--color-text-secondary);">
+          <span>Occupied</span>
+          <span style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">{{ room.shared_occupied }} / {{ room.max_guests }} {% if room.shared_status_label == 'Full' %}full{% else %}occupied{% endif %}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:12.5px; color:var(--color-text-secondary); margin-top:6px;">
+          <span>Remaining</span>
+          <span style="font-family:var(--font-mono); font-weight:600; color:{% if room.shared_remaining > 0 %}var(--color-green-400){% else %}var(--color-text-tertiary){% endif %};">{{ room.shared_remaining }} space{{ room.shared_remaining|pluralize }} remaining</span>
+        </div>
+        {% endif %}
+        {% if room.pricing_model == 'per_person' %}
+        <div style="display:flex; justify-content:space-between; font-size:12.5px; color:var(--color-text-secondary); margin-top:6px;">
+          <span>Rate</span>
+          <span style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">R{{ room.price_per_night }} per person per night</span>
+        </div>
+        {% endif %}
+        <div style="display:flex; justify-content:space-between; font-size:12.5px; color:var(--color-text-secondary); margin-top:6px;">
+          <span>Operational status</span>
+          <span style="font-weight:600; color:var(--color-text-primary);">{{ room.status }}</span>
+        </div>
+      </div>
+      {% else %}
       <!-- Pricing grid -->
       <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px; margin-bottom:14px;">
         <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:8px;">
@@ -110,6 +135,7 @@
           {% endif %}
         </div>
       </div>
+      {% endif %}
 
       <!-- Cleaning status -->
       <div style="display:flex; align-items:center; gap:6px; margin-bottom:14px;">
@@ -134,6 +160,32 @@
       {% endif %}
 
       <!-- Actions -->
+      {% if room.shared_occupied is not None %}
+      <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
+        {% if not is_cleaner %}
+        <div>
+          {% if room.shared_status_label == 'Out of Service' %}
+          <button type="button" class="btn btn-ghost btn-sm" disabled aria-disabled="true" style="width:100%; justify-content:center; opacity:0.45; cursor:not-allowed;">Unavailable</button>
+          {% elif room.shared_status_label == 'Full' %}
+          <button type="button" class="btn btn-ghost btn-sm" disabled aria-disabled="true" style="width:100%; justify-content:center; opacity:0.45; cursor:not-allowed;">Full</button>
+          {% elif room.shared_occupied > 0 %}
+          <a href="{% url 'core:room_add_shared_guest' room.pk %}" class="btn btn-primary btn-sm" style="width:100%; justify-content:center;">Add Another Guest</a>
+          {% else %}
+          <a href="{% url 'core:room_add_shared_guest' room.pk %}" class="btn btn-primary btn-sm" style="width:100%; justify-content:center;">Check In Guest</a>
+          {% endif %}
+        </div>
+        {% endif %}
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          {% if room.shared_occupied > 0 %}
+          <a href="{% url 'core:room_detail' room.pk %}#occupants" class="btn btn-secondary btn-sm" style="flex:1; justify-content:center;">View Occupants</a>
+          {% endif %}
+          <a href="{% url 'core:room_detail' room.pk %}" class="btn btn-secondary btn-sm" style="flex:1; justify-content:center;">View Room</a>
+          {% if not is_cleaner %}
+          <a href="{% url 'core:room_edit' room.pk %}" class="btn btn-ghost btn-sm" style="flex:1; justify-content:center;">Edit</a>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
       <div style="display:flex; gap:8px; margin-top:auto;">
         <a href="{% url 'core:room_detail' room.pk %}" class="btn btn-secondary btn-sm" style="flex:1; justify-content:center;">View</a>
         {% if not is_cleaner %}
@@ -145,6 +197,7 @@
         {% endif %}
         {% endif %}
       </div>
+      {% endif %}
     </div>
   </div>
   {% endfor %}

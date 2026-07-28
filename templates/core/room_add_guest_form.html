@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Bookings</div>
+    <h1 class="page-title">{{ title }}</h1>
+    <p class="page-subtitle">This guest gets their own booking, invoice and payment balance — the existing occupant{{ occupied_today|pluralize }} of {{ room.name }} are unaffected.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'core:room_detail' room.pk %}" class="btn btn-ghost">← Back to room</a>
+  </div>
+</div>
+
+<div style="max-width:720px;">
+  {% if errors %}
+  <div role="alert" style="margin-bottom:16px; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:var(--radius-md); font-size:13px; color:#f87171;">
+    {% for error in errors %}<p style="margin:2px 0;">{{ error }}</p>{% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card" style="margin-bottom:16px; padding:14px 16px;">
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary);">
+      <span>Booking type</span>
+      <span style="font-weight:600; color:var(--color-text-primary);">Individual Guest</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary); margin-top:6px;">
+      <span>Currently occupied today</span>
+      <span style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">{{ occupied_today }} / {{ room.max_guests }}</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary); margin-top:6px;">
+      <span>Remaining spaces for selected dates</span>
+      <span id="remaining-today" aria-live="polite" style="font-family:var(--font-mono); font-weight:600; color:var(--color-green-400);">{{ remaining_today }}</span>
+    </div>
+    {% if room.pricing_model == 'per_person' %}
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary); margin-top:6px;">
+      <span>Rate</span>
+      <span style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">R{{ room.price_per_night }} per person per night</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <form method="post" id="add-guest-form" novalidate>
+    {% csrf_token %}
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:16px;">Guest</div>
+      <fieldset style="border:none; padding:0; margin:0 0 14px;">
+        <legend class="form-label" style="margin-bottom:8px;">Identity</legend>
+        <div style="display:flex; gap:16px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-text-secondary); cursor:pointer;">
+            <input type="radio" name="identity_mode" value="walk_in" {% if identity_mode != "guest" %}checked{% endif %}>
+            Walk-in guest
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-text-secondary); cursor:pointer;">
+            <input type="radio" name="identity_mode" value="guest" {% if identity_mode == "guest" %}checked{% endif %}>
+            Existing guest profile
+          </label>
+        </div>
+      </fieldset>
+      <div class="form-group" id="guest-select-group" style="{% if identity_mode != 'guest' %}display:none;{% endif %}">
+        <label class="form-label" for="id_guest">Guest</label>
+        <select name="guest" id="id_guest" class="form-input">
+          <option value="">Select a guest…</option>
+          {% for g in guest_choices %}
+          <option value="{{ g.pk }}" {% if selected_guest_id == g.pk|stringformat:"s" %}selected{% endif %}>{{ g.full_name }} ({{ g.phone }})</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:16px;">Stay</div>
+      <div class="grid-2" style="gap:16px;">
+        <div class="form-group">
+          <label class="form-label" for="id_check_in_date">Check-in date</label>
+          <input type="date" name="check_in_date" id="id_check_in_date" class="form-input" value="{{ check_in_value }}" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="id_check_out_date">Check-out date</label>
+          <input type="date" name="check_out_date" id="id_check_out_date" class="form-input" value="{{ check_out_value }}" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="id_allocated_guests">Guest spaces to allocate</label>
+          <input type="number" min="1" max="{{ room.max_guests }}" name="allocated_guests" id="id_allocated_guests" class="form-input" value="{{ allocated_guests_value }}" required>
+          <div class="form-hint">1 for an individual guest. A staff member may enter more than 1 for a family or group sharing a single payment account.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="id_booking_source">Booking source</label>
+          <select name="booking_source" id="id_booking_source" class="form-input">
+            {% for value, label in booking_source_choices %}
+            <option value="{{ value }}" {% if booking_source_value == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label" for="id_notes">Notes</label>
+          <textarea name="notes" id="id_notes" class="form-input" rows="2">{{ notes_value }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--color-text-secondary); cursor:pointer; margin-bottom:14px;">
+        <input type="checkbox" name="collect_payment" {% if collect_payment %}checked{% endif %} id="id_collect_payment">
+        Record a payment now for this guest's own balance
+      </label>
+      <div id="payment-fields" style="{% if not collect_payment %}display:none;{% endif %}">
+        <div class="grid-2" style="gap:16px;">
+          <div class="form-group">
+            <label class="form-label" for="id_payment_amount">Amount</label>
+            <input type="number" min="0" step="0.01" name="payment_amount" id="id_payment_amount" class="form-input" value="{{ payment_amount_value }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="id_payment_method">Method</label>
+            <select name="payment_method" id="id_payment_method" class="form-input">
+              {% for value, label in payment_method_choices %}
+              <option value="{{ value }}" {% if payment_method_value == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1;">
+            <label class="form-label" for="id_payment_reference">Reference (optional)</label>
+            <input type="text" name="payment_reference" id="id_payment_reference" class="form-input" value="{{ payment_reference_value }}">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px;">
+      <a href="{% url 'core:room_detail' room.pk %}" class="btn btn-ghost btn-lg">Cancel</a>
+      <button type="submit" class="btn btn-primary btn-lg">Add Guest</button>
+    </div>
+  </form>
+</div>
+
+<script>
+(function() {
+  document.querySelectorAll('input[name="identity_mode"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      document.getElementById('guest-select-group').style.display = (this.value === 'guest') ? '' : 'none';
+    });
+  });
+
+  var collectPayment = document.getElementById('id_collect_payment');
+  var paymentFields = document.getElementById('payment-fields');
+  if (collectPayment && paymentFields) {
+    collectPayment.addEventListener('change', function() {
+      paymentFields.style.display = this.checked ? '' : 'none';
+    });
+  }
+
+  // Live remaining-capacity display: same room_availability_json endpoint the
+  // group-booking form already uses. Non-fatal if it fails — the server
+  // re-validates authoritatively inside the locked transaction regardless.
+  var checkIn = document.getElementById('id_check_in_date');
+  var checkOut = document.getElementById('id_check_out_date');
+  var allocatedGuests = document.getElementById('id_allocated_guests');
+  var remainingEl = document.getElementById('remaining-today');
+  var roomId = {{ room.pk }};
+
+  function refreshRemaining() {
+    if (!checkIn.value || !checkOut.value) return;
+    var guests = Math.max(parseInt(allocatedGuests.value || '1', 10), 1);
+    var params = new URLSearchParams({ check_in: checkIn.value, check_out: checkOut.value, guests: String(guests) });
+    fetch('/rooms/' + roomId + '/availability.json?' + params.toString())
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (remainingEl && typeof data.remaining_capacity === 'number') {
+          remainingEl.textContent = data.remaining_capacity;
+        }
+      })
+      .catch(function() {});
+  }
+
+  [checkIn, checkOut, allocatedGuests].forEach(function(el) {
+    if (el) el.addEventListener('change', refreshRemaining);
+  });
+})();
+</script>
+{% endblock %}
