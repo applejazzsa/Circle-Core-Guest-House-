@@ -34,7 +34,7 @@ view in this codebase resolves rooms.
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from .models import Booking, RoomAllocation
+from .models import Booking, GuestHouseSettings, RoomAllocation
 
 # Derived from the existing Booking status choices — never hand-maintained
 # separately, so this can never silently drift from Booking.INACTIVE_STATUSES.
@@ -222,3 +222,90 @@ def _check_shared_capacity(room, check_in, check_out, requested_guests, exclude_
         ),
         nightly_occupancy=nightly_occupancy,
     )
+
+
+# ── Display/reporting helpers ──────────────────────────────────────────────
+#
+# These back the room list, room calendar, and availability search screens.
+# They deliberately do NOT go through check_availability(), which requires a
+# requested_guests >= 1 and is meant for validating a proposed booking, not
+# for reporting today's/a range's occupancy. Both helpers below issue exactly
+# one query regardless of how many rooms or days are being displayed —
+# never one query per room per night.
+
+# Operational states that take a room out of service regardless of capacity,
+# matching the exact set Room.validate_room_available() already blocks on.
+OUT_OF_SERVICE_STATUSES = ("Maintenance", "Blocked", "Cleaning")
+
+
+def effective_modes_for_rooms(rooms):
+    """
+    {room.pk: "SHARED_CAPACITY"|"WHOLE_ROOM"} for every room in `rooms`,
+    fetching the tenant's shared_capacity_booking_enabled flag exactly once.
+    Room.effective_booking_mode queries GuestHouseSettings every time it's
+    called — correct and cheap for validating one booking, but an N+1 query
+    bug if called per-room inside a list/template loop. Every display screen
+    that iterates a room list should use this instead.
+    """
+    settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
+    enabled = bool(settings_obj and settings_obj.shared_capacity_booking_enabled)
+    return {
+        room.pk: ("SHARED_CAPACITY" if (enabled and room.booking_mode == "SHARED_CAPACITY") else "WHOLE_ROOM")
+        for room in rooms
+    }
+
+
+def shared_room_status_label(occupied, max_capacity, room_status):
+    """Available / Partially Occupied / Full / Out of Service for a
+    SHARED_CAPACITY room, given already-computed occupancy."""
+    if room_status in OUT_OF_SERVICE_STATUSES:
+        return "Out of Service"
+    if occupied <= 0:
+        return "Available"
+    if occupied >= max_capacity:
+        return "Full"
+    return "Partially Occupied"
+
+
+def bulk_occupancy_by_room_and_date(room_ids, start_date, end_date):
+    """
+    Occupied-guest counts and contributing bookings for every room id in
+    `room_ids`, for every night in [start_date, end_date) — in one query.
+
+    Returns {(room_id, date): {"occupied": int, "bookings": [Booking, ...]}}.
+    A (room_id, date) pair with no active allocation simply has no entry —
+    callers should treat a missing key as occupied=0.
+    """
+    room_ids = list(room_ids)
+    if not room_ids or end_date <= start_date:
+        return {}
+
+    allocations = (
+        RoomAllocation.objects.filter(
+            room_id__in=room_ids,
+            booking__status__in=RESERVING_STATUSES,
+            booking__check_in_date__lt=end_date,
+            booking__check_out_date__gt=start_date,
+        )
+        .select_related("booking", "booking__guest")
+    )
+
+    nights = _nights(start_date, end_date)
+    result = {}
+    for allocation in allocations:
+        booking = allocation.booking
+        for night in nights:
+            if booking.check_in_date <= night < booking.check_out_date:
+                entry = result.setdefault((allocation.room_id, night), {"occupied": 0, "bookings": []})
+                entry["occupied"] += allocation.allocated_guests
+                entry["bookings"].append(booking)
+    return result
+
+
+def occupancy_snapshot(room, on_date):
+    """(occupied, max_capacity, remaining) for a single SHARED_CAPACITY room
+    on a single date — one query. For bulk/multi-room/multi-day use,
+    call bulk_occupancy_by_room_and_date() instead."""
+    occupancy = bulk_occupancy_by_room_and_date([room.pk], on_date, on_date + timedelta(days=1))
+    occupied = occupancy.get((room.pk, on_date), {"occupied": 0})["occupied"]
+    return occupied, room.max_guests, room.max_guests - occupied

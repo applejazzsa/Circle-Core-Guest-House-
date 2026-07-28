@@ -47,6 +47,18 @@
           <h3 style="font-family:var(--font-display); font-size:16px; font-weight:700; color:var(--color-text-primary); line-height:1.2;">{{ room.name }}</h3>
           <div style="font-size:11.5px; color:var(--color-text-tertiary); margin-top:3px;">{{ room.room_type }} · {{ room.max_guests }} guest{{ room.max_guests|pluralize }}{% if room.pricing_model == 'per_person' %} · <span style="color:var(--color-green-400); font-weight:600;">Priced per person</span>{% endif %}</div>
         </div>
+        {% if room.shared_occupied is not None %}
+        <span class="badge
+          {% if room.shared_status_label == 'Available' %}badge-green
+          {% elif room.shared_status_label == 'Partially Occupied' %}badge-amber
+          {% elif room.shared_status_label == 'Full' %}room-status-occupied
+          {% else %}room-status-maintenance{% endif %}">
+          {% if room.shared_status_label == 'Available' %}Available
+          {% elif room.shared_status_label == 'Partially Occupied' %}{{ room.shared_occupied }} / {{ room.max_guests }} occupied
+          {% elif room.shared_status_label == 'Full' %}{{ room.shared_occupied }} / {{ room.max_guests }} full
+          {% else %}Out of Service{% endif %}
+        </span>
+        {% else %}
         <span class="badge
           {% if room.status == 'Available' %}badge-green
           {% elif room.status == 'Booked' %}room-status-booked
@@ -54,7 +66,20 @@
           {% elif room.status == 'Cleaning' %}room-status-cleaning
           {% elif room.status == 'Maintenance' or room.status == 'Blocked' %}room-status-maintenance
           {% else %}badge-gray{% endif %}">{{ room.status }}</span>
+        {% endif %}
       </div>
+
+      <!-- Staff-only internal warnings (never shown on guest-facing documents) -->
+      {% if room.room_category.bathroom_type == "pending" or room.internal_notes|slice:":28" == "Capacity Pending Confirmation" %}
+      <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;">
+        {% if room.room_category.bathroom_type == "pending" %}
+        <span class="badge badge-amber" title="{{ room.internal_notes }}">Bathroom Details Pending</span>
+        {% endif %}
+        {% if room.internal_notes|slice:":28" == "Capacity Pending Confirmation" %}
+        <span class="badge badge-amber" title="{{ room.internal_notes }}">Capacity Pending Confirmation</span>
+        {% endif %}
+      </div>
+      {% endif %}
 
       <!-- Pricing grid -->
       <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:12px; margin-bottom:14px;">

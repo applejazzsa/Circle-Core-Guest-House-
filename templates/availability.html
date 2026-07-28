@@ -42,14 +42,25 @@
         <div>
           <div style="font-family:var(--font-display); font-size:15px; font-weight:700; color:var(--color-text-primary);">{{ room.name }}</div>
           <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:3px;">{{ room.room_type }} · max {{ room.max_guests }} guest{{ room.max_guests|pluralize }}</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">
+            {% if room.booking_mode_display == "SHARED_CAPACITY" %}Shared capacity{% else %}Whole room{% endif %}
+            {% if room.bathroom_type_display %} · {{ room.bathroom_type_display }} bathroom{% endif %}
+            {% if room.gender_restriction_display %} · {{ room.gender_restriction_display }}{% endif %}
+          </div>
         </div>
         <span class="badge badge-green">Available</span>
       </div>
       <div style="background:var(--color-bg-subtle); border-radius:var(--radius-md); padding:14px; margin-bottom:14px;">
         <div class="detail-row">
-          <span class="detail-label">Per night</span>
-          <span class="detail-value" style="font-family:var(--font-mono); font-weight:500;">{{ guest_house_settings.currency|default:"R" }} {{ room.price_per_night }}</span>
+          <span class="detail-label">Rate</span>
+          <span class="detail-value" style="font-family:var(--font-mono); font-weight:500;">{{ guest_house_settings.currency|default:"R" }} {{ room.price_per_night }}{% if room.pppn_rate %} PPPN{% endif %}</span>
         </div>
+        {% if room.booking_mode_display == "SHARED_CAPACITY" %}
+        <div class="detail-row">
+          <span class="detail-label">Remaining spaces</span>
+          <span class="detail-value" style="font-family:var(--font-mono);">{{ room.remaining_capacity }} / {{ room.max_guests }}</span>
+        </div>
+        {% endif %}
         <div class="detail-row">
           <span class="detail-label">Nights</span>
           <span class="detail-value" style="font-family:var(--font-mono);">{{ nights }}</span>
@@ -83,11 +94,16 @@
         <div>
           <div style="font-family:var(--font-display); font-size:15px; font-weight:700; color:var(--color-text-secondary);">{{ room.name }}</div>
           <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:3px;">{{ room.room_type }} · max {{ room.max_guests }} guest{{ room.max_guests|pluralize }}</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">
+            {% if room.booking_mode_display == "SHARED_CAPACITY" %}Shared capacity{% else %}Whole room{% endif %}
+            {% if room.bathroom_type_display %} · {{ room.bathroom_type_display }} bathroom{% endif %}
+            {% if room.gender_restriction_display %} · {{ room.gender_restriction_display }}{% endif %}
+          </div>
         </div>
         <span class="badge badge-gray">{{ room.status }}</span>
       </div>
       <div style="padding:10px 12px; background:var(--color-bg-subtle); border-radius:var(--radius-sm); font-size:12.5px; color:var(--color-text-tertiary); text-align:center;">
-        Unavailable for these dates
+        {% if room.booking_mode_display == "SHARED_CAPACITY" %}{{ room.remaining_capacity }} of {{ room.max_guests }} spaces remaining for these dates{% else %}Unavailable for these dates{% endif %}
       </div>
     </div>
   </div>
@@ -107,6 +123,11 @@
         <div>
           <div style="font-family:var(--font-display); font-size:15px; font-weight:700; color:var(--color-text-primary);">{{ room.name }}</div>
           <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:3px;">{{ room.room_type }} · max {{ room.max_guests }} guest{{ room.max_guests|pluralize }}</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">
+            {% if room.booking_mode_display == "SHARED_CAPACITY" %}Shared capacity{% else %}Whole room{% endif %}
+            {% if room.bathroom_type_display %} · {{ room.bathroom_type_display }} bathroom{% endif %}
+            {% if room.gender_restriction_display %} · {{ room.gender_restriction_display }}{% endif %}
+          </div>
         </div>
         <span class="badge {% if room.status == 'Available' %}badge-green{% elif room.status == 'Occupied' %}room-status-occupied{% elif room.status == 'Cleaning' %}room-status-cleaning{% elif room.status == 'Maintenance' or room.status == 'Blocked' %}room-status-maintenance{% else %}badge-gray{% endif %}">{{ room.status }}</span>
       </div>

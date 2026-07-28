@@ -7,6 +7,16 @@
     <div class="section-label">Rooms</div>
     <h1 class="page-title">{{ room.name }}</h1>
     <p class="page-subtitle">{{ room.room_type }} · {{ room.max_guests }} guests max</p>
+    {% if room.room_category.bathroom_type == "pending" or room.internal_notes|slice:":28" == "Capacity Pending Confirmation" %}
+    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+      {% if room.room_category.bathroom_type == "pending" %}
+      <span class="badge badge-amber" title="{{ room.internal_notes }}">Bathroom Details Pending</span>
+      {% endif %}
+      {% if room.internal_notes|slice:":28" == "Capacity Pending Confirmation" %}
+      <span class="badge badge-amber" title="{{ room.internal_notes }}">Capacity Pending Confirmation</span>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
   <div class="page-header-actions">
     {% if not is_cleaner %}

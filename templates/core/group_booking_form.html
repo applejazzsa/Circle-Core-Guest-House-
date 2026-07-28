@@ -74,7 +74,7 @@
       </p>
       <div id="room-allocation-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px;">
         {% for room in rooms %}
-        {% with mode=room.effective_booking_mode %}
+        {% with mode=room.effective_mode_computed %}
         <div class="card room-allocation-card" data-room-id="{{ room.pk }}" data-mode="{{ mode }}" data-max="{{ room.max_guests }}"
              style="padding:16px; border:1px solid var(--color-border-bright);">
           <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">

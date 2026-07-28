@@ -20,6 +20,7 @@ from django.db import connection, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.db.utils import IntegrityError
 from django.test import Client, TransactionTestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from django_tenants.test.cases import TenantTestCase
@@ -52,6 +53,7 @@ from .models import (
     RatePlan,
     Room,
     RoomAllocation,
+    RoomType,
     OfflineConflict,
     OfflineDevice,
     OfflineOperation,
@@ -1686,6 +1688,199 @@ class GroupBookingUITest(CircleCoreTenantTestCase):
         self.assertIn("maximum_capacity", entry)
         self.assertIn("pppn_rate", entry)
         self.assertEqual(entry["booking_mode"], "WHOLE_ROOM")
+
+
+class SharedCapacityDisplayTest(CircleCoreTenantTestCase):
+    def setUp(self):
+        self.owner = make_owner()
+        activate_trial(self.owner)
+        self.client.login(username="owner", password="testpass123")
+        self.today = timezone.localdate()
+
+    def d(self, offset):
+        return self.today + datetime.timedelta(days=offset)
+
+    def test_partially_occupied_shared_room_status(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 1", price=180, max_guests=8)
+        guest = make_guest(phone="0814440001")
+        make_reserving_booking(room, guest, self.today, self.today + datetime.timedelta(days=2), num_guests=3)
+
+        response = self.client.get(reverse("core:room_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "3 / 8 occupied")
+
+    def test_full_shared_room_status(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 15", price=180, max_guests=6)
+        guest = make_guest(phone="0814440002")
+        make_reserving_booking(room, guest, self.today, self.today + datetime.timedelta(days=2), num_guests=6)
+
+        response = self.client.get(reverse("core:room_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "6 / 6 full")
+
+    def test_whole_room_status_unchanged(self):
+        # Feature flag left disabled — this is every tenant's current experience.
+        room = make_room("Whole Room 18", price=260)
+        response = self.client.get(reverse("core:room_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Available")
+        self.assertNotContains(response, "occupied")
+        self.assertNotContains(response, "Partially Occupied")
+
+    def test_calendar_occupancy_totals(self):
+        enable_shared_capacity()
+        room = make_shared_room("Room 17A", price=180, max_guests=10)
+        guest1 = make_guest(first_name="Alpha", phone="0814440003")
+        guest2 = make_guest(first_name="Bravo", phone="0814440004")
+        # Both overlap tomorrow: 2 + 2 = 4 occupied, not just the first booking.
+        make_reserving_booking(room, guest1, self.d(1), self.d(3), num_guests=2)
+        make_reserving_booking(room, guest2, self.d(1), self.d(4), num_guests=2)
+
+        response = self.client.get(reverse("core:room_calendar"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "4 / 10")
+        # Staff can inspect both contributing bookings, not just one blocking the room.
+        self.assertContains(response, "Alpha")
+        self.assertContains(response, "Bravo")
+
+        # Performance: query count for the calendar grid must not scale with
+        # the number of shared rooms (one bulk query, not one per room).
+        with CaptureQueriesContext(connection) as small:
+            self.client.get(reverse("core:room_calendar"))
+        for i in range(10):
+            extra_room = make_shared_room(f"Bulk Room {i}", price=180, max_guests=6)
+            make_reserving_booking(extra_room, guest1, self.d(1), self.d(3), num_guests=1)
+        with CaptureQueriesContext(connection) as large:
+            self.client.get(reverse("core:room_calendar"))
+        self.assertLess(
+            len(large.captured_queries) - len(small.captured_queries), 5,
+            "calendar query count scaled with room count — occupancy is no longer a bulk query",
+        )
+
+    def test_availability_search_extended_fields(self):
+        enable_shared_capacity()
+        shared_room = make_shared_room("Ladies Dorm", price=180, max_guests=8)
+        rate_plan = RatePlan.objects.create(
+            name="Test PPPN", amount=Decimal("180.00"), currency="ZAR", pricing_basis="per_person_per_night",
+        )
+        room_type = RoomType.objects.create(
+            name="Ladies Dormitory Type", bathroom_type="communal", gender_restriction="ladies",
+            default_rate_plan=rate_plan,
+        )
+        shared_room.room_category = room_type
+        shared_room.room_type = "Dormitory"
+        shared_room.save()
+
+        response = self.client.get(reverse("core:availability"), {
+            "check_in": self.d(5).isoformat(), "check_out": self.d(7).isoformat(),
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ladies Dorm")
+        self.assertContains(response, "Dormitory")  # room_type
+        self.assertContains(response, "Shared capacity")  # booking mode
+        self.assertContains(response, "8 / 8")  # remaining capacity (nothing booked yet)
+        self.assertContains(response, "PPPN")
+        self.assertContains(response, "Communal")  # bathroom type display
+        self.assertContains(response, "Ladies Only")  # gender restriction display
+
+    def test_multi_day_remaining_capacity(self):
+        enable_shared_capacity()
+        room = make_shared_room("Multi Night Room", price=180, max_guests=6)
+        guest = make_guest(phone="0814440005")
+        # Occupies only the middle night of a 3-night search window.
+        make_reserving_booking(room, guest, self.d(11), self.d(12), num_guests=5)
+
+        response = self.client.get(reverse("core:availability"), {
+            "check_in": self.d(10).isoformat(), "check_out": self.d(13).isoformat(),
+        })
+        self.assertEqual(response.status_code, 200)
+        # The binding constraint is the middle night: 6 - 5 = 1 remaining,
+        # even though the other two nights have 6 free.
+        self.assertContains(response, "1 / 6")
+
+    def test_tenant_feature_disabled_whole_room_everywhere(self):
+        # Room is configured SHARED_CAPACITY at the room level, but the
+        # tenant flag is left at its default False — must behave exactly
+        # like a whole room everywhere.
+        room = make_shared_room("Flag Off Room", price=180, max_guests=6)
+        # enable_shared_capacity() deliberately NOT called.
+        response = self.client.get(reverse("core:room_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "occupied")
+        self.assertNotContains(response, "Partially Occupied")
+
+        calendar_response = self.client.get(reverse("core:room_calendar"))
+        self.assertEqual(calendar_response.status_code, 200)
+
+        availability_response = self.client.get(reverse("core:availability"), {
+            "check_in": self.d(5).isoformat(), "check_out": self.d(7).isoformat(),
+        })
+        self.assertContains(availability_response, "Whole room")
+        self.assertNotContains(availability_response, "Shared capacity")
+
+    def test_tenant_isolation(self):
+        enable_shared_capacity()
+        room = make_shared_room("Isolation Room", price=180, max_guests=8)
+        guest = make_guest(phone="0814440006")
+        make_reserving_booking(room, guest, self.today, self.today + datetime.timedelta(days=2), num_guests=3)
+
+        with schema_context("public"):
+            other_tenant = GuestHouseTenant(
+                schema_name="display_other",
+                name="Other Guest House",
+                owner_name="Other Owner",
+                owner_email="display-other@example.com",
+                owner_phone="0830000006",
+                is_active=True,
+                is_verified=True,
+            )
+            other_tenant.save()
+            Domain.objects.create(domain="display-other.test.com", tenant=other_tenant, is_primary=True)
+        # TenantMainMiddleware only routes requests whose Host header is both
+        # a known Domain and present in ALLOWED_HOSTS.
+        settings.ALLOWED_HOSTS = list(settings.ALLOWED_HOSTS) + ["display-other.test.com"]
+        try:
+            with tenant_context(other_tenant):
+                enable_shared_capacity()
+                other_room = make_shared_room("Isolation Room", price=180, max_guests=8)
+                other_guest = make_guest(phone="0814440007")
+                make_reserving_booking(
+                    other_room, other_guest, self.today, self.today + datetime.timedelta(days=2), num_guests=7,
+                )
+                other_owner = make_owner(username="other_owner")
+                activate_trial(other_owner)
+                # TenantClient defaults HTTP_HOST to this test's own tenant
+                # domain — the real TenantMainMiddleware resolves schema from
+                # the Host header, independent of the tenant_context() used
+                # above, so the other tenant's own domain must be set explicitly.
+                other_client = TenantClient(HTTP_HOST="display-other.test.com")
+                other_client.login(username="other_owner", password="testpass123")
+                other_response = other_client.get(reverse("core:room_list"))
+                self.assertContains(other_response, "7 / 8 occupied")
+
+            # Back in this test's own schema, still shows its own 3/8, unaffected.
+            response = self.client.get(reverse("core:room_list"))
+            self.assertContains(response, "3 / 8 occupied")
+            self.assertNotContains(response, "7 / 8")
+        finally:
+            settings.ALLOWED_HOSTS.remove("display-other.test.com")
+            with schema_context("public"):
+                other_tenant.delete(allow_hard_delete=True)
+
+    def test_operational_status_overrides_capacity(self):
+        enable_shared_capacity()
+        room = make_shared_room("Maintenance Shared Room", price=180, max_guests=8)
+        guest = make_guest(phone="0814440008")
+        make_reserving_booking(room, guest, self.today, self.today + datetime.timedelta(days=2), num_guests=3)
+        room.status = "Maintenance"
+        room.save()
+
+        response = self.client.get(reverse("core:room_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Out of Service")
+        self.assertNotContains(response, "3 / 8 occupied")
 
 
 class BookingFlowTest(CircleCoreTenantTestCase):
