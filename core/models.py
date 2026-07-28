@@ -672,7 +672,18 @@ class Booking(models.Model):
                     f"{room.name} is {labels.get(room.status, room.status.lower())} and cannot be booked."
                 )
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, skip_conflict_check=False, **kwargs):
+        # skip_conflict_check exists solely for core/booking_transactions.py's
+        # multi-room operations: Booking.num_guests there is the *combined*
+        # total across every RoomAllocation, while Booking.room is only the
+        # primary/first one for legacy display — checking "does num_guests
+        # fit in room alone" would be wrong once there's more than one
+        # allocation. booking_transactions.py already validates every
+        # allocation correctly, per room, via check_availability() before
+        # ever calling save(), under the same locks — this flag just avoids
+        # redundantly (and incorrectly) re-checking with the wrong numbers.
+        # Every other caller never passes it, so this changes nothing for
+        # the single-room path.
         from django.db import transaction
         if self.vehicle_registration:
             self.vehicle_registration = " ".join(self.vehicle_registration.strip().upper().split())
@@ -689,10 +700,12 @@ class Booking(models.Model):
                     .exclude(status__in=self.INACTIVE_STATUSES)
                     .select_for_update()
                 )
-                self.validate_room_conflict()
+                if not skip_conflict_check:
+                    self.validate_room_conflict()
                 super().save(*args, **kwargs)
         else:
-            self.validate_room_conflict()
+            if not skip_conflict_check:
+                self.validate_room_conflict()
             super().save(*args, **kwargs)
 
 

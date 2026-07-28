@@ -15,7 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django import forms
 from django.core.cache import cache
 from django.core.paginator import Paginator
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.db.models import Case, Count, DecimalField, F, IntegerField, OuterRef, Q, Subquery, Sum, Value, When
@@ -78,6 +78,8 @@ from .email_utils import (
     notify_booking_created,
     notify_payment_received,
 )
+from .availability import check_availability
+from .booking_transactions import create_multi_room_booking
 from .pdf_utils import generate_pdf
 from .pdf_documents import render_booking_invoice_pdf, render_payment_receipt_pdf
 from .subscriptions import trial_end
@@ -1884,6 +1886,11 @@ def _room_prices_json(active_prop=None):
             "5_hours": str(room.price_5_hours or ""),
             "pricing_model": room.pricing_model,
             "max_guests": room.max_guests,
+            # Added for shared-capacity support. Existing keys above are
+            # unchanged, so any client reading only those keeps working.
+            "booking_mode": room.effective_booking_mode,
+            "maximum_capacity": room.max_guests,
+            "pppn_rate": str(room.price_per_night) if room.pricing_model == "per_person" else "",
         }
     return json.dumps(data)
 
@@ -2026,6 +2033,7 @@ def booking_list(request):
             "filtered_count": filtered_count,
             "filtered_revenue": filtered_revenue,
             "status_counts": status_counts,
+            "shared_capacity_enabled": GuestHouseSettings.objects.get_or_create(pk=1)[0].shared_capacity_booking_enabled,
         },
     )
 
@@ -2119,6 +2127,190 @@ def booking_add(request):
             "room_statuses_json": _room_statuses_json(active_prop),
             "walk_in_mode": walk_in_mode,
             "locked_room": locked_room,
+        },
+    )
+
+
+def _group_booking_gate(request):
+    """Shared-capacity/multi-room booking only exists at all when the tenant
+    has explicitly enabled it — everyone else gets a plain 404, exactly as if
+    the page never existed, matching every other tenant's unchanged booking
+    experience."""
+    settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+    if not settings_obj.shared_capacity_booking_enabled:
+        raise Http404("Group bookings are not available for this property.")
+
+
+@login_required
+def room_availability_json(request, pk):
+    """Small JSON endpoint backing the group-booking form's live capacity
+    display. Also callable directly by client-side JS to revalidate before
+    submit — though the authoritative check always happens again, inside the
+    locked transaction, in create_multi_room_booking()/edit_multi_room_booking()."""
+    active_prop, property_rooms = _property_rooms(request)
+    room = property_rooms.filter(pk=pk).select_related("room_category", "rate_plan").first()
+    if room is None:
+        return JsonResponse({"error": "Room not found for this property."}, status=404)
+
+    check_in = _parse_date(request.GET.get("check_in", ""))
+    check_out = _parse_date(request.GET.get("check_out", ""))
+    try:
+        guests = int(request.GET.get("guests", "1"))
+    except (TypeError, ValueError):
+        guests = 1
+    exclude_raw = request.GET.get("exclude_booking_id")
+    exclude_booking_id = int(exclude_raw) if exclude_raw and exclude_raw.isdigit() else None
+
+    result = check_availability(room, check_in, check_out, guests, exclude_booking_id=exclude_booking_id)
+
+    nights = (check_out - check_in).days if (check_in and check_out and check_out > check_in) else 0
+    rate = room.get_price_for_duration("daily") or room.price_per_night
+    allocation_subtotal = Decimal(rate) * guests * nights if room.pricing_model == "per_person" else Decimal(rate) * nights
+
+    return JsonResponse({
+        "available": result.available,
+        "booking_mode": result.effective_mode,
+        "maximum_capacity": result.max_capacity,
+        "occupied_capacity": result.occupied_capacity,
+        "remaining_capacity": result.remaining_capacity,
+        "requested_guests": result.requested_guests,
+        "pppn_rate": str(rate) if room.pricing_model == "per_person" else None,
+        "allocation_subtotal": str(allocation_subtotal),
+        "reason": result.reason,
+        "first_failing_date": result.first_failing_date.isoformat() if result.first_failing_date else None,
+    })
+
+
+@login_required
+def group_booking_add(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    _group_booking_gate(request)
+
+    active_prop, property_rooms = _property_rooms(request)
+    rooms = list(property_rooms.select_related("room_category", "rate_plan").order_by("name"))
+    rooms_by_id = {room.pk: room for room in rooms}
+    guest_choices = list(Guest.objects.filter(is_generic=False).order_by("last_name", "first_name"))
+
+    errors = []
+    posted_allocations = []
+    check_in_value = ""
+    check_out_value = ""
+    identity_mode = "walk_in"
+    selected_guest_id = ""
+    discount_value = "0.00"
+    notes_value = ""
+    booking_source_value = "Walk-in"
+    status_value = "Pending"
+
+    if request.method == "POST":
+        check_in_value = request.POST.get("check_in_date", "")
+        check_out_value = request.POST.get("check_out_date", "")
+        identity_mode = request.POST.get("identity_mode", "walk_in")
+        selected_guest_id = request.POST.get("guest", "")
+        discount_value = request.POST.get("discount", "0.00") or "0.00"
+        notes_value = request.POST.get("notes", "")
+        booking_source_value = request.POST.get("booking_source", "Walk-in")
+        status_value = request.POST.get("status", "Pending")
+
+        check_in = _parse_date(check_in_value)
+        check_out = _parse_date(check_out_value)
+
+        room_ids = request.POST.getlist("room_id")
+        guest_counts = request.POST.getlist("allocated_guests")
+        seen_room_ids = set()
+        allocations = []
+        for room_id_raw, guests_raw in zip(room_ids, guest_counts):
+            if not room_id_raw:
+                continue
+            posted_allocations.append({"room_id": room_id_raw, "allocated_guests": guests_raw})
+            room_id = int(room_id_raw) if room_id_raw.isdigit() else None
+            room = rooms_by_id.get(room_id)
+            if room is None:
+                errors.append("The selected room belongs to another property.")
+                continue
+            if room.pk in seen_room_ids:
+                errors.append(f"{room.name} is listed more than once in this booking.")
+                continue
+            seen_room_ids.add(room.pk)
+            try:
+                guests = int(guests_raw)
+            except (TypeError, ValueError):
+                errors.append(f"{room.name}: enter a whole number of guests.")
+                continue
+            if guests < 1:
+                errors.append(f"{room.name}: allocated guests must be at least 1.")
+                continue
+            allocations.append({"room": room, "allocated_guests": guests})
+
+        if not allocations:
+            errors.append("Add at least one room allocation.")
+
+        total_guests_raw = request.POST.get("total_guests", "")
+        try:
+            total_guests = int(total_guests_raw) if total_guests_raw else sum(a["allocated_guests"] for a in allocations)
+        except (TypeError, ValueError):
+            total_guests = sum(a["allocated_guests"] for a in allocations)
+        if allocations and sum(a["allocated_guests"] for a in allocations) != total_guests:
+            errors.append("Allocated guest totals do not match the booking guest total.")
+
+        try:
+            discount = Decimal(discount_value)
+        except Exception:
+            discount = Decimal("0.00")
+            errors.append("Discount must be a valid number.")
+
+        if identity_mode == "guest" and selected_guest_id:
+            guest = Guest.objects.filter(pk=selected_guest_id, is_generic=False).first()
+            if guest is None:
+                errors.append("Select a valid guest, or use walk-in.")
+        else:
+            guest = Guest.get_generic()
+
+        if not errors:
+            try:
+                booking = create_multi_room_booking(
+                    guest=guest,
+                    prop=active_prop,
+                    check_in=check_in,
+                    check_out=check_out,
+                    allocations=allocations,
+                    total_guests=total_guests,
+                    discount=discount,
+                    booking_source=booking_source_value,
+                    status=status_value,
+                    notes=notes_value,
+                )
+            except ValidationError as exc:
+                errors.extend(exc.messages)
+            else:
+                _audit(
+                    request, "create", booking,
+                    after=_model_snapshot(booking, ["check_in_date", "check_out_date", "num_guests", "total_amount", "status"]),
+                )
+                messages.success(request, f"Group booking {booking.booking_reference} created.")
+                return redirect("core:booking_detail", pk=booking.pk)
+
+    return render(
+        request,
+        "core/group_booking_form.html",
+        {
+            "title": "New Group Booking",
+            "rooms": rooms,
+            "guest_choices": guest_choices,
+            "errors": errors,
+            "posted_allocations": posted_allocations,
+            "check_in_value": check_in_value,
+            "check_out_value": check_out_value,
+            "identity_mode": identity_mode,
+            "selected_guest_id": selected_guest_id,
+            "discount_value": discount_value,
+            "notes_value": notes_value,
+            "booking_source_value": booking_source_value,
+            "status_value": status_value,
+            "booking_source_choices": Booking.BOOKING_SOURCE_CHOICES,
+            "status_choices": Booking.STATUS_CHOICES,
         },
     )
 

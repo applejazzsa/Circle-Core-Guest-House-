@@ -140,7 +140,7 @@ def create_multi_room_booking(
             booking_source=booking_source,
             notes=notes,
         )
-        booking.save()  # first save: no allocations exist yet, so compute_totals() falls back to single-room math transiently
+        booking.save(skip_conflict_check=True)  # first save: no allocations exist yet, so compute_totals() falls back to single-room math transiently
         for plan in plans:
             RoomAllocation.objects.create(
                 booking=booking,
@@ -149,7 +149,7 @@ def create_multi_room_booking(
                 rate_per_night=plan["rate_per_night"],
                 line_total=plan["line_total"],
             )
-        booking.save()  # second save: room_allocations now exist, so total_amount reflects the full multi-room sum
+        booking.save(skip_conflict_check=True)  # second save: room_allocations now exist, so total_amount reflects the full multi-room sum
         return booking
 
 
@@ -207,7 +207,7 @@ def edit_multi_room_booking(
                 rate_per_night=plan["rate_per_night"],
                 line_total=plan["line_total"],
             )
-        booking.save()
+        booking.save(skip_conflict_check=True)
         return booking
 
 
@@ -223,7 +223,7 @@ def cancel_multi_room_booking(booking):
     with transaction.atomic():
         _lock_rooms(room.pk for room in _booking_rooms(booking))
         booking.status = "Cancelled"
-        booking.save()
+        booking.save(skip_conflict_check=True)
         for room in _booking_rooms(booking):
             if room.effective_booking_mode == "WHOLE_ROOM" and room.status not in ("Maintenance", "Blocked"):
                 room.status = "Available"
@@ -251,7 +251,7 @@ def reinstate_multi_room_booking(booking, new_status="Confirmed"):
             raise ValidationError(errors)
 
         booking.status = new_status
-        booking.save()
+        booking.save(skip_conflict_check=True)
         for room in _booking_rooms(booking):
             if room.effective_booking_mode == "WHOLE_ROOM":
                 room.status = "Booked"
@@ -266,7 +266,7 @@ def check_in_multi_room_booking(booking):
             raise ValidationError(["Only pending or confirmed bookings can be checked in."])
         booking.status = "Checked In"
         booking.check_in_time = timezone.now()
-        booking.save()
+        booking.save(skip_conflict_check=True)
         for room in _booking_rooms(booking):
             if room.effective_booking_mode == "WHOLE_ROOM":
                 room.status = "Occupied"
@@ -281,7 +281,7 @@ def check_out_multi_room_booking(booking):
             raise ValidationError(["Only checked-in bookings can be checked out."])
         booking.status = "Checked Out"
         booking.check_out_time = timezone.now()
-        booking.save()
+        booking.save(skip_conflict_check=True)
         for room in _booking_rooms(booking):
             if room.effective_booking_mode == "WHOLE_ROOM":
                 room.status = "Cleaning"
