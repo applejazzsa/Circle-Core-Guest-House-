@@ -17,6 +17,7 @@ from .models import (
     Payment,
     RatePlan,
     Room,
+    RoomAllocation,
     RoomInventoryAssignment,
     RoomType,
     StaffProfile,
@@ -166,10 +167,10 @@ class RoomTypeAdmin(admin.ModelAdmin):
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
     list_display = [
-        "name", "room_type", "room_category", "rate_plan",
+        "name", "room_type", "room_category", "rate_plan", "booking_mode",
         "price_per_night", "price_per_week", "max_guests", "status", "cleaning_status",
     ]
-    list_filter = ["room_type", "room_category", "rate_plan", "status", "cleaning_status"]
+    list_filter = ["room_type", "room_category", "rate_plan", "booking_mode", "status", "cleaning_status"]
     search_fields = ["name", "description"]
     list_editable = ["status", "cleaning_status"]
 
@@ -178,6 +179,13 @@ class PaymentInline(admin.TabularInline):
     model = Payment
     extra = 0
     fields = ["payment_date", "payment_type", "payment_method", "amount", "reference"]
+
+
+class RoomAllocationInline(admin.TabularInline):
+    model = RoomAllocation
+    extra = 0
+    fields = ["room", "allocated_guests", "rate_plan", "rate_per_night", "line_total"]
+    readonly_fields = ["created_at", "updated_at"]
 
 
 @admin.register(Booking)
@@ -194,7 +202,15 @@ class BookingAdmin(admin.ModelAdmin):
     ]
     readonly_fields = ["booking_reference", "total_amount", "balance_due", "created_at"]
     date_hierarchy = "check_in_date"
-    inlines = [PaymentInline]
+    inlines = [PaymentInline, RoomAllocationInline]
+
+
+@admin.register(RoomAllocation)
+class RoomAllocationAdmin(admin.ModelAdmin):
+    list_display = ["booking", "room", "allocated_guests", "rate_plan", "rate_per_night", "line_total", "created_at"]
+    list_filter = ["rate_plan", "room"]
+    search_fields = ["booking__booking_reference", "room__name"]
+    readonly_fields = ["created_at", "updated_at"]
 
 
 @admin.register(TrialLicense)

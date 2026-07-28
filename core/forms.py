@@ -254,6 +254,7 @@ class RoomForm(forms.ModelForm):
             "room_category",
             "rate_plan",
             "pricing_model",
+            "booking_mode",
             "price_per_night",
             "price_per_week",
             "price_1_hour",
@@ -277,6 +278,9 @@ class RoomForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.prop is None and self.instance and self.instance.pk:
             self.prop = self.instance.prop
+        settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
+        if not (settings_obj and settings_obj.shared_capacity_booking_enabled):
+            self.fields.pop("booking_mode", None)
         for field_name, field in self.fields.items():
             if field_name == "booking_types_allowed":
                 field.widget.attrs.update({"class": "room-checkbox"})
@@ -485,12 +489,24 @@ class BookingForm(forms.ModelForm):
                     raise forms.ValidationError("Discount cannot be bigger than the booking subtotal.")
                 if deposit_required > candidate.total_amount:
                     raise forms.ValidationError("Deposit required cannot be bigger than the booking total.")
-                conflict = candidate.overlapping_bookings().select_related("guest").first()
-                if conflict:
-                    raise forms.ValidationError(
-                        f"Double booking conflict: {room.name} is already booked for that time "
-                        f"({conflict.booking_reference} - {conflict.guest.full_name})."
+                if duration_type in ["1_hour", "2_hours", "3_hours", "5_hours"]:
+                    # Hourly bookings use time-of-day windows, not whole dates
+                    # — kept on the pre-existing datetime-based overlap check.
+                    conflict = candidate.overlapping_bookings().select_related("guest").first()
+                    if conflict:
+                        raise forms.ValidationError(
+                            f"Double booking conflict: {room.name} is already booked for that time "
+                            f"({conflict.booking_reference} - {conflict.guest.full_name})."
+                        )
+                else:
+                    from .availability import check_availability
+
+                    result = check_availability(
+                        room, candidate.check_in_date, candidate.check_out_date, num_guests,
+                        exclude_booking_id=self.instance.pk if self.instance.pk else None,
                     )
+                    if not result.available:
+                        raise forms.ValidationError(f"Double booking conflict: {result.reason}")
 
         return cleaned_data
 

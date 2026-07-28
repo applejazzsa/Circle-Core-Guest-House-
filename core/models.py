@@ -210,6 +210,10 @@ class Room(models.Model):
         ("per_room", "Per Room"),
         ("per_person", "Per Person"),
     ]
+    BOOKING_MODE_CHOICES = [
+        ("WHOLE_ROOM", "Whole Room"),
+        ("SHARED_CAPACITY", "Shared Capacity"),
+    ]
     STATUS_CHOICES = [
         ("Available", "Available"),
         ("Booked", "Booked"),
@@ -241,6 +245,7 @@ class Room(models.Model):
         RatePlan, null=True, blank=True, on_delete=models.SET_NULL, related_name="rooms"
     )
     pricing_model = models.CharField(max_length=20, choices=PRICING_MODEL_CHOICES, default="per_room")
+    booking_mode = models.CharField(max_length=20, choices=BOOKING_MODE_CHOICES, default="WHOLE_ROOM")
     price_1_hour = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_2_hours = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_3_hours = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -276,6 +281,15 @@ class Room(models.Model):
     @base_price.setter
     def base_price(self, value):
         self.price_per_night = value
+
+    @property
+    def effective_booking_mode(self):
+        """Shared capacity only ever applies when the tenant has explicitly enabled it."""
+        if self.booking_mode == "SHARED_CAPACITY":
+            settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
+            if settings_obj and settings_obj.shared_capacity_booking_enabled:
+                return "SHARED_CAPACITY"
+        return "WHOLE_ROOM"
 
     def booking_types_list(self):
         return [item.strip() for item in self.booking_types_allowed.split(",") if item.strip()]
@@ -543,12 +557,27 @@ class Booking(models.Model):
         return Booking.objects.filter(pk__in=conflicts)
 
     def validate_room_conflict(self):
-        conflict = self.overlapping_bookings().select_related("guest", "room").first()
-        if conflict:
-            raise ValidationError(
-                f"{self.room.name} is already booked for that time "
-                f"({conflict.booking_reference} - {conflict.guest.full_name})."
-            )
+        # Hourly bookings need time-of-day windows, not whole dates, so they
+        # keep using the pre-existing datetime-based overlap check below.
+        # Every other duration goes through the shared availability service
+        # (core/availability.py) so this logic lives in exactly one place.
+        if self.is_hourly:
+            conflict = self.overlapping_bookings().select_related("guest", "room").first()
+            if conflict:
+                raise ValidationError(
+                    f"{self.room.name} is already booked for that time "
+                    f"({conflict.booking_reference} - {conflict.guest.full_name})."
+                )
+            return
+
+        from .availability import check_availability
+
+        result = check_availability(
+            self.room, self.check_in_date, self.check_out_date, self.num_guests,
+            exclude_booking_id=self.pk,
+        )
+        if not result.available:
+            raise ValidationError(result.reason)
 
     def _generate_reference(self):
         import random
@@ -562,39 +591,48 @@ class Booking(models.Model):
         raise ValueError("Could not generate a unique booking reference.")
 
     def compute_totals(self):
-        guests = Decimal(self.num_guests or 1)
-        is_per_person = bool(self.room_id and self.room.pricing_model == "per_person")
-        guest_multiplier = guests if is_per_person else Decimal("1")
-        if self.is_hourly:
-            if self.check_in_date:
-                self.check_out_date = self.check_in_date
-            self.booking_end_time = self.compute_hourly_end_time()
-            duration_price = self.room.get_price_for_duration(self.booking_duration_type) if self.room_id else None
-            if duration_price is not None:
-                self.rate_per_night = duration_price
-            subtotal = (self.rate_per_night or Decimal("0.00")) * guest_multiplier
+        if self.pk and self.room_allocations.exists():
+            # Multi-room booking: each RoomAllocation already carries its own
+            # priced line_total (allocated_guests x nights x its own PPPN rate
+            # snapshot) — the booking total is simply their sum, minus the
+            # existing discount rule. No tax is applied here, matching the
+            # single-room path below, which has never applied one either.
+            subtotal = sum((allocation.line_total for allocation in self.room_allocations.all()), Decimal("0.00"))
             self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
-        elif self.check_in_date and self.check_out_date:
-            nights = max((self.check_out_date - self.check_in_date).days, 0)
-            if self.booking_duration_type == "weekly":
-                weekly_rate = None
-                if self.room_id:
-                    weekly_rate = self.room.price_per_week
-                if weekly_rate is None:
-                    weekly_rate = self.rate_per_night * Decimal("7")
-                weeks = Decimal(nights) / Decimal("7")
-                self.rate_per_night = weekly_rate
-                subtotal = weeks * weekly_rate * guest_multiplier
-                self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
-            elif self.booking_duration_type == "24_hours":
+        else:
+            guests = Decimal(self.num_guests or 1)
+            is_per_person = bool(self.room_id and self.room.pricing_model == "per_person")
+            guest_multiplier = guests if is_per_person else Decimal("1")
+            if self.is_hourly:
+                if self.check_in_date:
+                    self.check_out_date = self.check_in_date
+                self.booking_end_time = self.compute_hourly_end_time()
                 duration_price = self.room.get_price_for_duration(self.booking_duration_type) if self.room_id else None
                 if duration_price is not None:
                     self.rate_per_night = duration_price
-                subtotal = self.rate_per_night * nights * guest_multiplier
+                subtotal = (self.rate_per_night or Decimal("0.00")) * guest_multiplier
                 self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
-            else:
-                subtotal = self.rate_per_night * nights * guest_multiplier
-                self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
+            elif self.check_in_date and self.check_out_date:
+                nights = max((self.check_out_date - self.check_in_date).days, 0)
+                if self.booking_duration_type == "weekly":
+                    weekly_rate = None
+                    if self.room_id:
+                        weekly_rate = self.room.price_per_week
+                    if weekly_rate is None:
+                        weekly_rate = self.rate_per_night * Decimal("7")
+                    weeks = Decimal(nights) / Decimal("7")
+                    self.rate_per_night = weekly_rate
+                    subtotal = weeks * weekly_rate * guest_multiplier
+                    self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
+                elif self.booking_duration_type == "24_hours":
+                    duration_price = self.room.get_price_for_duration(self.booking_duration_type) if self.room_id else None
+                    if duration_price is not None:
+                        self.rate_per_night = duration_price
+                    subtotal = self.rate_per_night * nights * guest_multiplier
+                    self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
+                else:
+                    subtotal = self.rate_per_night * nights * guest_multiplier
+                    self.total_amount = max(subtotal - self.discount, Decimal("0.00"))
         if self.pk and self.payments.exists():
             payment_totals = self.payment_totals()
             self.deposit_paid = payment_totals["deposit_paid"]
@@ -634,7 +672,18 @@ class Booking(models.Model):
                     f"{room.name} is {labels.get(room.status, room.status.lower())} and cannot be booked."
                 )
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, skip_conflict_check=False, **kwargs):
+        # skip_conflict_check exists solely for core/booking_transactions.py's
+        # multi-room operations: Booking.num_guests there is the *combined*
+        # total across every RoomAllocation, while Booking.room is only the
+        # primary/first one for legacy display — checking "does num_guests
+        # fit in room alone" would be wrong once there's more than one
+        # allocation. booking_transactions.py already validates every
+        # allocation correctly, per room, via check_availability() before
+        # ever calling save(), under the same locks — this flag just avoids
+        # redundantly (and incorrectly) re-checking with the wrong numbers.
+        # Every other caller never passes it, so this changes nothing for
+        # the single-room path.
         from django.db import transaction
         if self.vehicle_registration:
             self.vehicle_registration = " ".join(self.vehicle_registration.strip().upper().split())
@@ -651,11 +700,60 @@ class Booking(models.Model):
                     .exclude(status__in=self.INACTIVE_STATUSES)
                     .select_for_update()
                 )
-                self.validate_room_conflict()
+                if not skip_conflict_check:
+                    self.validate_room_conflict()
                 super().save(*args, **kwargs)
         else:
-            self.validate_room_conflict()
+            if not skip_conflict_check:
+                self.validate_room_conflict()
             super().save(*args, **kwargs)
+
+
+class RoomAllocation(models.Model):
+    """
+    One room's share of a booking. Existing single-room bookings are not
+    required to have any RoomAllocation rows — Booking.room/num_guests/
+    rate_per_night/total_amount remain the source of truth for that legacy
+    case. RoomAllocation matters once a booking spans more than one room.
+
+    No explicit "tenant" field is stored here: this app uses schema-per-tenant
+    isolation (see tenants/models.py, config/settings.py TENANT_APPS) — the
+    Postgres schema itself is the tenant boundary, and no model in this app
+    carries a tenant foreign key. What's enforced instead is that an
+    allocation's room belongs to the same Property as the booking's own room,
+    the closest tenant-scoped consistency check reachable within one schema.
+    """
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="room_allocations")
+    room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="allocations")
+    allocated_guests = models.PositiveIntegerField()
+    rate_plan = models.ForeignKey(
+        RatePlan, null=True, blank=True, on_delete=models.SET_NULL, related_name="room_allocations"
+    )
+    rate_per_night = models.DecimalField(max_digits=10, decimal_places=2)
+    line_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("booking", "room")]
+        ordering = ["booking_id", "room__name"]
+
+    def __str__(self):
+        return f"{self.booking.booking_reference} — {self.room.name} ({self.allocated_guests} guests)"
+
+    def clean(self):
+        if self.allocated_guests is not None and self.allocated_guests < 1:
+            raise ValidationError("Allocated guests must be at least 1.")
+        if self.room_id and self.booking_id and self.room.prop_id != self.booking.room.prop_id:
+            raise ValidationError(
+                "This room does not belong to the same property as the booking — "
+                "an allocation cannot cross properties/tenants."
+            )
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
 
 
 class Payment(models.Model):
@@ -920,6 +1018,10 @@ class GuestHouseSettings(models.Model):
     seasonal_note = models.TextField(blank=True, help_text="Note shown on availability page")
     pdf_primary_color = models.CharField(max_length=7, default="#c9a84c", help_text="Brand colour used across all PDF exports (hex, e.g. #c9a84c)")
     onboarding_complete = models.BooleanField(default=False)
+    shared_capacity_booking_enabled = models.BooleanField(
+        default=False,
+        help_text="Allow rooms configured as Shared Capacity to take multiple overlapping bookings up to room capacity.",
+    )
 
     class Meta:
         verbose_name = "Guest House Settings"

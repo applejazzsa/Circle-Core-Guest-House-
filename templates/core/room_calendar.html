@@ -31,7 +31,26 @@
         <td style="position:sticky; left:0; background:var(--color-bg-surface); z-index:1; font-weight:700;">{{ room.name }}</td>
         {% for cell in room.calendar_cells %}
         <td style="min-width:92px; padding:8px;">
-          {% if cell.booking %}
+          {% if cell.shared %}
+            {% if cell.shared.occupied > 0 %}
+            <details style="font-size:10px;">
+              <summary class="badge
+                {% if cell.shared.status == 'Full' %}room-status-occupied
+                {% elif cell.shared.status == 'Out of Service' %}room-status-maintenance
+                {% else %}badge-amber{% endif %}"
+                style="font-size:9.5px; cursor:pointer; list-style:none;">
+                {{ cell.shared.occupied }} / {{ cell.shared.max }}{% if cell.shared.status == 'Full' %} full{% endif %}
+              </summary>
+              <ul style="margin:6px 0 0; padding-left:14px; list-style:disc; color:var(--color-text-secondary);">
+                {% for booking in cell.shared.bookings %}
+                <li><a href="{% url 'core:booking_detail' booking.pk %}" style="color:inherit;">{{ booking.guest.full_name|truncatechars:14 }}</a></li>
+                {% endfor %}
+              </ul>
+            </details>
+            {% else %}
+            <span style="display:block; height:24px; border-radius:var(--radius-sm); background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.16);"></span>
+            {% endif %}
+          {% elif cell.booking %}
           <a href="{% url 'core:booking_detail' cell.booking.pk %}" class="badge badge-blue" style="font-size:9px; text-decoration:none;">{{ cell.booking.guest.full_name|truncatechars:12 }}</a>
           {% else %}
           <span style="display:block; height:24px; border-radius:var(--radius-sm); background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.16);"></span>

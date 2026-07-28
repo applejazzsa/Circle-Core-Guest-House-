@@ -15,7 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django import forms
 from django.core.cache import cache
 from django.core.paginator import Paginator
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.db.models import Case, Count, DecimalField, F, IntegerField, OuterRef, Q, Subquery, Sum, Value, When
@@ -78,6 +78,15 @@ from .email_utils import (
     notify_booking_created,
     notify_payment_received,
 )
+from .availability import (
+    OUT_OF_SERVICE_STATUSES,
+    bulk_occupancy_by_room_and_date,
+    check_availability,
+    effective_modes_for_rooms,
+    occupancy_snapshot,
+    shared_room_status_label,
+)
+from .booking_transactions import create_multi_room_booking
 from .pdf_utils import generate_pdf
 from .pdf_documents import render_booking_invoice_pdf, render_payment_receipt_pdf
 from .subscriptions import trial_end
@@ -944,11 +953,27 @@ def room_list(request):
     _expire_elapsed_bookings()
     active_prop = get_active_property(request)
     status_filter = request.GET.get("status", "")
-    rooms = Room.objects.filter(prop=active_prop) if active_prop else Room.objects.none()
+    rooms = Room.objects.filter(prop=active_prop).select_related("room_category", "rate_plan") if active_prop else Room.objects.none()
     if status_filter:
         rooms = rooms.filter(status=status_filter)
     rooms = list(rooms)
     room_ids = [room.pk for room in rooms]
+
+    # Shared-capacity status ("occupied / maximum") for today, in one query
+    # regardless of how many shared rooms this property has. Rooms where the
+    # tenant feature is disabled (every tenant today) always resolve to
+    # WHOLE_ROOM here, so this loop is a no-op for them.
+    today = timezone.localdate()
+    effective_modes = effective_modes_for_rooms(rooms)
+    shared_room_ids = {pk for pk, mode in effective_modes.items() if mode == "SHARED_CAPACITY"}
+    occupancy_today = bulk_occupancy_by_room_and_date(shared_room_ids, today, today + datetime.timedelta(days=1))
+    for room in rooms:
+        if room.pk in shared_room_ids:
+            occupied = occupancy_today.get((room.pk, today), {"occupied": 0})["occupied"]
+            room.shared_occupied = occupied
+            room.shared_status_label = shared_room_status_label(occupied, room.max_guests, room.status)
+        else:
+            room.shared_occupied = None
     displayed_bookings = (
         Booking.objects.select_related("guest", "room")
         .filter(
@@ -1871,9 +1896,15 @@ def completed_booking_reminders_api(request):
 
 def _room_prices_json(active_prop=None):
     settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+    shared_capacity_enabled = settings_obj.shared_capacity_booking_enabled
     data = {}
     rooms = Room.objects.filter(prop=active_prop) if active_prop else Room.objects.none()
     for room in rooms:
+        # Inlined rather than room.effective_booking_mode: that property
+        # re-queries GuestHouseSettings every call, an N+1 query bug when
+        # done once per room in this loop — settings_obj is already fetched
+        # once above for every room here.
+        booking_mode = "SHARED_CAPACITY" if (shared_capacity_enabled and room.booking_mode == "SHARED_CAPACITY") else "WHOLE_ROOM"
         data[str(room.pk)] = {
             "daily": str(room.get_price_for_duration("daily") or ""),
             "24_hours": str(room.get_price_for_duration("24_hours") or ""),
@@ -1884,6 +1915,11 @@ def _room_prices_json(active_prop=None):
             "5_hours": str(room.price_5_hours or ""),
             "pricing_model": room.pricing_model,
             "max_guests": room.max_guests,
+            # Added for shared-capacity support. Existing keys above are
+            # unchanged, so any client reading only those keeps working.
+            "booking_mode": booking_mode,
+            "maximum_capacity": room.max_guests,
+            "pppn_rate": str(room.price_per_night) if room.pricing_model == "per_person" else "",
         }
     return json.dumps(data)
 
@@ -1916,27 +1952,60 @@ def availability(request):
     has_valid_dates = bool(check_in_date and check_out_date and check_out_date > check_in_date)
     nights = (check_out_date - check_in_date).days if has_valid_dates else 0
 
-    active_prop, rooms = _property_rooms(request)
+    active_prop, rooms_qs = _property_rooms(request)
+    rooms = list(rooms_qs.select_related("room_category", "rate_plan"))
     available_rooms = []
     unavailable_rooms = []
+
+    effective_modes = effective_modes_for_rooms(rooms)
+    for room in rooms:
+        room.booking_mode_display = effective_modes[room.pk]
+        room.pppn_rate = room.price_per_night if room.pricing_model == "per_person" else None
+        room.bathroom_type_display = room.room_category.get_bathroom_type_display() if room.room_category else ""
+        room.gender_restriction_display = (
+            room.room_category.get_gender_restriction_display()
+            if room.room_category and room.room_category.gender_restriction != "none"
+            else ""
+        )
 
     if dates_submitted and not has_valid_dates:
         messages.error(request, "Please choose a check-out date after the check-in date.")
 
     if has_valid_dates:
-        active_booking_room_ids = set(
-            Booking.objects.filter(
-                room__prop=active_prop,
-                check_in_date__lt=check_out_date,
-                check_out_date__gt=check_in_date,
+        shared_room_ids = {pk for pk, mode in effective_modes.items() if mode == "SHARED_CAPACITY"}
+        whole_room_ids = [room.pk for room in rooms if room.pk not in shared_room_ids]
+
+        # Whole rooms: the existing single aggregate query, untouched.
+        active_booking_room_ids = set()
+        if whole_room_ids:
+            active_booking_room_ids = set(
+                Booking.objects.filter(
+                    room_id__in=whole_room_ids,
+                    check_in_date__lt=check_out_date,
+                    check_out_date__gt=check_in_date,
+                )
+                .exclude(status__in=Booking.INACTIVE_STATUSES)
+                .values_list("room_id", flat=True)
             )
-            .exclude(status__in=Booking.INACTIVE_STATUSES)
-            .values_list("room_id", flat=True)
-        )
+
+        # Shared rooms: one bulk query for every room across every requested
+        # night, then the minimum remaining across the stay in Python.
+        shared_occupancy = bulk_occupancy_by_room_and_date(shared_room_ids, check_in_date, check_out_date)
+        stay_nights = [check_in_date + datetime.timedelta(days=offset) for offset in range(nights)]
 
         for room in rooms:
-            is_available = room.status not in ("Maintenance", "Blocked") and room.pk not in active_booking_room_ids
             room.estimated_total = room.price_per_night * Decimal(nights)
+            if room.pk in shared_room_ids:
+                remaining_values = [
+                    room.max_guests - shared_occupancy.get((room.pk, day), {"occupied": 0})["occupied"]
+                    for day in stay_nights
+                ]
+                room.remaining_capacity = min(remaining_values) if remaining_values else room.max_guests
+                is_available = room.status not in OUT_OF_SERVICE_STATUSES and room.remaining_capacity > 0
+            else:
+                is_available = room.status not in ("Maintenance", "Blocked") and room.pk not in active_booking_room_ids
+                room.remaining_capacity = room.max_guests if is_available else 0
+
             if is_available:
                 available_rooms.append(room)
             else:
@@ -2026,6 +2095,7 @@ def booking_list(request):
             "filtered_count": filtered_count,
             "filtered_revenue": filtered_revenue,
             "status_counts": status_counts,
+            "shared_capacity_enabled": GuestHouseSettings.objects.get_or_create(pk=1)[0].shared_capacity_booking_enabled,
         },
     )
 
@@ -2119,6 +2189,193 @@ def booking_add(request):
             "room_statuses_json": _room_statuses_json(active_prop),
             "walk_in_mode": walk_in_mode,
             "locked_room": locked_room,
+        },
+    )
+
+
+def _group_booking_gate(request):
+    """Shared-capacity/multi-room booking only exists at all when the tenant
+    has explicitly enabled it — everyone else gets a plain 404, exactly as if
+    the page never existed, matching every other tenant's unchanged booking
+    experience."""
+    settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+    if not settings_obj.shared_capacity_booking_enabled:
+        raise Http404("Group bookings are not available for this property.")
+
+
+@login_required
+def room_availability_json(request, pk):
+    """Small JSON endpoint backing the group-booking form's live capacity
+    display. Also callable directly by client-side JS to revalidate before
+    submit — though the authoritative check always happens again, inside the
+    locked transaction, in create_multi_room_booking()/edit_multi_room_booking()."""
+    active_prop, property_rooms = _property_rooms(request)
+    room = property_rooms.filter(pk=pk).select_related("room_category", "rate_plan").first()
+    if room is None:
+        return JsonResponse({"error": "Room not found for this property."}, status=404)
+
+    check_in = _parse_date(request.GET.get("check_in", ""))
+    check_out = _parse_date(request.GET.get("check_out", ""))
+    try:
+        guests = int(request.GET.get("guests", "1"))
+    except (TypeError, ValueError):
+        guests = 1
+    exclude_raw = request.GET.get("exclude_booking_id")
+    exclude_booking_id = int(exclude_raw) if exclude_raw and exclude_raw.isdigit() else None
+
+    result = check_availability(room, check_in, check_out, guests, exclude_booking_id=exclude_booking_id)
+
+    nights = (check_out - check_in).days if (check_in and check_out and check_out > check_in) else 0
+    rate = room.get_price_for_duration("daily") or room.price_per_night
+    allocation_subtotal = Decimal(rate) * guests * nights if room.pricing_model == "per_person" else Decimal(rate) * nights
+
+    return JsonResponse({
+        "available": result.available,
+        "booking_mode": result.effective_mode,
+        "maximum_capacity": result.max_capacity,
+        "occupied_capacity": result.occupied_capacity,
+        "remaining_capacity": result.remaining_capacity,
+        "requested_guests": result.requested_guests,
+        "pppn_rate": str(rate) if room.pricing_model == "per_person" else None,
+        "allocation_subtotal": str(allocation_subtotal),
+        "reason": result.reason,
+        "first_failing_date": result.first_failing_date.isoformat() if result.first_failing_date else None,
+    })
+
+
+@login_required
+def group_booking_add(request):
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    _group_booking_gate(request)
+
+    active_prop, property_rooms = _property_rooms(request)
+    rooms = list(property_rooms.select_related("room_category", "rate_plan").order_by("name"))
+    rooms_by_id = {room.pk: room for room in rooms}
+    effective_modes = effective_modes_for_rooms(rooms)
+    for room in rooms:
+        room.effective_mode_computed = effective_modes[room.pk]
+    guest_choices = list(Guest.objects.filter(is_generic=False).order_by("last_name", "first_name"))
+
+    errors = []
+    posted_allocations = []
+    check_in_value = ""
+    check_out_value = ""
+    identity_mode = "walk_in"
+    selected_guest_id = ""
+    discount_value = "0.00"
+    notes_value = ""
+    booking_source_value = "Walk-in"
+    status_value = "Pending"
+
+    if request.method == "POST":
+        check_in_value = request.POST.get("check_in_date", "")
+        check_out_value = request.POST.get("check_out_date", "")
+        identity_mode = request.POST.get("identity_mode", "walk_in")
+        selected_guest_id = request.POST.get("guest", "")
+        discount_value = request.POST.get("discount", "0.00") or "0.00"
+        notes_value = request.POST.get("notes", "")
+        booking_source_value = request.POST.get("booking_source", "Walk-in")
+        status_value = request.POST.get("status", "Pending")
+
+        check_in = _parse_date(check_in_value)
+        check_out = _parse_date(check_out_value)
+
+        room_ids = request.POST.getlist("room_id")
+        guest_counts = request.POST.getlist("allocated_guests")
+        seen_room_ids = set()
+        allocations = []
+        for room_id_raw, guests_raw in zip(room_ids, guest_counts):
+            if not room_id_raw:
+                continue
+            posted_allocations.append({"room_id": room_id_raw, "allocated_guests": guests_raw})
+            room_id = int(room_id_raw) if room_id_raw.isdigit() else None
+            room = rooms_by_id.get(room_id)
+            if room is None:
+                errors.append("The selected room belongs to another property.")
+                continue
+            if room.pk in seen_room_ids:
+                errors.append(f"{room.name} is listed more than once in this booking.")
+                continue
+            seen_room_ids.add(room.pk)
+            try:
+                guests = int(guests_raw)
+            except (TypeError, ValueError):
+                errors.append(f"{room.name}: enter a whole number of guests.")
+                continue
+            if guests < 1:
+                errors.append(f"{room.name}: allocated guests must be at least 1.")
+                continue
+            allocations.append({"room": room, "allocated_guests": guests})
+
+        if not allocations:
+            errors.append("Add at least one room allocation.")
+
+        total_guests_raw = request.POST.get("total_guests", "")
+        try:
+            total_guests = int(total_guests_raw) if total_guests_raw else sum(a["allocated_guests"] for a in allocations)
+        except (TypeError, ValueError):
+            total_guests = sum(a["allocated_guests"] for a in allocations)
+        if allocations and sum(a["allocated_guests"] for a in allocations) != total_guests:
+            errors.append("Allocated guest totals do not match the booking guest total.")
+
+        try:
+            discount = Decimal(discount_value)
+        except Exception:
+            discount = Decimal("0.00")
+            errors.append("Discount must be a valid number.")
+
+        if identity_mode == "guest" and selected_guest_id:
+            guest = Guest.objects.filter(pk=selected_guest_id, is_generic=False).first()
+            if guest is None:
+                errors.append("Select a valid guest, or use walk-in.")
+        else:
+            guest = Guest.get_generic()
+
+        if not errors:
+            try:
+                booking = create_multi_room_booking(
+                    guest=guest,
+                    prop=active_prop,
+                    check_in=check_in,
+                    check_out=check_out,
+                    allocations=allocations,
+                    total_guests=total_guests,
+                    discount=discount,
+                    booking_source=booking_source_value,
+                    status=status_value,
+                    notes=notes_value,
+                )
+            except ValidationError as exc:
+                errors.extend(exc.messages)
+            else:
+                _audit(
+                    request, "create", booking,
+                    after=_model_snapshot(booking, ["check_in_date", "check_out_date", "num_guests", "total_amount", "status"]),
+                )
+                messages.success(request, f"Group booking {booking.booking_reference} created.")
+                return redirect("core:booking_detail", pk=booking.pk)
+
+    return render(
+        request,
+        "core/group_booking_form.html",
+        {
+            "title": "New Group Booking",
+            "rooms": rooms,
+            "guest_choices": guest_choices,
+            "errors": errors,
+            "posted_allocations": posted_allocations,
+            "check_in_value": check_in_value,
+            "check_out_value": check_out_value,
+            "identity_mode": identity_mode,
+            "selected_guest_id": selected_guest_id,
+            "discount_value": discount_value,
+            "notes_value": notes_value,
+            "booking_source_value": booking_source_value,
+            "status_value": status_value,
+            "booking_source_choices": Booking.BOOKING_SOURCE_CHOICES,
+            "status_choices": Booking.STATUS_CHOICES,
         },
     )
 
@@ -2693,20 +2950,51 @@ def room_calendar(request):
     end = date_range[-1] + datetime.timedelta(days=1)
     active_prop, rooms_qs = _property_rooms(request)
     rooms = list(rooms_qs)
-    bookings = Booking.objects.select_related("guest", "room").filter(
-        room__prop=active_prop,
-        check_in_date__lt=end,
-        check_out_date__gt=start,
-    ).exclude(status__in=Booking.INACTIVE_STATUSES)
+
+    effective_modes = effective_modes_for_rooms(rooms)
+    shared_room_ids = {pk for pk, mode in effective_modes.items() if mode == "SHARED_CAPACITY"}
+    whole_room_ids = [room.pk for room in rooms if room.pk not in shared_room_ids]
+
+    # Whole rooms: one booking blocks the whole cell, exactly as before.
     by_room_date = {}
-    for booking in bookings:
-        current = max(booking.check_in_date, start)
-        last = min(booking.check_out_date, end)
-        while current < last:
-            by_room_date[(booking.room_id, current)] = booking
-            current += datetime.timedelta(days=1)
+    if whole_room_ids:
+        bookings = Booking.objects.select_related("guest", "room").filter(
+            room_id__in=whole_room_ids,
+            check_in_date__lt=end,
+            check_out_date__gt=start,
+        ).exclude(status__in=Booking.INACTIVE_STATUSES)
+        for booking in bookings:
+            current = max(booking.check_in_date, start)
+            last = min(booking.check_out_date, end)
+            while current < last:
+                by_room_date[(booking.room_id, current)] = booking
+                current += datetime.timedelta(days=1)
+
+    # Shared-capacity rooms: occupancy totals + the bookings contributing to
+    # them, per day — one query for every shared room across the whole grid,
+    # never one booking blocking the whole room and never a query per cell.
+    shared_occupancy = bulk_occupancy_by_room_and_date(shared_room_ids, start, end)
+
     for room in rooms:
-        room.calendar_cells = [{"date": day, "booking": by_room_date.get((room.pk, day))} for day in date_range]
+        if room.pk in shared_room_ids:
+            cells = []
+            for day in date_range:
+                entry = shared_occupancy.get((room.pk, day), {"occupied": 0, "bookings": []})
+                cells.append({
+                    "date": day,
+                    "booking": None,
+                    "shared": {
+                        "occupied": entry["occupied"],
+                        "max": room.max_guests,
+                        "status": shared_room_status_label(entry["occupied"], room.max_guests, room.status),
+                        "bookings": entry["bookings"],
+                    },
+                })
+            room.calendar_cells = cells
+        else:
+            room.calendar_cells = [
+                {"date": day, "booking": by_room_date.get((room.pk, day)), "shared": None} for day in date_range
+            ]
     return render(request, "core/room_calendar.html", {"rooms": rooms, "date_range": date_range, "start": start, "days": days})
 
 
