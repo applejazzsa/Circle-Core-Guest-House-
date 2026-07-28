@@ -1883,6 +1883,130 @@ class SharedCapacityDisplayTest(CircleCoreTenantTestCase):
         self.assertNotContains(response, "3 / 8 occupied")
 
 
+class SharedCapacitySecurityAuditTest(CircleCoreTenantTestCase):
+    """
+    Targeted security checks for the production-readiness audit. Several
+    attack scenarios are already covered elsewhere in this file (cited below
+    rather than duplicated); this class covers the remaining ones plus
+    explicit HTTP-level coverage for a couple that previously only had
+    model/service-level tests.
+
+    Already covered elsewhere:
+      - cross-tenant room ID injection:
+          RoomAllocationModelTest.test_tenant_mismatch_rejection_cross_schema
+          GroupBookingUITest.test_cross_tenant_room_injection_rejected
+      - stale client availability at creation time:
+          GroupBookingUITest.test_stale_client_availability_then_server_rejection
+      - zero/negative allocated guests:
+          RoomAllocationModelTest.test_zero_guests_rejected /
+          test_negative_guests_rejected
+      - duplicate allocation rows at the model layer (unique_together):
+          RoomAllocationModelTest.test_duplicate_allocation_same_booking_and_room_is_prevented
+    """
+
+    def setUp(self):
+        self.owner = make_owner()
+        activate_trial(self.owner)
+        self.client.login(username="owner", password="testpass123")
+        self.today = timezone.localdate()
+
+    def d(self, offset):
+        return self.today + datetime.timedelta(days=offset)
+
+    def test_enable_feature_without_permission_is_blocked(self):
+        # The tenant-facing settings form is the only self-service surface an
+        # authenticated Owner has — shared_capacity_booking_enabled is
+        # deliberately absent from GuestHouseSettingsForm.Meta.fields, so even
+        # attempting to smuggle it into the POST body must have no effect.
+        settings_obj = GuestHouseSettings.objects.get_or_create(pk=1)[0]
+        self.assertFalse(settings_obj.shared_capacity_booking_enabled)
+
+        response = self.client.post(reverse("core:settings"), {
+            "guest_house_name": "Test House",
+            "currency": "R",
+            "vat_rate": "15.00",
+            "check_in_time": "14:00",
+            "check_out_time": "10:00",
+            "shared_capacity_booking_enabled": "true",  # attempted smuggling
+        })
+        self.assertIn(response.status_code, (200, 302))
+        settings_obj.refresh_from_db()
+        self.assertFalse(settings_obj.shared_capacity_booking_enabled)
+
+    def test_bypass_capacity_via_direct_api_request(self):
+        # Simulates a client that skips the UI/JS entirely and POSTs straight
+        # to the endpoint with a guest count that outright exceeds capacity
+        # (not merely stale due to a competing booking).
+        enable_shared_capacity()
+        room = make_shared_room("Direct API Room", price=180, max_guests=6)
+        guest = make_guest(phone="0815550001")
+
+        response = self.client.post(reverse("core:group_booking_add"), {
+            "identity_mode": "guest",
+            "guest": str(guest.pk),
+            "check_in_date": self.d(50).isoformat(),
+            "check_out_date": self.d(52).isoformat(),
+            "room_id": [str(room.pk)],
+            "allocated_guests": ["999"],
+            "total_guests": "999",
+            "discount": "0.00",
+            "booking_source": "Walk-in",
+            "status": "Confirmed",
+            "notes": "",
+        })
+        self.assertEqual(response.status_code, 200)  # re-rendered with errors
+        self.assertContains(response, "only has 6 of 999")
+        self.assertEqual(Booking.objects.filter(guest=guest).count(), 0)
+
+    def test_duplicate_allocation_lines_rejected_via_api(self):
+        enable_shared_capacity()
+        room = make_shared_room("Dup Line Room", price=180, max_guests=8)
+        guest = make_guest(phone="0815550002")
+
+        response = self.client.post(reverse("core:group_booking_add"), {
+            "identity_mode": "guest",
+            "guest": str(guest.pk),
+            "check_in_date": self.d(55).isoformat(),
+            "check_out_date": self.d(57).isoformat(),
+            "room_id": [str(room.pk), str(room.pk)],  # same room twice
+            "allocated_guests": ["3", "3"],
+            "total_guests": "6",
+            "discount": "0.00",
+            "booking_source": "Walk-in",
+            "status": "Confirmed",
+            "notes": "",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "listed more than once")
+        self.assertEqual(Booking.objects.filter(guest=guest).count(), 0)
+
+    def test_update_booking_after_capacity_becomes_stale(self):
+        enable_shared_capacity()
+        room = make_shared_room("Edit Stale Room", price=180, max_guests=6)
+        prop = room.prop
+        guest_a = make_guest(phone="0815550003")
+        guest_b = make_guest(phone="0815550004")
+        ci, co = self.d(60), self.d(62)
+
+        booking_a = create_multi_room_booking(
+            guest=guest_a, prop=prop, check_in=ci, check_out=co,
+            allocations=[{"room": room, "allocated_guests": 2}], total_guests=2, status="Confirmed",
+        )
+        # Someone else takes the remaining 4 spaces after booking_a was created.
+        create_multi_room_booking(
+            guest=guest_b, prop=prop, check_in=ci, check_out=co,
+            allocations=[{"room": room, "allocated_guests": 4}], total_guests=4, status="Confirmed",
+        )
+        # booking_a now tries to grow from 2 to 5 guests — only 0 remain.
+        with self.assertRaises(ValidationError) as ctx:
+            edit_multi_room_booking(
+                booking_a, allocations=[{"room": room, "allocated_guests": 5}], total_guests=5,
+            )
+        self.assertTrue(any("only has" in msg for msg in ctx.exception.messages))
+        booking_a.refresh_from_db()
+        self.assertEqual(booking_a.room_allocations.get().allocated_guests, 2)  # untouched
+
+
 class BookingFlowTest(CircleCoreTenantTestCase):
     def setUp(self):
         self.owner = make_owner()
