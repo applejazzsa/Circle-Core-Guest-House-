@@ -672,6 +672,53 @@ class Booking(models.Model):
             super().save(*args, **kwargs)
 
 
+class RoomAllocation(models.Model):
+    """
+    One room's share of a booking. Existing single-room bookings are not
+    required to have any RoomAllocation rows — Booking.room/num_guests/
+    rate_per_night/total_amount remain the source of truth for that legacy
+    case. RoomAllocation matters once a booking spans more than one room.
+
+    No explicit "tenant" field is stored here: this app uses schema-per-tenant
+    isolation (see tenants/models.py, config/settings.py TENANT_APPS) — the
+    Postgres schema itself is the tenant boundary, and no model in this app
+    carries a tenant foreign key. What's enforced instead is that an
+    allocation's room belongs to the same Property as the booking's own room,
+    the closest tenant-scoped consistency check reachable within one schema.
+    """
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="room_allocations")
+    room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="allocations")
+    allocated_guests = models.PositiveIntegerField()
+    rate_plan = models.ForeignKey(
+        RatePlan, null=True, blank=True, on_delete=models.SET_NULL, related_name="room_allocations"
+    )
+    rate_per_night = models.DecimalField(max_digits=10, decimal_places=2)
+    line_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("booking", "room")]
+        ordering = ["booking_id", "room__name"]
+
+    def __str__(self):
+        return f"{self.booking.booking_reference} — {self.room.name} ({self.allocated_guests} guests)"
+
+    def clean(self):
+        if self.allocated_guests is not None and self.allocated_guests < 1:
+            raise ValidationError("Allocated guests must be at least 1.")
+        if self.room_id and self.booking_id and self.room.prop_id != self.booking.room.prop_id:
+            raise ValidationError(
+                "This room does not belong to the same property as the booking — "
+                "an allocation cannot cross properties/tenants."
+            )
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+
 class Payment(models.Model):
     PAYMENT_METHOD_CHOICES = [
         ("Cash", "Cash"),

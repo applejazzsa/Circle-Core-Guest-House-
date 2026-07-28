@@ -10,6 +10,9 @@ from decimal import Decimal
 
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import ValidationError
+from django.db import connection, transaction
+from django.db.migrations.executor import MigrationExecutor
+from django.db.utils import IntegrityError
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
@@ -25,7 +28,9 @@ from .models import (
     GuestHouseSettings,
     Payment,
     Property,
+    RatePlan,
     Room,
+    RoomAllocation,
     OfflineConflict,
     OfflineDevice,
     OfflineOperation,
@@ -64,6 +69,18 @@ class CircleCoreTenantTestCase(TenantTestCase):
 def make_owner(username="owner", password="testpass123"):
     user = User.objects.create_superuser(username, f"{username}@example.com", password)
     return user
+
+
+def make_other_property(name):
+    """
+    A second, genuinely distinct Property in the current schema. Property(pk=1)
+    is auto-seeded via an explicit-pk get_or_create (core/migrations/0021), which
+    leaves the id sequence behind it — a plain .create() can collide with that
+    seed row. Using an explicit next-pk sidesteps the sequence gap entirely.
+    """
+    last = Property.objects.order_by("-pk").first()
+    next_pk = (last.pk if last else 0) + 1
+    return Property.objects.create(pk=next_pk, name=name, is_active=True)
 
 
 def make_room(name="Room 1", price=500):
@@ -315,6 +332,225 @@ class BookingModelTest(CircleCoreTenantTestCase):
             booking_source="Walk-in",
         )
         self.assertEqual(next_booking.check_in_date, booking.check_out_date)
+
+
+class RoomAllocationModelTest(CircleCoreTenantTestCase):
+    def test_one_booking_with_one_allocation(self):
+        room = make_room("Alloc Room 1", price=200)
+        guest = make_guest(phone="0810001111")
+        booking = make_booking(room, guest, nights=3)
+        allocation = RoomAllocation.objects.create(
+            booking=booking,
+            room=room,
+            allocated_guests=2,
+            rate_per_night=Decimal("200.00"),
+            line_total=Decimal("1200.00"),
+        )
+        self.assertEqual(booking.room_allocations.count(), 1)
+        self.assertEqual(allocation.room, room)
+
+    def test_one_booking_with_multiple_allocations(self):
+        room_a = make_room("Alloc Room A", price=180)
+        room_b = make_room("Alloc Room B", price=260)
+        guest = make_guest(phone="0810002222")
+        booking = make_booking(room_a, guest, nights=2)
+        RoomAllocation.objects.create(
+            booking=booking, room=room_a, allocated_guests=8,
+            rate_per_night=Decimal("180.00"), line_total=Decimal("2880.00"),
+        )
+        RoomAllocation.objects.create(
+            booking=booking, room=room_b, allocated_guests=6,
+            rate_per_night=Decimal("260.00"), line_total=Decimal("3120.00"),
+        )
+        self.assertEqual(booking.room_allocations.count(), 2)
+        combined = sum((a.line_total for a in booking.room_allocations.all()), Decimal("0.00"))
+        self.assertEqual(combined, Decimal("6000.00"))
+
+    def test_tenant_mismatch_rejection_cross_property(self):
+        # Deterministic, same-schema analogue of "tenant mismatch": a room from
+        # a different Property must be rejected. Property is the only
+        # tenant-scoped boundary reachable from both Room and Booking within a
+        # single schema — this app has no shared tenant_id column (see the
+        # RoomAllocation model docstring for why).
+        other_prop = make_other_property("Other Property")
+        other_room = Room.objects.create(
+            prop=other_prop, name="Other Prop Room", room_type="Double",
+            max_guests=2, status="Available", cleaning_status="Clean",
+            price_per_night=Decimal("300.00"),
+        )
+        room = make_room("Alloc Room Home", price=200)
+        guest = make_guest(phone="0810003333")
+        booking = make_booking(room, guest)
+        allocation = RoomAllocation(
+            booking=booking, room=other_room, allocated_guests=2,
+            rate_per_night=Decimal("300.00"), line_total=Decimal("600.00"),
+        )
+        with self.assertRaises(ValidationError):
+            allocation.save()
+
+    def test_tenant_mismatch_rejection_cross_schema(self):
+        # Strongest-level proof: a Room that only exists in a *different
+        # tenant's schema* can never be attached here — enforced by the
+        # database foreign key itself, not application code.
+        room = make_room("Alloc Room Cross Schema", price=200)
+        guest = make_guest(phone="0810004444")
+        booking = make_booking(room, guest)
+
+        with schema_context("public"):
+            other_tenant = GuestHouseTenant(
+                schema_name="alloc_other",
+                name="Other Guest House",
+                owner_name="Other Owner",
+                owner_email="alloc-other@example.com",
+                owner_phone="0830000002",
+                is_active=True,
+                is_verified=True,
+            )
+            other_tenant.save()
+            Domain.objects.create(domain="alloc-other.test.com", tenant=other_tenant, is_primary=True)
+        try:
+            with tenant_context(other_tenant):
+                other_prop = make_other_property("Other Tenant Property")
+                other_room = Room.objects.create(
+                    prop=other_prop, name="Other Tenant Room", room_type="Double",
+                    max_guests=2, status="Available", cleaning_status="Clean",
+                    price_per_night=Decimal("400.00"),
+                )
+                other_room_id = other_room.pk
+
+            # The room id from the other tenant's schema simply doesn't exist
+            # back in this schema — RoomAllocation.clean() fails trying to even
+            # load it (Room.DoesNotExist) before the database's own foreign key
+            # constraint would get a chance to reject it (IntegrityError). Both
+            # outcomes prove the same thing: it is never attachable.
+            with self.assertRaises((IntegrityError, Room.DoesNotExist)):
+                with transaction.atomic():
+                    RoomAllocation.objects.create(
+                        booking=booking, room_id=other_room_id, allocated_guests=1,
+                        rate_per_night=Decimal("400.00"), line_total=Decimal("400.00"),
+                    )
+        finally:
+            with schema_context("public"):
+                other_tenant.delete(allow_hard_delete=True)
+
+    def test_zero_guests_rejected(self):
+        room = make_room("Alloc Room Zero", price=200)
+        guest = make_guest(phone="0810005555")
+        booking = make_booking(room, guest)
+        allocation = RoomAllocation(
+            booking=booking, room=room, allocated_guests=0,
+            rate_per_night=Decimal("200.00"), line_total=Decimal("0.00"),
+        )
+        with self.assertRaises(ValidationError):
+            allocation.save()
+
+    def test_negative_guests_rejected(self):
+        room = make_room("Alloc Room Negative", price=200)
+        guest = make_guest(phone="0810006666")
+        booking = make_booking(room, guest)
+        allocation = RoomAllocation(
+            booking=booking, room=room, allocated_guests=-1,
+            rate_per_night=Decimal("200.00"), line_total=Decimal("0.00"),
+        )
+        with self.assertRaises(Exception):
+            allocation.save()
+
+    def test_duplicate_allocation_same_booking_and_room_is_prevented(self):
+        room = make_room("Alloc Room Dup", price=200)
+        guest = make_guest(phone="0810007777")
+        booking = make_booking(room, guest)
+        RoomAllocation.objects.create(
+            booking=booking, room=room, allocated_guests=2,
+            rate_per_night=Decimal("200.00"), line_total=Decimal("400.00"),
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                RoomAllocation.objects.create(
+                    booking=booking, room=room, allocated_guests=3,
+                    rate_per_night=Decimal("200.00"), line_total=Decimal("600.00"),
+                )
+
+    def test_historical_rate_snapshot_survives_rate_plan_change(self):
+        rate_plan = RatePlan.objects.create(
+            name="Snapshot Test Plan", amount=Decimal("180.00"), currency="ZAR",
+            pricing_basis="per_person_per_night",
+        )
+        room = make_room("Alloc Room Snapshot", price=180)
+        guest = make_guest(phone="0810008888")
+        booking = make_booking(room, guest, nights=2)
+        allocation = RoomAllocation.objects.create(
+            booking=booking, room=room, allocated_guests=4, rate_plan=rate_plan,
+            rate_per_night=Decimal("180.00"), line_total=Decimal("1440.00"),
+        )
+        # The rate plan's live amount changes later...
+        rate_plan.amount = Decimal("250.00")
+        rate_plan.save()
+
+        allocation.refresh_from_db()
+        # ...but the historical snapshot on the allocation must not move.
+        self.assertEqual(allocation.rate_per_night, Decimal("180.00"))
+        self.assertEqual(allocation.line_total, Decimal("1440.00"))
+
+    def test_existing_single_room_booking_remains_readable_and_editable(self):
+        room = make_room("Alloc Room Legacy", price=500)
+        guest = make_guest(phone="0810009999")
+        booking = make_booking(room, guest, nights=2)
+        # No RoomAllocation row is required for this legacy path.
+        self.assertEqual(booking.room_allocations.count(), 0)
+        self.assertEqual(booking.room, room)
+        self.assertEqual(booking.total_amount, Decimal("1000.00"))
+        # Still fully editable via the normal model API.
+        booking.status = "Checked In"
+        booking.save()
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, "Checked In")
+
+    def test_migration_0043_backfill_is_reversible_and_idempotent(self):
+        room = make_room("Alloc Room Backfill", price=350)
+        guest = make_guest(phone="0810000001")
+        booking = make_booking(room, guest, nights=2)
+        self.assertEqual(booking.room_allocations.count(), 0)
+
+        # The test schema was already fully migrated (through 0043) before this
+        # booking existed, so 0043 has nothing pending yet. Unapply it first —
+        # a safe no-op deletion, since nothing has been backfilled so far —
+        # then reapply, which is what actually exercises the backfill against
+        # this freshly created, still-unbacked booking.
+        executor = MigrationExecutor(connection)
+        executor.migrate([("core", "0042_room_allocation")])
+        executor.loader.build_graph()
+
+        executor = MigrationExecutor(connection)
+        executor.migrate([("core", "0043_backfill_room_allocations")])
+        executor.loader.build_graph()
+
+        booking.refresh_from_db()
+        self.assertEqual(booking.room_allocations.count(), 1)
+        allocation = booking.room_allocations.first()
+        self.assertEqual(allocation.line_total, booking.total_amount)
+        self.assertEqual(allocation.allocated_guests, booking.num_guests)
+
+        # Idempotent: re-targeting the same migration does nothing further.
+        executor = MigrationExecutor(connection)
+        executor.migrate([("core", "0043_backfill_room_allocations")])
+        executor.loader.build_graph()
+        self.assertEqual(booking.room_allocations.count(), 1)
+
+        try:
+            executor = MigrationExecutor(connection)
+            executor.migrate([("core", "0042_room_allocation")])
+            executor.loader.build_graph()
+            self.assertEqual(RoomAllocation.objects.filter(booking=booking).count(), 0)
+            # The booking itself is untouched by the rollback.
+            booking.refresh_from_db()
+            self.assertEqual(booking.total_amount, Decimal("700.00"))
+        finally:
+            # Always leave the schema fully migrated again, regardless of
+            # outcome, so later tests in this run never see a partially
+            # migrated schema.
+            executor = MigrationExecutor(connection)
+            executor.migrate([("core", "0043_backfill_room_allocations")])
+            executor.loader.build_graph()
 
 
 # ── View tests ────────────────────────────────────────────────────────────────
