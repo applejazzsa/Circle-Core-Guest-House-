@@ -21,6 +21,7 @@ from django_tenants.utils import schema_context, tenant_context
 
 from tenants.models import Domain, GuestHouseTenant
 
+from .availability import check_availability
 from .forms import RoomForm
 from .models import (
     Booking,
@@ -123,6 +124,48 @@ def make_booking(room, guest, days_ahead=1, nights=2):
         balance_due=room.price_per_night * nights,
         total_amount=room.price_per_night * nights,
     )
+
+
+def make_shared_room(name="Shared Room", price=180, max_guests=6):
+    room = make_room(name, price=price)
+    room.max_guests = max_guests
+    room.booking_mode = "SHARED_CAPACITY"
+    room.pricing_model = "per_person"
+    room.save()
+    return room
+
+
+def enable_shared_capacity():
+    settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
+    settings_obj.shared_capacity_booking_enabled = True
+    settings_obj.save()
+    return settings_obj
+
+
+def make_reserving_booking(room, guest, check_in, check_out, num_guests=1, status="Confirmed"):
+    """A booking that reserves inventory on `room`. For SHARED_CAPACITY rooms,
+    also creates the RoomAllocation the availability service actually reads."""
+    booking = Booking.objects.create(
+        room=room,
+        guest=guest,
+        check_in_date=check_in,
+        check_out_date=check_out,
+        booking_duration_type="daily",
+        num_guests=num_guests,
+        rate_per_night=room.price_per_night,
+        status=status,
+        booking_source="Walk-in",
+    )
+    if room.effective_booking_mode == "SHARED_CAPACITY":
+        nights = max((check_out - check_in).days, 0)
+        RoomAllocation.objects.create(
+            booking=booking,
+            room=room,
+            allocated_guests=num_guests,
+            rate_per_night=room.price_per_night,
+            line_total=room.price_per_night * num_guests * nights,
+        )
+    return booking
 
 
 def activate_trial(owner):
@@ -551,6 +594,194 @@ class RoomAllocationModelTest(CircleCoreTenantTestCase):
             executor = MigrationExecutor(connection)
             executor.migrate([("core", "0043_backfill_room_allocations")])
             executor.loader.build_graph()
+
+
+class AvailabilityServiceTest(CircleCoreTenantTestCase):
+    def setUp(self):
+        self.today = timezone.localdate()
+
+    def d(self, offset):
+        return self.today + datetime.timedelta(days=offset)
+
+    def test_whole_room_no_overlap(self):
+        room = make_room("WR No Overlap", price=500)
+        result = check_availability(room, self.d(10), self.d(12), 1)
+        self.assertTrue(result.available)
+        self.assertEqual(result.effective_mode, "WHOLE_ROOM")
+        self.assertEqual(result.remaining_capacity, room.max_guests)
+        self.assertEqual(result.conflicting_allocations, [])
+
+    def test_whole_room_with_overlap(self):
+        room = make_room("WR Overlap", price=500)
+        guest = make_guest(phone="0811110001")
+        make_reserving_booking(room, guest, self.d(10), self.d(13), num_guests=1)
+
+        result = check_availability(room, self.d(10), self.d(13), 1)
+        self.assertFalse(result.available)
+        self.assertEqual(result.remaining_capacity, 0)
+        self.assertEqual(len(result.conflicting_allocations), 1)
+        self.assertIn("already booked", result.reason)
+
+    def test_shared_capacity_partial_occupancy(self):
+        enable_shared_capacity()
+        room = make_shared_room("Shared Partial", price=180, max_guests=6)
+        guest = make_guest(phone="0811110002")
+        make_reserving_booking(room, guest, self.d(20), self.d(22), num_guests=2)
+
+        result = check_availability(room, self.d(20), self.d(22), 3)
+        self.assertTrue(result.available)
+        self.assertEqual(result.effective_mode, "SHARED_CAPACITY")
+        self.assertEqual(result.occupied_capacity, 2)
+        self.assertEqual(result.remaining_capacity, 4)
+
+    def test_shared_capacity_becomes_exactly_full(self):
+        enable_shared_capacity()
+        room = make_shared_room("Shared Exact Full", price=180, max_guests=6)
+        guest = make_guest(phone="0811110003")
+        make_reserving_booking(room, guest, self.d(30), self.d(32), num_guests=4)
+
+        result = check_availability(room, self.d(30), self.d(32), 2)
+        self.assertTrue(result.available)
+        self.assertEqual(result.remaining_capacity, 2)
+
+    def test_shared_capacity_exceeding_is_rejected(self):
+        enable_shared_capacity()
+        room = make_shared_room("Shared Exceeding", price=180, max_guests=6)
+        guest = make_guest(phone="0811110004")
+        make_reserving_booking(room, guest, self.d(40), self.d(42), num_guests=4)
+
+        result = check_availability(room, self.d(40), self.d(42), 3)
+        self.assertFalse(result.available)
+        self.assertEqual(result.remaining_capacity, 2)
+        self.assertIn("only has 2 of 3", result.reason)
+
+    def test_shared_capacity_several_overlapping_bookings(self):
+        enable_shared_capacity()
+        room = make_shared_room("Shared Several", price=180, max_guests=10)
+        guest1 = make_guest(first_name="G1", phone="0811110005")
+        guest2 = make_guest(first_name="G2", phone="0811110006")
+        make_reserving_booking(room, guest1, self.d(50), self.d(53), num_guests=3)
+        make_reserving_booking(room, guest2, self.d(51), self.d(54), num_guests=4)
+
+        # Both bookings overlap the night at offset 51: occupied = 3 + 4 = 7, remaining = 3.
+        ok = check_availability(room, self.d(51), self.d(52), 3)
+        self.assertTrue(ok.available)
+        self.assertEqual(ok.remaining_capacity, 3)
+
+        blocked = check_availability(room, self.d(51), self.d(52), 4)
+        self.assertFalse(blocked.available)
+
+    def test_adjacent_checkout_checkin_allowed(self):
+        room = make_room("Adjacent WR", price=400)
+        guest = make_guest(phone="0811110007")
+        make_reserving_booking(room, guest, self.d(60), self.d(62), num_guests=1)
+
+        # New stay starts exactly on the prior stay's checkout date.
+        result = check_availability(room, self.d(62), self.d(64), 1)
+        self.assertTrue(result.available)
+
+        enable_shared_capacity()
+        shared_room = make_shared_room("Adjacent Shared", price=180, max_guests=4)
+        make_reserving_booking(shared_room, guest, self.d(60), self.d(62), num_guests=4)
+        shared_result = check_availability(shared_room, self.d(62), self.d(64), 4)
+        self.assertTrue(shared_result.available)
+
+    def test_multi_night_request_where_only_one_night_exceeds(self):
+        enable_shared_capacity()
+        room = make_shared_room("Shared One Bad Night", price=180, max_guests=6)
+        guest = make_guest(phone="0811110008")
+        # Occupies only the middle night of the requested 3-night window.
+        make_reserving_booking(room, guest, self.d(71), self.d(72), num_guests=5)
+
+        result = check_availability(room, self.d(70), self.d(73), 2)
+        self.assertFalse(result.available)
+        self.assertEqual(result.first_failing_date, self.d(71))
+        self.assertEqual(result.remaining_capacity, 1)
+
+    def test_cancelled_booking_does_not_consume_capacity(self):
+        enable_shared_capacity()
+        room = make_shared_room("Shared Cancelled", price=180, max_guests=6)
+        guest = make_guest(phone="0811110009")
+        make_reserving_booking(room, guest, self.d(80), self.d(82), num_guests=6, status="Cancelled")
+
+        result = check_availability(room, self.d(80), self.d(82), 6)
+        self.assertTrue(result.available)
+        self.assertEqual(result.occupied_capacity, 0)
+
+    def test_editing_booking_excludes_itself(self):
+        room = make_room("Edit Self WR", price=400)
+        guest = make_guest(phone="0811110010")
+        booking = make_reserving_booking(room, guest, self.d(90), self.d(92), num_guests=1)
+
+        result = check_availability(room, self.d(90), self.d(92), 1, exclude_booking_id=booking.pk)
+        self.assertTrue(result.available)
+
+    def test_feature_flag_disabled_forces_whole_room(self):
+        # shared_capacity_booking_enabled is left at its default False.
+        room = make_shared_room("Flag Off Room", price=180, max_guests=6)
+        guest = make_guest(phone="0811110011")
+        make_reserving_booking(room, guest, self.d(100), self.d(102), num_guests=1)
+
+        result = check_availability(room, self.d(100), self.d(102), 1)
+        self.assertEqual(result.effective_mode, "WHOLE_ROOM")
+        self.assertFalse(result.available)  # blocked outright, even though 1+1 <= max_guests=6
+
+    def test_tenant_isolation(self):
+        room = make_room("Isolation Home Room", price=400)
+        guest = make_guest(phone="0811110012")
+        make_reserving_booking(room, guest, self.d(110), self.d(112), num_guests=1)
+
+        with schema_context("public"):
+            other_tenant = GuestHouseTenant(
+                schema_name="avail_other",
+                name="Other Guest House",
+                owner_name="Other Owner",
+                owner_email="avail-other@example.com",
+                owner_phone="0830000003",
+                is_active=True,
+                is_verified=True,
+            )
+            other_tenant.save()
+            Domain.objects.create(domain="avail-other.test.com", tenant=other_tenant, is_primary=True)
+        try:
+            with tenant_context(other_tenant):
+                other_room = make_room("Isolation Other Room", price=300)
+                other_guest = make_guest(phone="0811110013")
+                make_reserving_booking(other_room, other_guest, self.d(110), self.d(112), num_guests=1)
+                other_result = check_availability(other_room, self.d(110), self.d(112), 1)
+                self.assertFalse(other_result.available)  # blocked by its own tenant's booking
+
+            # Back in this test's own schema: unaffected by the other tenant.
+            result = check_availability(room, self.d(110), self.d(112), 1)
+            self.assertFalse(result.available)  # blocked by ITS OWN booking, not the other tenant's
+
+            fresh_room = make_room("Isolation Fresh Room", price=250)
+            fresh_result = check_availability(fresh_room, self.d(110), self.d(112), 1)
+            self.assertTrue(fresh_result.available)
+        finally:
+            with schema_context("public"):
+                other_tenant.delete(allow_hard_delete=True)
+
+    def test_date_validation(self):
+        room = make_room("Date Validation Room", price=300)
+        missing = check_availability(room, None, None, 1)
+        self.assertFalse(missing.available)
+        self.assertIn("required", missing.reason)
+
+        backwards = check_availability(room, self.d(5), self.d(2), 1)
+        self.assertFalse(backwards.available)
+        self.assertIn("Check-out date must be after check-in date", backwards.reason)
+
+    def test_zero_night_or_invalid_guest_count_rejected(self):
+        room = make_room("Zero Night Room", price=300)
+        same_day = check_availability(room, self.d(5), self.d(5), 1)
+        self.assertFalse(same_day.available)
+
+        zero_guests = check_availability(room, self.d(5), self.d(7), 0)
+        self.assertFalse(zero_guests.available)
+
+        negative_guests = check_availability(room, self.d(5), self.d(7), -1)
+        self.assertFalse(negative_guests.available)
 
 
 # ── View tests ────────────────────────────────────────────────────────────────

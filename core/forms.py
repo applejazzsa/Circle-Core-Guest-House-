@@ -489,12 +489,24 @@ class BookingForm(forms.ModelForm):
                     raise forms.ValidationError("Discount cannot be bigger than the booking subtotal.")
                 if deposit_required > candidate.total_amount:
                     raise forms.ValidationError("Deposit required cannot be bigger than the booking total.")
-                conflict = candidate.overlapping_bookings().select_related("guest").first()
-                if conflict:
-                    raise forms.ValidationError(
-                        f"Double booking conflict: {room.name} is already booked for that time "
-                        f"({conflict.booking_reference} - {conflict.guest.full_name})."
+                if duration_type in ["1_hour", "2_hours", "3_hours", "5_hours"]:
+                    # Hourly bookings use time-of-day windows, not whole dates
+                    # — kept on the pre-existing datetime-based overlap check.
+                    conflict = candidate.overlapping_bookings().select_related("guest").first()
+                    if conflict:
+                        raise forms.ValidationError(
+                            f"Double booking conflict: {room.name} is already booked for that time "
+                            f"({conflict.booking_reference} - {conflict.guest.full_name})."
+                        )
+                else:
+                    from .availability import check_availability
+
+                    result = check_availability(
+                        room, candidate.check_in_date, candidate.check_out_date, num_guests,
+                        exclude_booking_id=self.instance.pk if self.instance.pk else None,
                     )
+                    if not result.available:
+                        raise forms.ValidationError(f"Double booking conflict: {result.reason}")
 
         return cleaned_data
 

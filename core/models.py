@@ -557,12 +557,27 @@ class Booking(models.Model):
         return Booking.objects.filter(pk__in=conflicts)
 
     def validate_room_conflict(self):
-        conflict = self.overlapping_bookings().select_related("guest", "room").first()
-        if conflict:
-            raise ValidationError(
-                f"{self.room.name} is already booked for that time "
-                f"({conflict.booking_reference} - {conflict.guest.full_name})."
-            )
+        # Hourly bookings need time-of-day windows, not whole dates, so they
+        # keep using the pre-existing datetime-based overlap check below.
+        # Every other duration goes through the shared availability service
+        # (core/availability.py) so this logic lives in exactly one place.
+        if self.is_hourly:
+            conflict = self.overlapping_bookings().select_related("guest", "room").first()
+            if conflict:
+                raise ValidationError(
+                    f"{self.room.name} is already booked for that time "
+                    f"({conflict.booking_reference} - {conflict.guest.full_name})."
+                )
+            return
+
+        from .availability import check_availability
+
+        result = check_availability(
+            self.room, self.check_in_date, self.check_out_date, self.num_guests,
+            exclude_booking_id=self.pk,
+        )
+        if not result.available:
+            raise ValidationError(result.reason)
 
     def _generate_reference(self):
         import random
