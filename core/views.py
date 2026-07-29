@@ -1901,7 +1901,7 @@ def completed_booking_reminders_api(request):
 
     reminders = []
     for booking in candidate_bookings:
-        end_dt = _booking_end_datetime(booking, settings_obj)
+        end_dt = booking_end_datetime(booking, settings_obj)
         if not end_dt or not (window_start < end_dt <= now):
             continue
         reminders.append(
