@@ -98,6 +98,9 @@
             {% elif booking.status == 'Cancelled' %}badge-red
             {% elif booking.status == 'No Show' %}badge-purple
             {% else %}badge-amber{% endif %}" style="font-size:9.5px;">{{ booking.status }}</span>
+          {% if booking.overdue_info.overdue %}
+          <span class="badge" style="font-size:9.5px; margin-left:4px; background:rgba(220,38,38,.12); color:#dc2626;" title="{{ booking.overdue_info.display_label }}">{{ booking.overdue_info.display_label }}</span>
+          {% endif %}
         </td>
         <td>
           <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-ghost btn-sm">View</a>

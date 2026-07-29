@@ -71,6 +71,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - media:/app/media:ro
+      - backups:/app/backups
 
 volumes:
   postgres_data:

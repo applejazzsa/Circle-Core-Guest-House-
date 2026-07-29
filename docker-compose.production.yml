@@ -10,6 +10,7 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       REDIS_URL: redis://redis:6379/1
+      SKIP_DATABASE_SETUP: ${SKIP_DATABASE_SETUP:-0}
     depends_on:
       db:
         condition: service_healthy
@@ -77,6 +78,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - media:/app/media:ro
+      - backups:/app/backups
     networks:
       - internal
 
