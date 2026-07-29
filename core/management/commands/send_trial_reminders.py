@@ -43,7 +43,7 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
         target_schema = options.get("schema")
 
-        queryset = GuestHouseTenant.objects.filter(is_active=True)
+        queryset = GuestHouseTenant.objects.filter(is_active=True).exclude(schema_name="public")
         if target_schema:
             queryset = queryset.filter(schema_name=target_schema)
 
