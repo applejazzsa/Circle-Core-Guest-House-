@@ -212,6 +212,17 @@ class ExpireElapsedBookingsGetSafetyTest(CircleCoreTenantTestCase):
         before = self._snapshot()
         self._assert_unchanged(before, reverse("core:housekeeping_mobile"))
 
+    def test_completed_booking_reminders_api_does_not_mutate(self):
+        # A separate, independent consumer of booking_end_datetime() outside
+        # the 8 views above — it must keep working (and stay read-only) now
+        # that _booking_end_datetime was renamed to the public
+        # core.availability.booking_end_datetime.
+        before = self._snapshot()
+        response = self.client.get(reverse("core:completed_booking_reminders_api"))
+        self.assertEqual(response.status_code, 200)
+        after = self._snapshot()
+        self.assertEqual(before, after)
+
     def test_overdue_confirmed_booking_is_not_marked_no_show_by_any_get(self):
         other_room = make_room("Second Overdue Room")
         confirmed = _make_elapsed_booking(other_room, make_guest(first_name="Second", phone="0810000099"), status="Confirmed")
