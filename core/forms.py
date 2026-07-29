@@ -15,12 +15,12 @@ from .models import (
 
 
 PREMIUM_FIELD_CLASSES = (
-    "block w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 "
+    "block w-full rounded border border-gray-200 bg-white px-4 py-3 text-gray-900 "
     "transition focus:border-[#c9a84c] focus:outline-none focus:ring-1 focus:ring-[#c9a84c]"
 )
 PREMIUM_FILE_CLASSES = (
-    "block w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 "
-    "file:mr-4 file:rounded-lg file:border-0 file:bg-[#1a1a2e] file:px-4 file:py-2 "
+    "block w-full rounded border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 "
+    "file:mr-4 file:rounded file:border-0 file:bg-[#1a1a2e] file:px-4 file:py-2 "
     "file:text-sm file:font-semibold file:text-white hover:file:bg-[#2a2a4e]"
 )
 MAX_IMAGE_UPLOAD_SIZE = 5 * 1024 * 1024
@@ -160,6 +160,15 @@ class StaffPinSetupForm(forms.Form):
 class GuestHouseSettingsForm(forms.ModelForm):
     class Meta:
         model = GuestHouseSettings
+        labels = {
+            "invoice_notes": "Invoice Terms & Conditions",
+        }
+        help_texts = {
+            "invoice_notes": (
+                "Shown on generated invoices. Add payment deadlines, cancellation terms, "
+                "liability wording, or other conditions guests must know."
+            ),
+        }
         fields = [
             "guest_house_name",
             "logo",
@@ -196,7 +205,15 @@ class GuestHouseSettingsForm(forms.ModelForm):
             "address": forms.Textarea(attrs={"rows": 3}),
             "banking_details": forms.Textarea(attrs={"rows": 3}),
             "cancellation_note": forms.Textarea(attrs={"rows": 3}),
-            "invoice_notes": forms.Textarea(attrs={"rows": 3}),
+            "invoice_notes": forms.Textarea(
+                attrs={
+                    "rows": 6,
+                    "placeholder": (
+                        "Example: Payment is due within 7 days. Reservations remain subject "
+                        "to the cancellation policy."
+                    ),
+                }
+            ),
             "receipt_notes": forms.Textarea(attrs={"rows": 3}),
             "seasonal_note": forms.Textarea(attrs={"rows": 3}),
         }
