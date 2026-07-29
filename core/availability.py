@@ -31,8 +31,11 @@ caller (e.g. via the request's active Property), matching how every other
 view in this codebase resolves rooms.
 """
 
+import datetime as datetime_module
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+
+from django.utils import timezone
 
 from .models import Booking, GuestHouseSettings, RoomAllocation
 
@@ -309,3 +312,78 @@ def occupancy_snapshot(room, on_date):
     occupancy = bulk_occupancy_by_room_and_date([room.pk], on_date, on_date + timedelta(days=1))
     occupied = occupancy.get((room.pk, on_date), {"occupied": 0})["occupied"]
     return occupied, room.max_guests, room.max_guests - occupied
+
+
+# ── Overdue calculation (read-only) ────────────────────────────────────────
+#
+# Pure, no-write helpers backing "Overdue"/"Checkout overdue"/"No-show review
+# required" display indicators. Both the page views (for display only) and
+# the expire_elapsed_bookings management command (for the actual, authoritative
+# transition) call these so the "is this elapsed?" rule can never drift
+# between what a GET request shows and what the scheduled command acts on.
+# Neither function here writes to the database.
+
+# Statuses a booking must be in for lifecycle-overdue calculation to apply at
+# all — matches the exact set _expire_elapsed_bookings() has always operated on.
+OVERDUE_ELIGIBLE_STATUSES = ("Pending", "Confirmed", "Checked In")
+
+
+@dataclass
+class OverdueInfo:
+    overdue: bool = False
+    overdue_since: object = None
+    suggested_transition: str = ""
+    display_label: str = ""
+
+
+def booking_end_datetime(booking, settings_obj):
+    """Timezone-aware datetime a booking's stay is expected to end, per the
+    existing hourly/daily checkout-time rules. Returns None when an hourly
+    booking has no resolvable end time yet."""
+    if booking.is_hourly:
+        end_time = booking.booking_end_time or booking.compute_hourly_end_time()
+        if not end_time:
+            return None
+        start_time = booking.booking_start_time
+        end_date = booking.check_in_date
+        end_dt = datetime_module.datetime.combine(end_date, end_time)
+        # If end_time is before start_time the booking crosses midnight — add 1 day
+        if start_time and end_time <= start_time:
+            end_dt += datetime_module.timedelta(days=1)
+    else:
+        end_date = booking.check_out_date
+        end_time = settings_obj.check_out_time
+        end_dt = datetime_module.datetime.combine(end_date, end_time)
+
+    if timezone.is_naive(end_dt):
+        end_dt = timezone.make_aware(end_dt, timezone.get_current_timezone())
+    return end_dt
+
+
+def is_booking_overdue(booking, settings_obj, now=None):
+    """Read-only determination of whether `booking` has elapsed past its
+    expected end time and, if so, what its authoritative transition would be.
+    Never writes to `booking` or anything else — safe to call from GET views.
+    The suggested_transition/display_label describe what the scheduled
+    expire_elapsed_bookings command would do, not something this call performs."""
+    now = now or timezone.now()
+    if booking.status not in OVERDUE_ELIGIBLE_STATUSES:
+        return OverdueInfo()
+
+    end_dt = booking_end_datetime(booking, settings_obj)
+    if not end_dt or end_dt > now:
+        return OverdueInfo()
+
+    if booking.status == "Checked In":
+        return OverdueInfo(
+            overdue=True,
+            overdue_since=end_dt,
+            suggested_transition="Checked Out",
+            display_label="Checkout overdue",
+        )
+    return OverdueInfo(
+        overdue=True,
+        overdue_since=end_dt,
+        suggested_transition="No Show",
+        display_label="No-show review required",
+    )

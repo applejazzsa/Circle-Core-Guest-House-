@@ -155,7 +155,7 @@
           <div style="margin-top:3px; color:var(--color-text-primary); font-size:12.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{% if room.display_booking.vehicle_registration %}{{ room.display_booking.vehicle_registration }}{% else %}{{ room.display_booking.guest.full_name }}{% endif %}</div>
           {% endif %}
         </div>
-        <span style="flex-shrink:0; font-family:var(--font-mono); font-size:10.5px; color:var(--color-text-tertiary);">{% if room.status == 'Occupied' %}{% if room.display_booking.is_hourly %}until {{ room.display_booking.booking_end_time|time:'H:i' }}{% else %}out {{ room.display_booking.check_out_date|date:'d M' }}{% endif %}{% else %}{{ room.display_booking.check_in_date|date:'d M' }}{% endif %}</span>
+        <span style="flex-shrink:0; font-family:var(--font-mono); font-size:10.5px; color:{% if room.display_booking_overdue.overdue %}var(--color-danger, #dc2626){% else %}var(--color-text-tertiary){% endif %};">{% if room.display_booking_overdue.overdue %}{{ room.display_booking_overdue.display_label }}{% elif room.status == 'Occupied' %}{% if room.display_booking.is_hourly %}until {{ room.display_booking.booking_end_time|time:'H:i' }}{% else %}out {{ room.display_booking.check_out_date|date:'d M' }}{% endif %}{% else %}{{ room.display_booking.check_in_date|date:'d M' }}{% endif %}</span>
       </div>
       {% endif %}
 
