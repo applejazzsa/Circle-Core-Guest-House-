@@ -27,6 +27,9 @@
         {% elif booking.status == 'Cancelled' %}badge-red
         {% elif booking.status == 'No Show' %}badge-purple
         {% else %}badge-amber{% endif %}">{{ booking.status }}</span>
+      {% if overdue_info.overdue %}
+      <span class="badge" style="background:rgba(220,38,38,.12); color:#dc2626;">{{ overdue_info.display_label }}</span>
+      {% endif %}
     </h1>
     <p class="page-subtitle" style="font-size:0.875rem; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ booking.guest.full_name }} · {{ booking.room.name }}</p>
   </div>

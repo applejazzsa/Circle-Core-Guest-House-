@@ -13,7 +13,6 @@ from django.contrib import messages
 from django.contrib.auth import authenticate
 from django.contrib.auth.decorators import login_required
 from django import forms
-from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.core.exceptions import ValidationError
@@ -80,9 +79,11 @@ from .email_utils import (
 )
 from .availability import (
     OUT_OF_SERVICE_STATUSES,
+    booking_end_datetime,
     bulk_occupancy_by_room_and_date,
     check_availability,
     effective_modes_for_rooms,
+    is_booking_overdue,
     occupancy_snapshot,
     shared_room_status_label,
 )
@@ -414,6 +415,35 @@ def onboarding_clear_demo(request):
     return redirect("core:onboarding")
 
 
+def _outstanding_balance_queryset(qs):
+    """Bookings in `qs` that genuinely still owe money: balance_due > 0 and
+    not already fully refunded (total refunded >= total paid > 0).
+
+    Deliberately NOT filtered by booking/stay status. A booking that owed
+    money before being Checked Out, marked No Show, or Cancelled still owes
+    it afterwards — nothing in this app zeroes, voids, or writes off
+    balance_due on those transitions, so pre-filtering by an "active" status
+    silently hides genuine departed-guest debt. Callers that specifically
+    want only currently-active-stay debt should pass an already
+    status-filtered `qs` (see active_status_filter in the callers below)."""
+    refund_subquery = (
+        BookingRefund.objects.filter(booking_id=OuterRef("pk"))
+        .values("booking_id").annotate(s=Sum("amount")).values("s")
+    )
+    payment_subquery = (
+        Payment.objects.filter(booking_id=OuterRef("pk"))
+        .values("booking_id").annotate(s=Sum("amount")).values("s")
+    )
+    return (
+        qs.filter(balance_due__gt=0)
+        .annotate(
+            _ann_refunded=Coalesce(Subquery(refund_subquery), Value(Decimal("0.00"), output_field=DecimalField())),
+            _ann_paid=Coalesce(Subquery(payment_subquery), Value(Decimal("0.00"), output_field=DecimalField())),
+        )
+        .exclude(_ann_refunded__gte=F("_ann_paid"), _ann_paid__gt=0)
+    )
+
+
 @login_required
 def home(request):
     if is_cleaner(request.user):
@@ -422,7 +452,6 @@ def home(request):
         _s = GuestHouseSettings.objects.filter(pk=1).only("onboarding_complete").first()
         if _s and not _s.onboarding_complete:
             return redirect("core:onboarding")
-    _expire_elapsed_bookings()
     today = timezone.localdate()
     month_start = today.replace(day=1)
     month_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
@@ -444,31 +473,24 @@ def home(request):
         or Decimal("0.00")
     )
     active_bookings = property_bookings.select_related("guest", "room").filter(active_status_filter)
-
-    # Subqueries to detect fully-refunded bookings (total refunded >= total paid > 0)
-    _refund_sq = (
-        BookingRefund.objects.filter(booking_id=OuterRef("pk"))
-        .values("booking_id").annotate(s=Sum("amount")).values("s")
-    )
-    _payment_sq = (
-        Payment.objects.filter(booking_id=OuterRef("pk"))
-        .values("booking_id").annotate(s=Sum("amount")).values("s")
+    departed_bookings = property_bookings.select_related("guest", "room").filter(
+        status__in=Booking.INACTIVE_STATUSES
     )
 
-    def _genuinely_outstanding(qs):
-        return (
-            qs.filter(balance_due__gt=0)
-            .annotate(
-                _ann_refunded=Coalesce(Subquery(_refund_sq), Value(Decimal("0.00"), output_field=DecimalField())),
-                _ann_paid=Coalesce(Subquery(_payment_sq), Value(Decimal("0.00"), output_field=DecimalField())),
-            )
-            .exclude(_ann_refunded__gte=F("_ann_paid"), _ann_paid__gt=0)
-        )
-
-    outstanding_balances = (
-        _genuinely_outstanding(active_bookings).aggregate(total=Sum("balance_due"))["total"]
+    # Outstanding balances are reported in three distinctions: money owed by
+    # guests still on an active stay, money owed by guests who have already
+    # departed (Checked Out/No Show/Cancelled) but never paid or were never
+    # refunded, and the total of both. A GET page view must never make
+    # genuine departed debt disappear from these figures.
+    active_stay_outstanding_balance = (
+        _outstanding_balance_queryset(active_bookings).aggregate(total=Sum("balance_due"))["total"]
         or Decimal("0.00")
     )
+    departed_outstanding_balance = (
+        _outstanding_balance_queryset(departed_bookings).aggregate(total=Sum("balance_due"))["total"]
+        or Decimal("0.00")
+    )
+    outstanding_balances = active_stay_outstanding_balance + departed_outstanding_balance
     bookings_this_month = active_bookings.filter(
         check_in_date__gte=month_start,
         check_in_date__lte=month_end,
@@ -523,8 +545,8 @@ def home(request):
     for booking in in_house_bookings:
         booking.nights_so_far = max((today - booking.check_in_date).days, 0)
 
-    unpaid_bookings = _genuinely_outstanding(active_bookings).order_by("-balance_due", "check_out_date")[:8]
-    unpaid_balance_count = _genuinely_outstanding(active_bookings).count()
+    unpaid_bookings = _outstanding_balance_queryset(property_bookings).order_by("-balance_due", "check_out_date")[:8]
+    unpaid_balance_count = _outstanding_balance_queryset(property_bookings).count()
     upcoming_arrivals = active_bookings.filter(
         status="Confirmed",
         check_in_date__gt=today,
@@ -585,6 +607,8 @@ def home(request):
             "occupied_capacity_rate": occupied_capacity_rate,
             "monthly_revenue": monthly_revenue,
             "outstanding_balances": outstanding_balances,
+            "active_stay_outstanding_balance": active_stay_outstanding_balance,
+            "departed_outstanding_balance": departed_outstanding_balance,
             "bookings_this_month": bookings_this_month,
             "occupancy_rate": occupancy_rate,
             "last_6_months_revenue": last_6_months_revenue,
@@ -964,7 +988,6 @@ def staff_delete(request, pk):
 
 @login_required
 def room_list(request):
-    _expire_elapsed_bookings()
     active_prop = get_active_property(request)
     status_filter = request.GET.get("status", "")
     rooms = Room.objects.filter(prop=active_prop).select_related("room_category", "rate_plan") if active_prop else Room.objects.none()
@@ -1009,8 +1032,12 @@ def room_list(request):
     booking_by_room = {}
     for booking in displayed_bookings:
         booking_by_room.setdefault(booking.room_id, booking)
+    settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
     for room in rooms:
         room.display_booking = booking_by_room.get(room.pk)
+        room.display_booking_overdue = (
+            is_booking_overdue(room.display_booking, settings_obj) if room.display_booking and settings_obj else None
+        )
     base_qs = Room.objects.filter(prop=active_prop) if active_prop else Room.objects.none()
     status_counts = {
         "Available": base_qs.filter(status="Available").count(),
@@ -1084,8 +1111,6 @@ def room_edit(request, pk):
 def room_detail(request, pk):
     active_prop = get_active_property(request)
     room = get_object_or_404(Room, pk=pk, prop=active_prop)
-    _expire_elapsed_bookings(room=room)
-    room.refresh_from_db()
     maintenance_requests = room.maintenance_requests.select_related("reported_by").all().order_by("-reported_at")
     today = timezone.localdate()
     history_period = request.GET.get("history", "month")
@@ -1121,6 +1146,7 @@ def room_detail(request, pk):
     future_bookings = []
     move_room_choices = []
     shared_occupied = shared_remaining = None
+    settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
     if is_shared_capacity:
         # Every occupant of a shared room checked in independently, so the
         # room detail page must list every one of them — not just one — each
@@ -1133,6 +1159,7 @@ def room_detail(request, pk):
         )
         for occupant in active_occupants:
             occupant.amount_paid = occupant.payment_totals()["net_paid"]
+            occupant.overdue_info = is_booking_overdue(occupant, settings_obj) if settings_obj else None
         future_bookings = list(
             room.bookings.select_related("guest").filter(status__in=("Confirmed", "Pending")).order_by("check_in_date")
         )
@@ -1140,6 +1167,8 @@ def room_detail(request, pk):
         move_room_choices = list(Room.objects.filter(prop=active_prop).exclude(pk=room.pk).order_by("name"))
     else:
         active_booking = room.bookings.filter(status="Checked In").order_by("-check_in_time").first()
+        if active_booking and settings_obj:
+            active_booking.overdue_info = is_booking_overdue(active_booking, settings_obj)
 
     return render(
         request,
@@ -1192,7 +1221,6 @@ def room_delete(request, pk):
 
 @login_required
 def cleaning_board(request):
-    _expire_elapsed_bookings()
     today = timezone.localdate()
     clean_preview_limit = 12
     active_prop, rooms_qs = _property_rooms(request)
@@ -1477,24 +1505,21 @@ def reports(request):
         or Decimal("0.00")
     )
     net_profit = total_revenue - total_expenses
-    _refund_sq_r = (
-        BookingRefund.objects.filter(booking_id=OuterRef("pk"))
-        .values("booking_id").annotate(s=Sum("amount")).values("s")
-    )
-    _payment_sq_r = (
-        Payment.objects.filter(booking_id=OuterRef("pk"))
-        .values("booking_id").annotate(s=Sum("amount")).values("s")
-    )
-    outstanding_balances = (
-        property_bookings.filter(active_status_filter, balance_due__gt=0)
-        .annotate(
-            _ann_refunded=Coalesce(Subquery(_refund_sq_r), Value(Decimal("0.00"), output_field=DecimalField())),
-            _ann_paid=Coalesce(Subquery(_payment_sq_r), Value(Decimal("0.00"), output_field=DecimalField())),
-        )
-        .exclude(_ann_refunded__gte=F("_ann_paid"), _ann_paid__gt=0)
+
+    # See _outstanding_balance_queryset()'s docstring: genuine debt is a
+    # function of financial state (balance_due, refunds), not stay status —
+    # a departed guest's unpaid balance must remain reportable.
+    active_stay_outstanding_balance = (
+        _outstanding_balance_queryset(property_bookings.filter(active_status_filter))
         .aggregate(total=Sum("balance_due"))["total"]
         or Decimal("0.00")
     )
+    departed_outstanding_balance = (
+        _outstanding_balance_queryset(property_bookings.filter(status__in=Booking.INACTIVE_STATUSES))
+        .aggregate(total=Sum("balance_due"))["total"]
+        or Decimal("0.00")
+    )
+    outstanding_balances = active_stay_outstanding_balance + departed_outstanding_balance
 
     total_rooms = Room.objects.filter(prop=active_prop).count()
     days_in_month = month_end.day
@@ -1712,6 +1737,8 @@ def reports(request):
             "total_expenses": total_expenses,
             "net_profit": net_profit,
             "outstanding_balances": outstanding_balances,
+            "active_stay_outstanding_balance": active_stay_outstanding_balance,
+            "departed_outstanding_balance": departed_outstanding_balance,
             "total_possible_room_nights": total_possible_room_nights,
             "room_nights_sold": room_nights_sold,
             "occupancy_rate": occupancy_rate,
@@ -1850,65 +1877,6 @@ def _sync_room_status(room):
         room.save(update_fields=["status"])
 
 
-def _booking_end_datetime(booking, settings_obj):
-    if booking.is_hourly:
-        end_time = booking.booking_end_time or booking.compute_hourly_end_time()
-        if not end_time:
-            return None
-        start_time = booking.booking_start_time
-        end_date = booking.check_in_date
-        end_dt = datetime.datetime.combine(end_date, end_time)
-        # If end_time is before start_time the booking crosses midnight — add 1 day
-        if start_time and end_time <= start_time:
-            end_dt += datetime.timedelta(days=1)
-    else:
-        end_date = booking.check_out_date
-        end_time = settings_obj.check_out_time
-        end_dt = datetime.datetime.combine(end_date, end_time)
-
-    if timezone.is_naive(end_dt):
-        end_dt = timezone.make_aware(end_dt, timezone.get_current_timezone())
-    return end_dt
-
-
-def _expire_elapsed_bookings(room=None):
-    # Throttle the global (no-room) pass to once per 5 minutes to avoid hammering
-    # the DB on every page load across 8+ views.
-    if room is None:
-        cache_key = f"expire_bookings:{connection.schema_name}"
-        if cache.get(cache_key):
-            return
-        cache.set(cache_key, True, 300)
-
-    settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
-    now = timezone.now()
-    bookings = Booking.objects.select_related("room").filter(
-        status__in=("Pending", "Confirmed", "Checked In"),
-    )
-    if room is not None:
-        bookings = bookings.filter(room=room)
-
-    for booking in bookings:
-        booking_end = _booking_end_datetime(booking, settings_obj)
-        if not booking_end or booking_end > now:
-            continue
-
-        booking_room = booking.room
-        if booking.status == "Checked In":
-            booking.status = "Checked Out"
-            if not booking.check_out_time:
-                booking.check_out_time = now
-            booking.save(update_fields=["status", "check_out_time"])
-            if booking_room.status not in ("Maintenance", "Blocked"):
-                booking_room.status = "Cleaning"
-                booking_room.cleaning_status = "Needs Cleaning"
-                booking_room.save(update_fields=["status", "cleaning_status"])
-        else:
-            booking.status = "No Show"
-            booking.save(update_fields=["status"])
-            _sync_room_status(booking_room)
-
-
 @login_required
 def completed_booking_reminders_api(request):
     if request.method != "GET":
@@ -2004,7 +1972,6 @@ def availability(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    _expire_elapsed_bookings()
     check_in = request.GET.get("check_in", "").strip()
     check_out = request.GET.get("check_out", "").strip()
     check_in_date = _parse_date(check_in)
@@ -2104,7 +2071,6 @@ def booking_list(request):
     blocked = _cleaner_blocked(request)
     if blocked:
         return blocked
-    _expire_elapsed_bookings()
     active_prop, property_bookings = _property_bookings(request)
     bookings = property_bookings.select_related("guest", "room").order_by("-check_in_date", "-created_at")
     status_filter = request.GET.get("status", "")
@@ -2150,6 +2116,11 @@ def booking_list(request):
     filter_params = request.GET.copy()
     filter_params.pop("page", None)
     filter_query = filter_params.urlencode()
+
+    settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
+    if settings_obj:
+        for booking in page_obj:
+            booking.overdue_info = is_booking_overdue(booking, settings_obj)
 
     return render(
         request,
@@ -2692,8 +2663,6 @@ def booking_detail(request, pk):
         return blocked
     active_prop = get_active_property(request)
     booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=pk, room__prop=active_prop)
-    _expire_elapsed_bookings(room=booking.room)
-    booking.refresh_from_db()
     payments = list(booking.payments.order_by("payment_date", "recorded_at"))
     refunds = list(booking.refunds.select_related("approved_by", "recorded_by").order_by("refund_date", "recorded_at"))
     running_balance = booking.total_amount
@@ -2710,6 +2679,8 @@ def booking_detail(request, pk):
     subtotal = booking.rate_per_night if booking.is_hourly else booking.rate_per_night * Decimal(max(booking.num_nights, 0))
     can_mark_no_show = booking.status == "Confirmed" and booking.check_in_date < timezone.localdate()
     change_due = max(payment_totals["net_paid"] - booking.total_amount, Decimal("0.00"))
+    settings_obj = GuestHouseSettings.objects.filter(pk=1).first()
+    overdue_info = is_booking_overdue(booking, settings_obj) if settings_obj else None
     return render(
         request,
         "core/booking_detail.html",
@@ -2724,6 +2695,7 @@ def booking_detail(request, pk):
             "subtotal": subtotal,
             "can_mark_no_show": can_mark_no_show,
             "change_due": change_due,
+            "overdue_info": overdue_info,
         },
     )
 
@@ -3321,7 +3293,6 @@ def communications_center(request):
 
 @login_required
 def housekeeping_mobile(request):
-    _expire_elapsed_bookings()
     active_prop = get_active_property(request)
     rooms = Room.objects.filter(prop=active_prop, cleaning_status__in=["Needs Cleaning", "In Progress"]).order_by("cleaning_status", "name")
     return render(request, "core/housekeeping_mobile.html", {"rooms": rooms})
