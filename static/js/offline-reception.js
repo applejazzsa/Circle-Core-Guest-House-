@@ -3,27 +3,57 @@
   const userId = root.dataset.userId;
   const DB_NAME = `circle-core-offline:${location.host}:${userId}`;
   const DEVICE_KEY = `circle-core-device:${location.host}:${userId}`;
+  const REQUEST_TIMEOUT_MS = 10000;
+  const MAX_HISTORY_ITEMS = 100;
   const deviceId = localStorage.getItem(DEVICE_KEY) || crypto.randomUUID();
   localStorage.setItem(DEVICE_KEY, deviceId);
 
   let db;
   let snapshot = null;
+  let syncPromise = null;
+  let retryTimer = null;
+  let retryAttempt = 0;
   const $ = id => document.getElementById(id);
   const csrf = () => (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));
-  const api = (url, options = {}) => fetch(url, {
-    credentials: 'same-origin',
-    ...options,
-    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf(), ...(options.headers || {})},
-  });
+  const isOnline = () => window.CircleCoreConnectivity
+    ? window.CircleCoreConnectivity.isOnline()
+    : navigator.onLine;
+
+  async function api(url, options = {}) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      return await fetch(url, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        ...options,
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf(), ...(options.headers || {})},
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function responseJson(response) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(response.redirected
+        ? 'Your session expired. Reconnect and sign in before synchronizing.'
+        : 'The server returned an unexpected response.');
+    }
+    return response.json();
+  }
 
   function openDb() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, 1);
+      const request = indexedDB.open(DB_NAME, 2);
       request.onupgradeneeded = () => {
         const database = request.result;
         if (!database.objectStoreNames.contains('data')) database.createObjectStore('data');
         if (!database.objectStoreNames.contains('outbox')) database.createObjectStore('outbox', {keyPath: 'id'});
+        if (!database.objectStoreNames.contains('history')) database.createObjectStore('history', {keyPath: 'id'});
       };
       request.onsuccess = () => { db = request.result; resolve(db); };
       request.onerror = () => reject(request.error);
@@ -92,13 +122,20 @@
   }
 
   function onlineState() {
-    $('network-state').textContent = navigator.onLine ? 'Online' : 'Offline · changes queued';
-    $('network-state').style.color = navigator.onLine ? '#4ade80' : '#fbbf24';
+    $('network-state').textContent = isOnline() ? 'Online' : 'Offline · changes queued';
+    $('network-state').style.color = isOnline() ? '#4ade80' : '#fbbf24';
   }
 
   async function queueCount() {
     const rows = await all('outbox');
-    $('queue-state').textContent = `${rows.length} waiting`;
+    const pending = rows.filter(row => (row.status || 'pending') === 'pending');
+    $('queue-state').textContent = `${pending.length} waiting`;
+    return pending.sort((left, right) => left.created_at.localeCompare(right.created_at));
+  }
+
+  async function historyCount() {
+    const rows = await all('history');
+    if ($('history-state')) $('history-state').textContent = `${rows.length} completed`;
     return rows;
   }
 
@@ -107,41 +144,53 @@
   }
 
   async function enroll() {
-    const response = await api('/api/offline/enroll/', {
-      method: 'POST',
-      body: JSON.stringify({client_id: deviceId, label: $('device-label').value}),
-    });
-    const data = await response.json();
-    if (data.status === 'active') await bootstrap();
-    else notice('Enrollment requested. Ask the owner to approve this device in Offline Management.');
+    try {
+      const response = await api('/api/offline/enroll/', {
+        method: 'POST',
+        body: JSON.stringify({client_id: deviceId, label: $('device-label').value}),
+      });
+      const data = await responseJson(response);
+      if (!response.ok) throw new Error(data.error || 'Device enrollment failed.');
+      if (data.status === 'active') await bootstrap();
+      else notice('Enrollment requested. Ask the owner to approve this device in Offline Management.');
+    } catch (error) {
+      notice(`Cannot enroll while disconnected. ${error.message}`);
+    }
   }
 
   async function bootstrap() {
-    if (!navigator.onLine) return loadCached();
-    const response = await api(`/api/offline/bootstrap/?device_id=${encodeURIComponent(deviceId)}`);
-    if (!response.ok) {
-      $('setup').style.display = 'block';
-      $('workspace').style.display = 'none';
-      const data = await response.json();
-      notice(data.error || 'Device approval is required.');
-      return;
+    if (!isOnline()) return loadCached();
+    try {
+      const response = await api(`/api/offline/bootstrap/?device_id=${encodeURIComponent(deviceId)}`);
+      const data = await responseJson(response);
+      if (!response.ok) {
+        $('setup').style.display = 'block';
+        $('workspace').style.display = 'none';
+        notice(data.error || 'Device approval is required.');
+        return;
+      }
+      snapshot = data;
+      await replayPending();
+      await put('data', snapshot, 'snapshot');
+      $('setup').style.display = 'none';
+      $('workspace').style.display = 'block';
+      notice('');
+      render();
+      await sync();
+    } catch (_error) {
+      await loadCached();
     }
-    snapshot = await response.json();
-    await put('data', snapshot, 'snapshot');
-    $('setup').style.display = 'none';
-    $('workspace').style.display = 'block';
-    notice('');
-    render();
-    await sync();
   }
 
   async function loadCached() {
     snapshot = await get('data', 'snapshot');
     if (!snapshot) {
       $('setup').style.display = 'block';
+      $('workspace').style.display = 'none';
       notice('Connect once to enroll this device and download property data.');
       return;
     }
+    $('setup').style.display = 'none';
     $('workspace').style.display = 'block';
     if (!leaseValid()) notice('Offline access has expired. Reconnect before recording more changes.');
     else notice('Offline mode is active. Changes are stored securely on this device and will synchronize automatically.');
@@ -153,21 +202,34 @@
       notice('Offline access expired. Reconnect before recording changes.');
       return;
     }
-    const operation = {id: crypto.randomUUID(), type, payload, created_at: new Date().toISOString()};
+    const operation = {
+      id: crypto.randomUUID(),
+      type,
+      payload,
+      created_at: new Date().toISOString(),
+      status: 'pending',
+      attempt_count: 0,
+      last_error: '',
+    };
     await put('outbox', operation);
     applyOptimistic(operation);
     await put('data', snapshot, 'snapshot');
     render();
     await queueCount();
-    if (navigator.onLine) sync();
+    if (isOnline()) sync();
   }
 
-  function applyOptimistic(operation) {
+  async function replayPending() {
+    const operations = await queueCount();
+    operations.forEach(operation => applyOptimistic(operation, false));
+  }
+
+  function applyOptimistic(operation, notify = true) {
     if (operation.type === 'walk_in') {
       const room = snapshot.rooms.find(row => row.id === operation.payload.room_id);
       if (room) {
         room.status = 'Occupied';
-        showAlert('Guest checked in', `${operation.payload.vehicle_registration || 'Walk-in Guest'} · ${room.name}`);
+        if (notify) showAlert('Guest checked in', `${operation.payload.vehicle_registration || 'Walk-in Guest'} · ${room.name}`);
       }
     }
     if (operation.type === 'check_out') {
@@ -179,7 +241,7 @@
           room.status = 'Cleaning';
           room.cleaning_status = 'Needs Cleaning';
         }
-        showAlert('Room needs cleaning', `${booking.room} · guest checked out`, '#fb923c');
+        if (notify) showAlert('Room needs cleaning', `${booking.room} · guest checked out`, '#fb923c');
       }
     }
     if (operation.type === 'cash_payment') {
@@ -195,42 +257,106 @@
     }
   }
 
-  async function sync() {
-    if (!navigator.onLine || !snapshot) return;
-    const operations = await all('outbox');
-    if (!operations.length) { await queueCount(); return; }
-    const response = await api('/api/offline/sync/', {
-      method: 'POST',
-      body: JSON.stringify({device_id: deviceId, lease: snapshot.lease, operations}),
+  function scheduleRetry() {
+    clearTimeout(retryTimer);
+    retryAttempt += 1;
+    const delay = Math.min(60000, 2000 * (2 ** Math.min(retryAttempt - 1, 5)));
+    retryTimer = setTimeout(() => {
+      if (isOnline()) sync();
+    }, delay);
+  }
+
+  async function archive(operation, result) {
+    await put('history', {
+      ...operation,
+      status: result.status,
+      result: result.result || {},
+      last_error: result.error || '',
+      completed_at: new Date().toISOString(),
     });
-    if (response.status === 403) {
-      await clearStore('data');
-      await clearStore('outbox');
-      snapshot = null;
-      $('workspace').style.display = 'none';
-      $('setup').style.display = 'block';
-      notice('This device was revoked. Local operational data was cleared. Contact the owner.');
-      return;
+    await remove('outbox', operation.id);
+    const history = await all('history');
+    if (history.length > MAX_HISTORY_ITEMS) {
+      await Promise.all(history
+        .sort((left, right) => left.completed_at.localeCompare(right.completed_at))
+        .slice(0, history.length - MAX_HISTORY_ITEMS)
+        .map(row => remove('history', row.id)));
     }
-    const data = await response.json();
-    if (!response.ok) { notice(data.error || 'Synchronization is temporarily unavailable.'); return; }
-    for (const result of data.results || []) {
-      if (result.status === 'applied') await remove('outbox', result.id);
-      if (result.status === 'conflict') {
-        await remove('outbox', result.id);
-        notice(`Sync conflict: ${result.error} The owner can review it in Offline Management.`);
+    await historyCount();
+  }
+
+  async function performSync() {
+    if (!isOnline() || !snapshot) return;
+    const operations = (await queueCount()).slice(0, 100);
+    if (!operations.length) return;
+
+    try {
+      const attempted = operations.map(operation => ({
+        ...operation,
+        attempt_count: (operation.attempt_count || 0) + 1,
+        last_attempt_at: new Date().toISOString(),
+      }));
+      await Promise.all(attempted.map(operation => put('outbox', operation)));
+
+      const response = await api('/api/offline/sync/', {
+        method: 'POST',
+        body: JSON.stringify({device_id: deviceId, lease: snapshot.lease, operations: attempted}),
+      });
+      const data = await responseJson(response);
+      if (response.status === 403 && /device|approved|revoked/i.test(data.error || '')) {
+        await clearStore('data');
+        await clearStore('outbox');
+        snapshot = null;
+        $('workspace').style.display = 'none';
+        $('setup').style.display = 'block';
+        notice('This device was revoked. Local operational data was cleared. Contact the owner.');
+        return;
       }
-      if (result.status === 'rejected') {
-        await remove('outbox', result.id);
-        notice(`Offline action rejected: ${result.error}`);
+      if (!response.ok) throw new Error(data.error || 'Synchronization is temporarily unavailable.');
+
+      for (const result of data.results || []) {
+        const operation = attempted.find(row => row.id === result.id);
+        if (!operation) continue;
+        if (['applied', 'conflict', 'rejected'].includes(result.status)) {
+          await archive(operation, result);
+        }
+        if (result.status === 'conflict') {
+          notice(`Sync conflict: ${result.error} The owner can review it in Offline Management.`);
+        }
+        if (result.status === 'rejected') {
+          notice(`Offline action rejected: ${result.error}`);
+        }
       }
+
+      snapshot = {...snapshot, ...data.state, server_time: data.server_time};
+      await replayPending();
+      await put('data', snapshot, 'snapshot');
+      render();
+      const remaining = await queueCount();
+      retryAttempt = 0;
+      clearTimeout(retryTimer);
+      const appliedCount = (data.results || []).filter(result => result.status === 'applied').length;
+      if (appliedCount) {
+        showAlert('Back online', `${appliedCount} queued change${appliedCount === 1 ? '' : 's'} synchronized successfully.`);
+      }
+      if (remaining.length) setTimeout(sync, 0);
+    } catch (error) {
+      const attemptedIds = new Set(operations.map(operation => operation.id));
+      const current = await all('outbox');
+      await Promise.all(current
+        .filter(operation => attemptedIds.has(operation.id))
+        .map(operation => put('outbox', {...operation, last_error: error.message})));
+      notice(`Changes remain safely queued. ${error.message}`);
+      scheduleRetry();
+      if (window.CircleCoreConnectivity) window.CircleCoreConnectivity.probe('sync-failure');
     }
-    snapshot = {...snapshot, ...data.state, server_time: data.server_time};
-    await put('data', snapshot, 'snapshot');
-    render();
-    await queueCount();
-    const appliedCount = (data.results || []).filter(result => result.status === 'applied').length;
-    if (appliedCount) showAlert('Back online', `${appliedCount} queued change${appliedCount === 1 ? '' : 's'} synchronized successfully.`);
+  }
+
+  function sync() {
+    if (!syncPromise) {
+      syncPromise = performSync().finally(() => { syncPromise = null; });
+    }
+    return syncPromise;
   }
 
   function button(text, onclick, color = '#26303b') {
@@ -323,11 +449,17 @@
     $('enroll').onclick = enroll;
     $('sync-now').onclick = sync;
     await queueCount();
-    if (navigator.onLine) await bootstrap();
+    await historyCount();
+    if (isOnline()) await bootstrap();
     else await loadCached();
     window.addEventListener('online', () => { onlineState(); bootstrap(); });
     window.addEventListener('offline', onlineState);
-    setInterval(() => navigator.onLine && sync(), 30000);
+    window.addEventListener('circlecore:connectivity', event => {
+      onlineState();
+      if (event.detail.online) bootstrap();
+      else loadCached();
+    });
+    setInterval(() => isOnline() && sync(), 30000);
     setInterval(checkReminders, 30000);
   }
 

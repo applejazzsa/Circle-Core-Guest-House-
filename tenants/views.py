@@ -122,9 +122,10 @@ def pwa_manifest(request):
 
 def service_worker(request):
     script = """
-const CACHE_NAME = 'circle-core-shell-v5';
+const CACHE_NAME = 'circle-core-shell-v6';
 const CORE_ASSETS = [
   '/static/css/theme.css',
+  '/static/js/connectivity.js',
   '/static/js/offline-reception.js',
   '/static/icons/circle-core-icon-192.png',
   '/static/icons/circle-core-icon-512.png',
@@ -162,7 +163,14 @@ self.addEventListener('fetch', event => {
           caches.open(CACHE_NAME).then(cache => cache.put('/offline/', copy));
         }
         return response;
-      }).catch(() => caches.match('/offline/'))
+      }).catch(async () => {
+        const offline = await caches.match('/offline/');
+        if (offline) return offline;
+        return new Response(
+          '<!doctype html><meta name="viewport" content="width=device-width"><title>Circle Core Offline</title><style>body{font:16px system-ui;background:#0d0f12;color:#f8fafc;padding:2rem;max-width:38rem;margin:auto}button{padding:.75rem 1rem;border:0;border-radius:4px;background:#22c55e;font-weight:700}</style><h1>No internet connection</h1><p>Circle Core will switch to Offline Reception after this device has been enrolled and synchronized once while online.</p><button onclick="location.reload()">Try again</button>',
+          {status: 503, headers: {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'}}
+        );
+      })
     );
     return;
   }

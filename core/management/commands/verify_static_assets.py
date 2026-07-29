@@ -14,6 +14,7 @@ class Command(BaseCommand):
         "icons/circle-core-icon-192.png",
         "icons/circle-core-icon-512.png",
         "js/offline-reception.js",
+        "js/connectivity.js",
     )
 
     def handle(self, *args, **options):
