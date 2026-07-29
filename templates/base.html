@@ -17,6 +17,7 @@
   <link rel="icon" href="{% static 'icons/circle-core-icon.svg' %}" type="image/svg+xml">
   <link rel="apple-touch-icon" href="{% static 'icons/circle-core-icon-192.png' %}">
   <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+  <script src="{% static 'js/connectivity.js' %}" defer></script>
   <style>
     /* Chart.js global dark config */
     :root { color-scheme: dark; }
@@ -646,15 +647,25 @@
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    navigator.serviceWorker.register('/service-worker.js')
+      .then(() => navigator.serviceWorker.ready)
+      .then(() => fetch('/offline/?warm=1', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: {'X-Circle-Core-Offline-Warmup': '1'},
+      }))
+      .catch(() => {});
   });
 }
 function updateConnectivityStatus() {
   const dot = document.getElementById('offline-status-dot');
   const text = document.getElementById('offline-status-text');
   if (!dot || !text) return;
-  dot.style.background = navigator.onLine ? '#22c55e' : '#94a3b8';
-  text.textContent = navigator.onLine ? 'Online' : 'Switching offline…';
+  const online = window.CircleCoreConnectivity
+    ? window.CircleCoreConnectivity.isOnline()
+    : navigator.onLine;
+  dot.style.background = online ? '#22c55e' : '#f59e0b';
+  text.textContent = online ? 'Online' : 'Offline mode';
 }
 let offlineRedirectTimer = null;
 let pageFormIsDirty = false;
@@ -664,10 +675,13 @@ document.addEventListener('submit', () => { pageFormIsDirty = false; });
 
 function enterAutomaticOfflineMode() {
   updateConnectivityStatus();
-  if (location.pathname.startsWith('/offline/')) return;
+  if (location.pathname === '/offline/') return;
   clearTimeout(offlineRedirectTimer);
   offlineRedirectTimer = setTimeout(() => {
-    if (navigator.onLine) return;
+    const online = window.CircleCoreConnectivity
+      ? window.CircleCoreConnectivity.isOnline()
+      : navigator.onLine;
+    if (online) return;
     const text = document.getElementById('offline-status-text');
     if (pageFormIsDirty) {
       if (text) text.textContent = 'Offline · unsaved form kept';
@@ -680,6 +694,14 @@ function enterAutomaticOfflineMode() {
 
 window.addEventListener('online', () => { clearTimeout(offlineRedirectTimer); updateConnectivityStatus(); });
 window.addEventListener('offline', enterAutomaticOfflineMode);
+window.addEventListener('circlecore:connectivity', event => {
+  if (event.detail.online) {
+    clearTimeout(offlineRedirectTimer);
+    updateConnectivityStatus();
+  } else {
+    enterAutomaticOfflineMode();
+  }
+});
 updateConnectivityStatus();
 if (!navigator.onLine) enterAutomaticOfflineMode();
 
