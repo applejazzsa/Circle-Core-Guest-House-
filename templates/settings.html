@@ -13,7 +13,7 @@
 <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:20px;">
   <a href="#general" class="filter-pill" id="tab-general">General</a>
   <a href="#pricing" class="filter-pill" id="tab-pricing">Pricing &amp; Durations</a>
-  <a href="#documents" class="filter-pill" id="tab-documents">PDF &amp; Documents</a>
+  <a href="#documents" class="filter-pill" id="tab-documents">Invoices &amp; Documents</a>
   <a href="{% url 'core:onboarding' %}" class="filter-pill" style="margin-left:auto;">Getting Started</a>
 </div>
 
@@ -157,7 +157,7 @@
 
   <!-- Documents -->
   <div class="settings-panel card" id="panel-documents" style="margin-bottom:16px; display:none;">
-    <div class="section-label" style="margin-bottom:20px;">PDF &amp; Documents</div>
+    <div class="section-label" style="margin-bottom:20px;">Invoices &amp; Documents</div>
     <div style="display:flex; flex-direction:column; gap:16px;">
       <div class="form-group">
         <label class="form-label" for="{{ form.pdf_primary_color.id_for_label }}">PDF Brand Colour</label>
@@ -180,8 +180,9 @@
         {% if form.cancellation_note.errors %}<div class="form-error">{{ form.cancellation_note.errors.0 }}</div>{% endif %}
       </div>
       <div class="form-group">
-        <label class="form-label" for="{{ form.invoice_notes.id_for_label }}">Invoice Notes</label>
+        <label class="form-label" for="{{ form.invoice_notes.id_for_label }}">Invoice Terms &amp; Conditions</label>
         {{ form.invoice_notes }}
+        <div class="form-hint">{{ form.invoice_notes.help_text }}</div>
         {% if form.invoice_notes.errors %}<div class="form-error">{{ form.invoice_notes.errors.0 }}</div>{% endif %}
       </div>
       <div class="form-group">
