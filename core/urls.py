@@ -49,6 +49,7 @@ urlpatterns = [
     path("rooms/<int:pk>/edit/", views.room_edit, name="room_edit"),
     path("rooms/<int:pk>/delete/", views.room_delete, name="room_delete"),
     path("rooms/<int:pk>/add-guest/", views.room_add_shared_guest, name="room_add_shared_guest"),
+    path("bookings/<int:pk>/added-to-shared-room/", views.room_add_shared_guest_success, name="room_add_shared_guest_success"),
     path("cleaning/", views.cleaning_board, name="cleaning"),
     path("cleaning/proofs/", views.cleaning_proof_review, name="cleaning_proof_review"),
     path("cleaning/proofs/<int:pk>/photo/", views.cleaning_proof_photo, name="cleaning_proof_photo"),
@@ -98,6 +99,8 @@ urlpatterns = [
     path("bookings/<int:pk>/edit/", views.booking_edit, name="booking_edit"),
     path("bookings/<int:pk>/check-in/", views.booking_checkin, name="booking_checkin"),
     path("bookings/<int:pk>/check-out/", views.booking_checkout, name="booking_checkout"),
+    path("bookings/<int:pk>/extend-stay/", views.booking_extend_stay, name="booking_extend_stay"),
+    path("bookings/<int:pk>/move-room/", views.booking_move_room, name="booking_move_room"),
     path("bookings/<int:pk>/no-show/", views.booking_no_show, name="booking_no_show"),
     path("bookings/<int:pk>/cancel/", views.booking_cancel, name="booking_cancel"),
     # Command Center impersonation entry

@@ -203,8 +203,25 @@ def render_booking_invoice_pdf(booking, settings, payment_totals, vat_amount=Dec
     row_y = y - 30
     c.setStrokeColor(BORDER)
     c.rect(margin, row_y - 58, table_w, 58, fill=0, stroke=1)
-    _draw_text(c, f"{booking.room.name} accommodation", margin + 12, row_y - 22, 10, TEXT, "Helvetica-Bold")
-    _draw_text(c, f"{_date(booking.check_in_date)} to {_date(booking.check_out_date)}", margin + 12, row_y - 39, 9, SLATE)
+    is_per_person = bool(booking.room_id and booking.room.pricing_model == "per_person")
+    if is_per_person:
+        # Per-person (shared-capacity) accommodation: this guest's own space
+        # count, nights and PPPN rate, spelled out — never any other
+        # occupant's name, booking reference, or how many people the room
+        # holds in total.
+        description = f"{booking.room.name} — {booking.room.room_type} accommodation"
+        nights = max(booking.num_nights, 1)
+        guests = booking.num_guests
+        subtext = (
+            f"{guests} guest{'' if guests == 1 else 's'} × "
+            f"{nights} night{'' if nights == 1 else 's'} × "
+            f"{_money(settings, booking.rate_per_night)} PPPN"
+        )
+    else:
+        description = f"{booking.room.name} accommodation"
+        subtext = f"{_date(booking.check_in_date)} to {_date(booking.check_out_date)}"
+    _draw_text(c, description, margin + 12, row_y - 22, 10, TEXT, "Helvetica-Bold")
+    _draw_text(c, subtext, margin + 12, row_y - 39, 9, SLATE)
     _draw_right(c, _quantity_label(booking), col["qty"] + 50, row_y - 28, 9, TEXT)
     _draw_right(c, _money(settings, booking.rate_per_night), col["rate"] + 64, row_y - 28, 9, TEXT)
     _draw_right(c, _money(settings, line_total), col["amount"] - 12, row_y - 28, 9, TEXT, "Helvetica-Bold")

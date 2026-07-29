@@ -91,6 +91,7 @@ from .booking_transactions import (
     check_out_multi_room_booking,
     create_individual_shared_room_booking,
     create_multi_room_booking,
+    edit_multi_room_booking,
 )
 from .pdf_utils import generate_pdf
 from .pdf_documents import render_booking_invoice_pdf, render_payment_receipt_pdf
@@ -478,11 +479,19 @@ def home(request):
         check_in_date__lt=month_end + datetime.timedelta(days=1),
         check_out_date__gt=month_start,
     )
-    booked_room_nights = 0
+    # Deduplicate by (room, night), not summed per booking: a shared-capacity
+    # room with several simultaneous guests on the same night is still one
+    # room occupied for one night, never two just because two people paid
+    # separately for it. See the identical note in reports() below.
+    booked_room_night_pairs = set()
     for booking in monthly_bookings:
         stay_start = max(booking.check_in_date, month_start)
         stay_end = min(booking.check_out_date, month_end + datetime.timedelta(days=1))
-        booked_room_nights += max((stay_end - stay_start).days, 0)
+        nights = max((stay_end - stay_start).days, 0)
+        booked_room_night_pairs.update(
+            (booking.room_id, stay_start + datetime.timedelta(days=offset)) for offset in range(nights)
+        )
+    booked_room_nights = len(booked_room_night_pairs)
     bookable_rooms = rooms.filter(status__in=["Available", "Booked", "Occupied", "Cleaning"]).count()
     possible_room_nights = bookable_rooms * month_end.day
     occupancy_rate = round((booked_room_nights / possible_room_nights) * 100, 1) if possible_room_nights else 0
@@ -1109,15 +1118,26 @@ def room_detail(request, pk):
     is_shared_capacity = room.effective_booking_mode == "SHARED_CAPACITY"
     active_booking = None
     active_occupants = []
+    future_bookings = []
+    move_room_choices = []
     shared_occupied = shared_remaining = None
     if is_shared_capacity:
         # Every occupant of a shared room checked in independently, so the
         # room detail page must list every one of them — not just one — each
-        # with its own, independent checkout action.
+        # with its own, independent view/payment/invoice/extend/move/checkout
+        # actions. Future reservations (not yet checked in) are shown in a
+        # separate section so they're never mistaken for someone currently
+        # staying in the room.
         active_occupants = list(
             room.bookings.select_related("guest").filter(status="Checked In").order_by("check_in_time")
         )
+        for occupant in active_occupants:
+            occupant.amount_paid = occupant.payment_totals()["net_paid"]
+        future_bookings = list(
+            room.bookings.select_related("guest").filter(status__in=("Confirmed", "Pending")).order_by("check_in_date")
+        )
         shared_occupied, _cap, shared_remaining = occupancy_snapshot(room, today)
+        move_room_choices = list(Room.objects.filter(prop=active_prop).exclude(pk=room.pk).order_by("name"))
     else:
         active_booking = room.bookings.filter(status="Checked In").order_by("-check_in_time").first()
 
@@ -1135,9 +1155,12 @@ def room_detail(request, pk):
             "active_booking": active_booking,
             "is_shared_capacity": is_shared_capacity,
             "active_occupants": active_occupants,
+            "future_bookings": future_bookings,
+            "move_room_choices": move_room_choices,
             "shared_occupied": shared_occupied,
             "shared_remaining": shared_remaining,
             "is_cleaner": is_cleaner(request.user),
+            "is_owner": is_owner(request.user),
         },
     )
 
@@ -1486,6 +1509,17 @@ def reports(request):
     total_room_revenue = Decimal("0.00")
     revenue_per_room = {}
     top_guest_counts = {}
+    # A shared-capacity room can have several simultaneous bookings on the
+    # same nights — one per independently paying guest. Revenue must sum
+    # every one of those bookings normally (each is real, separate income),
+    # but *occupancy* must not: two guests sharing Room 02 on the same night
+    # is still exactly one room occupied for one night, not two. Tracking the
+    # actual set of (room, night) pairs occupied — rather than summing each
+    # booking's own night count — keeps the two concepts correctly separate.
+    # For a WHOLE_ROOM room this set is always identical in size to a naive
+    # per-booking sum, since only one booking can ever occupy it on a given
+    # night, so this is a no-op for every tenant without shared capacity.
+    occupied_room_nights = set()
     for booking in sold_bookings:
         stay_start = max(booking.check_in_date, month_start)
         stay_end = min(booking.check_out_date, next_month_start)
@@ -1494,23 +1528,25 @@ def reports(request):
             # Same-day / hourly booking: use the actual booking total and count as 1 room-day
             revenue = booking.total_amount
             occupancy_units = 1
+            booking_nights = [booking.check_in_date]
         else:
             revenue = booking.rate_per_night * Decimal(nights)
             occupancy_units = nights
-        room_nights_sold += occupancy_units
+            booking_nights = [stay_start + datetime.timedelta(days=offset) for offset in range(nights)]
         total_room_revenue += revenue
+        occupied_room_nights.update((booking.room_id, night) for night in booking_nights)
 
         room_data = revenue_per_room.setdefault(
             booking.room_id,
             {
                 "room": booking.room,
                 "booking_ids": set(),
-                "total_nights": 0,
+                "occupied_nights": set(),
                 "total_revenue": Decimal("0.00"),
             },
         )
         room_data["booking_ids"].add(booking.pk)
-        room_data["total_nights"] += occupancy_units
+        room_data["occupied_nights"].update(booking_nights)
         room_data["total_revenue"] += revenue
 
         guest_data = top_guest_counts.setdefault(
@@ -1522,8 +1558,10 @@ def reports(request):
         )
         guest_data["stays"] += 1
 
+    room_nights_sold = len(occupied_room_nights)
     for room_data in revenue_per_room.values():
         room_data["booking_count"] = len(room_data["booking_ids"])
+        room_data["total_nights"] = len(room_data["occupied_nights"])
     revenue_per_room_rows = sorted(
         revenue_per_room.values(),
         key=lambda item: item["total_revenue"],
@@ -1974,6 +2012,10 @@ def availability(request):
     dates_submitted = bool(check_in or check_out)
     has_valid_dates = bool(check_in_date and check_out_date and check_out_date > check_in_date)
     nights = (check_out_date - check_in_date).days if has_valid_dates else 0
+    try:
+        guests_requested = max(int(request.GET.get("guests", "1") or "1"), 1)
+    except (TypeError, ValueError):
+        guests_requested = 1
 
     active_prop, rooms_qs = _property_rooms(request)
     rooms = list(rooms_qs.select_related("room_category", "rate_plan"))
@@ -2024,7 +2066,13 @@ def availability(request):
                     for day in stay_nights
                 ]
                 room.remaining_capacity = min(remaining_values) if remaining_values else room.max_guests
-                is_available = room.status not in OUT_OF_SERVICE_STATUSES and room.remaining_capacity > 0
+                # occupied_capacity reflects the stay's peak (worst-case) night —
+                # the same night that determines remaining_capacity above.
+                room.occupied_capacity = room.max_guests - room.remaining_capacity
+                is_available = (
+                    room.status not in OUT_OF_SERVICE_STATUSES
+                    and room.remaining_capacity >= guests_requested
+                )
             else:
                 is_available = room.status not in ("Maintenance", "Blocked") and room.pk not in active_booking_room_ids
                 room.remaining_capacity = room.max_guests if is_available else 0
@@ -2046,6 +2094,7 @@ def availability(request):
             "dates_submitted": dates_submitted,
             "has_valid_dates": has_valid_dates,
             "nights": nights,
+            "guests_requested": guests_requested,
         },
     )
 
@@ -2405,9 +2454,16 @@ def group_booking_add(request):
 
 @login_required
 def room_add_shared_guest(request, pk):
-    """Add one more independently paying guest (or a small family/group
-    sharing one payment account) into an already-partially-occupied
+    """Walk-in-style workflow for adding one more guest (or one payer's small
+    group, when allocated_guests > 1) into an already-partially-occupied
     SHARED_CAPACITY room, without touching any other guest's booking.
+
+    booking_purpose ("individual" / "group") is a UI framing choice only —
+    "Individual Guest" and "Group Booking" both create exactly one Booking +
+    one RoomAllocation for one payer here, matching the business rule that a
+    separately paying guest must never be folded into someone else's
+    booking/invoice. A genuine multi-room party booking is a different
+    feature (group_booking_add) and is untouched by this view.
 
     Only reachable at all when the tenant has shared_capacity_booking_enabled
     and the target room's own booking_mode is SHARED_CAPACITY — every other
@@ -2426,11 +2482,16 @@ def room_add_shared_guest(request, pk):
 
     guest_choices = list(Guest.objects.filter(is_generic=False).order_by("last_name", "first_name"))
     today = timezone.localdate()
-    occupied_today, _cap, remaining_today = occupancy_snapshot(room, today)
 
     errors = []
+    booking_purpose = "individual"
     identity_mode = "walk_in"
     selected_guest_id = ""
+    new_first_name = ""
+    new_last_name = ""
+    new_phone = ""
+    new_email = ""
+    new_id_number = ""
     check_in_value = today.isoformat()
     check_out_value = (today + datetime.timedelta(days=1)).isoformat()
     allocated_guests_value = "1"
@@ -2443,8 +2504,16 @@ def room_add_shared_guest(request, pk):
     payment_reference_value = ""
 
     if request.method == "POST":
+        booking_purpose = request.POST.get("booking_purpose", "individual")
+        if booking_purpose not in ("individual", "group"):
+            booking_purpose = "individual"
         identity_mode = request.POST.get("identity_mode", "walk_in")
         selected_guest_id = request.POST.get("guest", "")
+        new_first_name = request.POST.get("new_first_name", "").strip()
+        new_last_name = request.POST.get("new_last_name", "").strip()
+        new_phone = request.POST.get("new_phone", "").strip()
+        new_email = request.POST.get("new_email", "").strip()
+        new_id_number = request.POST.get("new_id_number", "").strip()
         check_in_value = request.POST.get("check_in_date", check_in_value)
         check_out_value = request.POST.get("check_out_date", check_out_value)
         allocated_guests_value = request.POST.get("allocated_guests", "1")
@@ -2458,17 +2527,30 @@ def room_add_shared_guest(request, pk):
 
         check_in = _parse_date(check_in_value)
         check_out = _parse_date(check_out_value)
+        if not check_in or not check_out:
+            errors.append("Enter both a check-in and a check-out date.")
+        elif check_out <= check_in:
+            errors.append("Check-out date must be after check-in date.")
 
         try:
             allocated_guests = int(allocated_guests_value)
+            if allocated_guests < 1:
+                raise ValueError
         except (TypeError, ValueError):
             allocated_guests = None
-            errors.append("Enter a whole number of guest spaces.")
+            errors.append("Enter a whole number of guest spaces (at least 1).")
 
-        if identity_mode == "guest" and selected_guest_id:
+        guest = None
+        if identity_mode == "new_guest":
+            if not new_first_name or not new_last_name or not new_phone:
+                errors.append("Enter at least a first name, last name and mobile number for the new guest.")
+        elif identity_mode == "guest" and selected_guest_id:
             guest = Guest.objects.filter(pk=selected_guest_id, is_generic=False).first()
             if guest is None:
                 errors.append("Select a valid guest, or use walk-in.")
+        elif identity_mode == "plate":
+            if not new_phone and not request.POST.get("vehicle_registration", "").strip():
+                errors.append("Enter a vehicle registration number.")
         else:
             guest = Guest.get_generic()
 
@@ -2491,25 +2573,50 @@ def room_add_shared_guest(request, pk):
 
         if not errors:
             try:
-                booking = create_individual_shared_room_booking(
-                    guest=guest,
-                    room=room,
-                    check_in=check_in,
-                    check_out=check_out,
-                    allocated_guests=allocated_guests,
-                    booking_source=booking_source_value,
-                    payment_info=payment_info,
-                    notes=notes_value,
-                    staff_user=request.user,
-                    prop=active_prop,
-                )
+                with transaction.atomic():
+                    # Guest creation lives inside the same transaction as the
+                    # booking itself: if capacity has changed and the booking
+                    # is rejected below, this rolls the new guest record back
+                    # too — nothing is left half-created.
+                    if identity_mode == "new_guest":
+                        guest = Guest.objects.create(
+                            first_name=new_first_name,
+                            last_name=new_last_name,
+                            phone=new_phone,
+                            email=new_email,
+                            id_passport_number=new_id_number,
+                            is_generic=False,
+                        )
+                    elif identity_mode == "plate":
+                        guest = Guest.get_or_create_for_vehicle(request.POST.get("vehicle_registration", ""))
+
+                    booking = create_individual_shared_room_booking(
+                        guest=guest,
+                        room=room,
+                        check_in=check_in,
+                        check_out=check_out,
+                        allocated_guests=allocated_guests,
+                        booking_source=booking_source_value,
+                        payment_info=payment_info,
+                        notes=notes_value,
+                        staff_user=request.user,
+                        prop=active_prop,
+                    )
             except ValidationError as exc:
                 errors.extend(exc.messages)
             else:
                 settings_obj, _ = GuestHouseSettings.objects.get_or_create(pk=1)
                 notify_booking_created(booking, settings_obj)
-                messages.success(request, f"{booking.booking_reference}: guest added to {room.name}.")
-                return redirect("core:booking_detail", pk=booking.pk)
+                return redirect("core:room_add_shared_guest_success", pk=booking.pk)
+
+    check_in_for_summary = _parse_date(check_in_value) or today
+    check_out_for_summary = _parse_date(check_out_value) or (today + datetime.timedelta(days=1))
+    if check_out_for_summary > check_in_for_summary:
+        availability = check_availability(room, check_in_for_summary, check_out_for_summary, 1)
+        occupied_for_dates = availability.occupied_capacity
+        remaining_for_dates = availability.remaining_capacity
+    else:
+        occupied_for_dates, _cap, remaining_for_dates = occupancy_snapshot(room, today)
 
     return render(
         request,
@@ -2517,12 +2624,18 @@ def room_add_shared_guest(request, pk):
         {
             "title": f"Add Guest — {room.name}",
             "room": room,
-            "occupied_today": occupied_today,
-            "remaining_today": remaining_today,
+            "occupied_today": occupied_for_dates,
+            "remaining_today": remaining_for_dates,
             "guest_choices": guest_choices,
             "errors": errors,
+            "booking_purpose": booking_purpose,
             "identity_mode": identity_mode,
             "selected_guest_id": selected_guest_id,
+            "new_first_name": new_first_name,
+            "new_last_name": new_last_name,
+            "new_phone": new_phone,
+            "new_email": new_email,
+            "new_id_number": new_id_number,
             "check_in_value": check_in_value,
             "check_out_value": check_out_value,
             "allocated_guests_value": allocated_guests_value,
@@ -2535,6 +2648,39 @@ def room_add_shared_guest(request, pk):
             "payment_reference_value": payment_reference_value,
             "booking_source_choices": Booking.BOOKING_SOURCE_CHOICES,
             "payment_method_choices": Payment.PAYMENT_METHOD_CHOICES,
+        },
+    )
+
+
+@login_required
+def room_add_shared_guest_success(request, pk):
+    """Success screen after create_individual_shared_room_booking(): the
+    booking's own details plus a fresh read of the room's current shared
+    occupancy, so staff see exactly where the room stands right after
+    their action — never a stale, pre-booking snapshot."""
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(
+        Booking.objects.select_related("guest", "room"), pk=pk, room__prop=active_prop
+    )
+    allocation = booking.room_allocations.select_related("room").first()
+    room = allocation.room if allocation else booking.room
+    if room.effective_booking_mode != "SHARED_CAPACITY":
+        raise Http404("This booking is not a shared-capacity room booking.")
+
+    payment_totals = booking.payment_totals()
+    occupied_now, _cap, remaining_now = occupancy_snapshot(room, timezone.localdate())
+
+    return render(
+        request,
+        "core/room_add_guest_success.html",
+        {
+            "booking": booking,
+            "room": room,
+            "allocation": allocation,
+            "amount_paid": payment_totals["net_paid"],
+            "outstanding_balance": booking.balance_due,
+            "occupied_now": occupied_now,
+            "remaining_now": remaining_now,
         },
     )
 
@@ -3463,7 +3609,7 @@ def booking_checkout(request, pk):
                 # Other occupants of this same shared room may still be
                 # checked in — the room only turns "Cleaning" once this was
                 # the last one (see check_out_multi_room_booking).
-                booking = check_out_multi_room_booking(booking)
+                booking = check_out_multi_room_booking(booking, staff_user=request.user)
             else:
                 with db_transaction.atomic():
                     booking.status = "Checked Out"
@@ -3488,6 +3634,112 @@ def booking_checkout(request, pk):
         else:
             messages.success(request, f"{booking.booking_reference}: Checked out successfully.")
     return redirect("core:booking_detail", pk=pk)
+
+
+@login_required
+@require_POST
+def booking_extend_stay(request, pk):
+    """Extend one currently-checked-in occupant's stay — room and allocated
+    spaces unchanged, only the check-out date moves. Never touches any other
+    occupant of the same shared room."""
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(
+        Booking.objects.select_related("room"), pk=pk, room__prop=active_prop, status="Checked In"
+    )
+    room_id = booking.room_id
+    new_check_out = _parse_date(request.POST.get("check_out_date", ""))
+    if not new_check_out:
+        messages.error(request, "Enter a valid new check-out date.")
+        return redirect("core:room_detail", pk=room_id)
+    if _is_date_locked(new_check_out):
+        return _locked_day_response(request, new_check_out, "core:room_detail", pk=room_id)
+
+    approver = _manager_approval(request, "Extend stay for a checked-in booking")
+    if not approver:
+        messages.error(request, "Owner approval is required to extend a checked-in guest's stay.")
+        return redirect("core:room_detail", pk=room_id)
+
+    before = _model_snapshot(booking, ["check_out_date", "total_amount"])
+    try:
+        updated = edit_multi_room_booking(booking, check_out=new_check_out)
+    except ValidationError as exc:
+        messages.error(request, f"Could not extend stay: {'; '.join(exc.messages)}")
+        return redirect("core:room_detail", pk=room_id)
+
+    _audit(
+        request, "update", updated, before=before,
+        after=_model_snapshot(updated, ["check_out_date", "total_amount"]),
+        reason="Extended stay for checked-in guest", approved_by=approver,
+    )
+    messages.success(request, f"{updated.booking_reference}: stay extended to {new_check_out:%d %b %Y}.")
+    return redirect("core:room_detail", pk=room_id)
+
+
+@login_required
+@require_POST
+def booking_move_room(request, pk):
+    """Move one currently-checked-in occupant to a different room, without
+    touching any other guest's booking in either the old or new room. Room
+    status is updated on the empty<->occupied edges only, exactly like
+    check-in/check-out, for SHARED_CAPACITY rooms on either side of the move."""
+    blocked = _cleaner_blocked(request)
+    if blocked:
+        return blocked
+    active_prop = get_active_property(request)
+    booking = get_object_or_404(
+        Booking.objects.select_related("room"), pk=pk, room__prop=active_prop, status="Checked In"
+    )
+    old_room = booking.room
+    new_room = Room.objects.filter(pk=request.POST.get("new_room_id"), prop=active_prop).first()
+    if new_room is None:
+        messages.error(request, "Select a valid room to move this guest to.")
+        return redirect("core:room_detail", pk=old_room.pk)
+    if new_room.pk == old_room.pk:
+        messages.error(request, "This guest is already in that room.")
+        return redirect("core:room_detail", pk=old_room.pk)
+
+    approver = _manager_approval(request, "Move a checked-in guest to a different room")
+    if not approver:
+        messages.error(request, "Owner approval is required to move a checked-in guest.")
+        return redirect("core:room_detail", pk=old_room.pk)
+
+    before = _model_snapshot(booking, ["room_id", "total_amount"])
+    try:
+        updated = edit_multi_room_booking(
+            booking, allocations=[{"room": new_room, "allocated_guests": booking.num_guests}],
+        )
+    except ValidationError as exc:
+        messages.error(request, f"Could not move guest: {'; '.join(exc.messages)}")
+        return redirect("core:room_detail", pk=old_room.pk)
+
+    # Room-status edges, mirroring check_in_multi_room_booking/
+    # check_out_multi_room_booking exactly: a shared room's status only ever
+    # moves on empty<->occupied, never on every individual booking change.
+    if old_room.effective_booking_mode == "WHOLE_ROOM":
+        _sync_room_status(old_room)
+    elif old_room.status not in ("Maintenance", "Blocked"):
+        still_occupied = Booking.objects.filter(room=old_room, status="Checked In").exclude(pk=updated.pk).exists()
+        if not still_occupied:
+            old_room.status = "Cleaning"
+            old_room.cleaning_status = "Needs Cleaning"
+            old_room.save(update_fields=["status", "cleaning_status"])
+    if new_room.effective_booking_mode == "WHOLE_ROOM":
+        new_room.status = "Occupied"
+        new_room.save(update_fields=["status"])
+    elif new_room.status == "Available":
+        new_room.status = "Occupied"
+        new_room.save(update_fields=["status"])
+
+    _audit(
+        request, "update", updated, before=before,
+        after=_model_snapshot(updated, ["room_id", "total_amount"]),
+        reason=f"Moved from {old_room.name} to {new_room.name}", approved_by=approver,
+    )
+    messages.success(request, f"{updated.booking_reference}: moved from {old_room.name} to {new_room.name}.")
+    return redirect("core:room_detail", pk=new_room.pk)
 
 
 @login_required

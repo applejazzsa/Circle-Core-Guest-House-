@@ -409,7 +409,7 @@ def check_in_multi_room_booking(booking):
         return booking
 
 
-def check_out_multi_room_booking(booking):
+def check_out_multi_room_booking(booking, staff_user=None):
     with transaction.atomic():
         _lock_rooms(room.pk for room in _booking_rooms(booking))
         if booking.status != "Checked In":
@@ -422,13 +422,40 @@ def check_out_multi_room_booking(booking):
                 room.status = "Cleaning"
                 room.cleaning_status = "Needs Cleaning"
                 room.save(update_fields=["status", "cleaning_status"])
-            elif room.status not in ("Maintenance", "Blocked") and not _other_checked_in_bookings_exist(room, booking.pk):
+                continue
+
+            remaining_occupants = Booking.objects.filter(room=room, status="Checked In").exclude(pk=booking.pk).count()
+            if remaining_occupants == 0:
                 # This was the last occupant still checked into this shared
-                # room — now, and only now, does it actually need cleaning.
-                # Any other occupant still checked in must never see their
-                # room flip to "Cleaning" because someone else in the same
-                # dormitory left.
-                room.status = "Cleaning"
-                room.cleaning_status = "Needs Cleaning"
-                room.save(update_fields=["status", "cleaning_status"])
+                # room — now, and only now, does it actually need cleaning,
+                # following the existing whole-room cleaning workflow.
+                if room.status not in ("Maintenance", "Blocked"):
+                    room.status = "Cleaning"
+                    room.cleaning_status = "Needs Cleaning"
+                    room.save(update_fields=["status", "cleaning_status"])
+            else:
+                # Other guests remain checked in — the room stays in
+                # inventory and its status/cleaning_status are untouched
+                # (never "Available", never "Cleaning" for the whole room
+                # over one vacated space). This app has no per-bed/per-space
+                # housekeeping model, so the turnover need is recorded as a
+                # staff-only note instead of a whole-room status change.
+                AuditLog.objects.create(
+                    actor=staff_user,
+                    action="update",
+                    object_type="Room",
+                    object_id=str(room.pk),
+                    object_repr=str(room)[:255],
+                    after={
+                        "housekeeping_note": (
+                            f"{getattr(booking.guest, 'full_name', str(booking.guest))} checked out of "
+                            f"{booking.num_guests} space(s) in {room.name}; {remaining_occupants} other "
+                            f"occupant(s) remain checked in — partial turnover, room stays in service."
+                        ),
+                        "booking_reference": booking.booking_reference,
+                        "vacated_spaces": booking.num_guests,
+                        "remaining_occupants": remaining_occupants,
+                    },
+                    reason="Partial shared-room turnover (no per-bed housekeeping tracking)",
+                )
         return booking

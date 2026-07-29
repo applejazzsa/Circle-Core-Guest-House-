@@ -6,7 +6,11 @@
   <div>
     <div class="section-label">Rooms</div>
     <h1 class="page-title">{{ room.name }}</h1>
+    {% if is_shared_capacity %}
+    <p class="page-subtitle">{{ room.room_type }} · {{ shared_occupied }} of {{ room.max_guests }} spaces occupied · {{ shared_remaining }} space{{ shared_remaining|pluralize }} remaining</p>
+    {% else %}
     <p class="page-subtitle">{{ room.room_type }} · {{ room.max_guests }} guests max</p>
+    {% endif %}
     {% if room.room_category.bathroom_type == "pending" or room.internal_notes|slice:":28" == "Capacity Pending Confirmation" %}
     <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
       {% if room.room_category.bathroom_type == "pending" %}
@@ -72,9 +76,19 @@
           <div style="font-size:14px; color:var(--color-text-primary); margin-top:4px;">{{ room.room_type }}</div>
         </div>
         <div>
-          <div class="detail-label">Max Guests</div>
+          <div class="detail-label">{% if is_shared_capacity %}Capacity{% else %}Max Guests{% endif %}</div>
           <div style="font-size:14px; color:var(--color-text-primary); margin-top:4px;">{{ room.max_guests }}</div>
         </div>
+        {% if is_shared_capacity %}
+        <div>
+          <div class="detail-label">Occupied Today</div>
+          <div style="font-family:var(--font-mono); font-size:14px; color:var(--color-text-primary); margin-top:4px;">{{ shared_occupied }} / {{ room.max_guests }}</div>
+        </div>
+        <div>
+          <div class="detail-label">Remaining Today</div>
+          <div style="font-family:var(--font-mono); font-size:14px; font-weight:600; color:{% if shared_remaining > 0 %}var(--color-green-400){% else %}var(--color-text-tertiary){% endif %}; margin-top:4px;">{{ shared_remaining }}</div>
+        </div>
+        {% endif %}
       </div>
     </div>
 
@@ -224,31 +238,99 @@
   <div style="display:flex; flex-direction:column; gap:16px;">
     {% if is_shared_capacity %}
     <div id="occupants">
-    {% if active_occupants %}
     <div class="card" style="padding:20px; border:1px solid rgba(100, 116, 139,0.3); background:rgba(100, 116, 139,0.04);">
-      <div class="section-label" style="margin-bottom:4px; color:#94a3b8;">Currently Checked In — {{ shared_occupied }} / {{ room.max_guests }}</div>
-      <p style="font-size:11.5px; color:var(--color-text-tertiary); margin-bottom:12px;">Every guest below has their own booking, invoice and payment balance. Checking one out never affects the others.</p>
+      <div class="section-label" style="margin-bottom:4px; color:#94a3b8;">Current Occupants</div>
+      <p style="font-size:11.5px; color:var(--color-text-tertiary); margin-bottom:12px;">Every guest below has their own booking, invoice and payment balance. Managing one guest never affects any other guest's financial account.</p>
+      {% if active_occupants %}
       {% for occupant in active_occupants %}
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; {% if not forloop.last %}border-bottom:1px solid var(--color-border);{% endif %}">
-        <div style="min-width:0;">
-          <div style="font-size:13px; font-weight:600; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ occupant.guest.full_name }}</div>
-          <div style="font-size:11px; color:var(--color-text-tertiary); font-family:var(--font-mono);">{{ occupant.booking_reference }} · {{ occupant.num_guests }} space{{ occupant.num_guests|pluralize }}</div>
+      <div style="padding:14px 0; {% if not forloop.last %}border-bottom:1px solid var(--color-border);{% endif %}">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px;">
+          <div style="min-width:0;">
+            <div style="font-size:13.5px; font-weight:600; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ occupant.guest.full_name }}</div>
+            <div style="font-size:11px; color:var(--color-text-tertiary); font-family:var(--font-mono);">{{ occupant.booking_reference }}</div>
+          </div>
+          <span class="badge badge-green" style="flex-shrink:0;">{{ occupant.status }}</span>
         </div>
-        <div style="display:flex; gap:6px; flex-shrink:0;">
-          <a href="{% url 'core:booking_detail' occupant.pk %}" class="btn btn-ghost btn-sm">View</a>
+        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:6px 12px; font-size:12px; color:var(--color-text-secondary); background:var(--color-bg-subtle); border-radius:var(--radius-sm); padding:10px 12px; margin-bottom:10px;">
+          <div>Check-in <span style="float:right; font-family:var(--font-mono); color:var(--color-text-primary);">{{ occupant.check_in_date|date:"d M Y" }}</span></div>
+          <div>Check-out <span style="float:right; font-family:var(--font-mono); color:var(--color-text-primary);">{{ occupant.check_out_date|date:"d M Y" }}</span></div>
+          <div>Spaces <span style="float:right; font-family:var(--font-mono); color:var(--color-text-primary);">{{ occupant.num_guests }}</span></div>
+          <div>Nightly rate <span style="float:right; font-family:var(--font-mono); color:var(--color-text-primary);">R {{ occupant.rate_per_night|floatformat:2 }}</span></div>
+          <div>Total <span style="float:right; font-family:var(--font-mono); color:var(--color-text-primary);">R {{ occupant.total_amount|floatformat:2 }}</span></div>
+          <div>Paid <span style="float:right; font-family:var(--font-mono); color:var(--color-text-primary);">R {{ occupant.amount_paid|floatformat:2 }}</span></div>
+          <div style="grid-column:1/-1; border-top:1px solid var(--color-border); padding-top:6px; margin-top:2px; font-weight:600;">Outstanding balance <span style="float:right; font-family:var(--font-mono); color:{% if occupant.balance_due > 0 %}#f59e0b{% else %}var(--color-green-400){% endif %};">R {{ occupant.balance_due|floatformat:2 }}</span></div>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          <a href="{% url 'core:booking_detail' occupant.pk %}" class="btn btn-ghost btn-sm">View Booking</a>
+          <a href="{% url 'core:payment_add' occupant.pk %}" class="btn btn-ghost btn-sm">Record Payment</a>
+          <a href="{% url 'core:booking_invoice_pdf' occupant.pk %}" class="btn btn-ghost btn-sm" target="_blank" rel="noopener">Print Invoice</a>
+          {% if not is_cleaner %}
+          <details style="display:inline-block;">
+            <summary class="btn btn-ghost btn-sm" style="list-style:none; cursor:pointer;">Extend Stay</summary>
+            <form method="post" action="{% url 'core:booking_extend_stay' occupant.pk %}" style="margin-top:8px; padding:10px; border:1px solid var(--color-border); border-radius:var(--radius-sm); display:flex; flex-direction:column; gap:8px;">
+              {% csrf_token %}
+              <label class="form-label" for="extend-checkout-{{ occupant.pk }}">New check-out date</label>
+              <input type="date" name="check_out_date" id="extend-checkout-{{ occupant.pk }}" class="form-input" value="{{ occupant.check_out_date|date:'Y-m-d' }}" required>
+              {% if not is_owner %}
+              <input name="manager_username" placeholder="Owner username" autocomplete="username">
+              <input name="manager_password" placeholder="Owner password" type="password" autocomplete="current-password">
+              {% endif %}
+              <button type="submit" class="btn btn-primary btn-sm">Confirm Extension</button>
+            </form>
+          </details>
+          <details style="display:inline-block;">
+            <summary class="btn btn-ghost btn-sm" style="list-style:none; cursor:pointer;">Move Room</summary>
+            <form method="post" action="{% url 'core:booking_move_room' occupant.pk %}" style="margin-top:8px; padding:10px; border:1px solid var(--color-border); border-radius:var(--radius-sm); display:flex; flex-direction:column; gap:8px;">
+              {% csrf_token %}
+              <label class="form-label" for="move-room-{{ occupant.pk }}">Move to room</label>
+              <select name="new_room_id" id="move-room-{{ occupant.pk }}" class="form-input" required>
+                <option value="">Select a room…</option>
+                {% for choice_room in move_room_choices %}
+                <option value="{{ choice_room.pk }}">{{ choice_room.name }}</option>
+                {% endfor %}
+              </select>
+              {% if not is_owner %}
+              <input name="manager_username" placeholder="Owner username" autocomplete="username">
+              <input name="manager_password" placeholder="Owner password" type="password" autocomplete="current-password">
+              {% endif %}
+              <button type="submit" class="btn btn-primary btn-sm">Confirm Move</button>
+            </form>
+          </details>
           <form method="post" action="{% url 'core:booking_checkout' occupant.pk %}">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger btn-sm">Check Out</button>
           </form>
+          {% endif %}
         </div>
       </div>
       {% endfor %}
-    </div>
-    {% else %}
-    <div class="card" style="padding:20px;">
+      {% else %}
       <p style="font-size:12.5px; color:var(--color-text-tertiary); margin:0;">No guests currently checked in to this room.</p>
+      {% endif %}
     </div>
-    {% endif %}
+
+    <!-- Future bookings: kept strictly separate from who is currently
+         checked in, so a reservation is never mistaken for a present guest. -->
+    <div class="card" style="padding:20px;">
+      <div class="section-label" style="margin-bottom:4px;">Future Bookings</div>
+      <p style="font-size:11.5px; color:var(--color-text-tertiary); margin-bottom:12px;">Reservations for this room that have not checked in yet.</p>
+      {% if future_bookings %}
+      {% for reservation in future_bookings %}
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; {% if not forloop.last %}border-bottom:1px solid var(--color-border);{% endif %}">
+        <div style="min-width:0;">
+          <div style="font-size:13px; font-weight:600; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ reservation.guest.full_name }}</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary); font-family:var(--font-mono);">{{ reservation.booking_reference }} · {{ reservation.check_in_date|date:"d M Y" }} → {{ reservation.check_out_date|date:"d M Y" }} · {{ reservation.num_guests }} space{{ reservation.num_guests|pluralize }}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+          <span class="badge badge-blue">{{ reservation.status }}</span>
+          <a href="{% url 'core:booking_detail' reservation.pk %}" class="btn btn-ghost btn-sm">View</a>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p style="font-size:12.5px; color:var(--color-text-tertiary); margin:0;">No upcoming reservations for this room.</p>
+      {% endif %}
+    </div>
     </div>
     {% else %}
     {% if active_booking %}

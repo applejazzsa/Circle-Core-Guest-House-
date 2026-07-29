@@ -39,7 +39,7 @@
                 {% elif cell.shared.status == 'Out of Service' %}room-status-maintenance
                 {% else %}badge-amber{% endif %}"
                 style="font-size:9.5px; cursor:pointer; list-style:none;">
-                {{ cell.shared.occupied }} / {{ cell.shared.max }}{% if cell.shared.status == 'Full' %} full{% endif %}
+                {{ cell.shared.occupied }} / {{ cell.shared.max }} {% if cell.shared.status == 'Full' %}full{% else %}occupied{% endif %}
               </summary>
               <ul style="margin:6px 0 0; padding-left:14px; list-style:disc; color:var(--color-text-secondary);">
                 {% for booking in cell.shared.bookings %}

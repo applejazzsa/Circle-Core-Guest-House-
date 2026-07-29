@@ -20,45 +20,98 @@
   </div>
   {% endif %}
 
+  <!-- Live summary: informational only. The server always recalculates
+       capacity fresh, under a database lock, at submit time — nothing shown
+       here is ever trusted as the authoritative answer. -->
   <div class="card" style="margin-bottom:16px; padding:14px 16px;">
+    <div style="font-family:var(--font-display); font-size:14.5px; font-weight:700; color:var(--color-text-primary); margin-bottom:8px;">{{ room.name }}</div>
     <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary);">
-      <span>Booking type</span>
-      <span style="font-weight:600; color:var(--color-text-primary);">Individual Guest</span>
+      <span>Maximum capacity</span>
+      <span style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">{{ room.max_guests }}</span>
     </div>
     <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary); margin-top:6px;">
-      <span>Currently occupied today</span>
-      <span style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">{{ occupied_today }} / {{ room.max_guests }}</span>
+      <span>Already allocated for selected dates</span>
+      <span id="summary-occupied" style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">{{ occupied_today }}</span>
     </div>
     <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary); margin-top:6px;">
-      <span>Remaining spaces for selected dates</span>
-      <span id="remaining-today" aria-live="polite" style="font-family:var(--font-mono); font-weight:600; color:var(--color-green-400);">{{ remaining_today }}</span>
+      <span>Available spaces</span>
+      <span id="summary-remaining" aria-live="polite" style="font-family:var(--font-mono); font-weight:600; color:var(--color-green-400);">{{ remaining_today }}</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary); margin-top:6px;">
+      <span>New allocation</span>
+      <span id="summary-new-allocation" style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">{{ allocated_guests_value }}</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:700; color:var(--color-text-secondary); margin-top:6px; padding-top:6px; border-top:1px solid var(--color-border);">
+      <span>Occupancy after booking</span>
+      <span id="summary-after" aria-live="polite" style="font-family:var(--font-mono); font-weight:700; color:var(--color-text-primary);">{{ occupied_today|add:allocated_guests_value }} / {{ room.max_guests }}</span>
     </div>
     {% if room.pricing_model == 'per_person' %}
-    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary); margin-top:6px;">
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary); margin-top:10px; padding-top:10px; border-top:1px solid var(--color-border);">
       <span>Rate</span>
       <span style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">R{{ room.price_per_night }} per person per night</span>
     </div>
     {% endif %}
   </div>
 
+  <!-- Price summary -->
+  {% if room.pricing_model == 'per_person' %}
+  <div class="card" style="margin-bottom:16px; padding:14px 16px; border:1px solid var(--color-green-border); background:var(--color-green-glow);">
+    <div style="font-size:12px; color:var(--color-text-secondary); line-height:1.8;">
+      <span id="price-guests">1</span> guest{{ "" }}<span id="price-guests-plural"></span> ·
+      <span id="price-nights">1</span> night<span id="price-nights-plural"></span> ·
+      R{{ room.price_per_night }} PPPN
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:14px; font-weight:700; color:var(--color-text-primary); margin-top:6px;">
+      <span>Accommodation total</span>
+      <span style="font-family:var(--font-mono); color:var(--color-green-400);">R <span id="price-total">0.00</span></span>
+    </div>
+  </div>
+  {% endif %}
+
   <form method="post" id="add-guest-form" novalidate>
     {% csrf_token %}
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:8px;">Booking purpose</div>
+      <div style="display:flex; gap:16px; margin-bottom:4px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-text-secondary); cursor:pointer;">
+          <input type="radio" name="booking_purpose" value="individual" {% if booking_purpose != "group" %}checked{% endif %}>
+          Individual Guest
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-text-secondary); cursor:pointer;">
+          <input type="radio" name="booking_purpose" value="group" {% if booking_purpose == "group" %}checked{% endif %}>
+          Group Booking
+        </label>
+      </div>
+      <p id="purpose-hint" style="font-size:11.5px; color:var(--color-text-tertiary); margin:6px 0 0;">
+        {% if booking_purpose == "group" %}One payer, several allocated spaces, one booking and one invoice — this never merges with any other guest's booking.{% else %}One guest, one booking, one invoice.{% endif %}
+      </p>
+    </div>
 
     <div class="card" style="margin-bottom:16px;">
       <div class="section-label" style="margin-bottom:16px;">Guest</div>
       <fieldset style="border:none; padding:0; margin:0 0 14px;">
         <legend class="form-label" style="margin-bottom:8px;">Identity</legend>
-        <div style="display:flex; gap:16px;">
+        <div style="display:flex; gap:16px; flex-wrap:wrap;">
           <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-text-secondary); cursor:pointer;">
-            <input type="radio" name="identity_mode" value="walk_in" {% if identity_mode != "guest" %}checked{% endif %}>
+            <input type="radio" name="identity_mode" value="walk_in" {% if identity_mode == "walk_in" %}checked{% endif %}>
             Walk-in guest
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-text-secondary); cursor:pointer;">
+            <input type="radio" name="identity_mode" value="new_guest" {% if identity_mode == "new_guest" %}checked{% endif %}>
+            New guest
           </label>
           <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-text-secondary); cursor:pointer;">
             <input type="radio" name="identity_mode" value="guest" {% if identity_mode == "guest" %}checked{% endif %}>
             Existing guest profile
           </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-text-secondary); cursor:pointer;">
+            <input type="radio" name="identity_mode" value="plate" {% if identity_mode == "plate" %}checked{% endif %}>
+            Vehicle number
+          </label>
         </div>
       </fieldset>
+
       <div class="form-group" id="guest-select-group" style="{% if identity_mode != 'guest' %}display:none;{% endif %}">
         <label class="form-label" for="id_guest">Guest</label>
         <select name="guest" id="id_guest" class="form-input">
@@ -67,6 +120,36 @@
           <option value="{{ g.pk }}" {% if selected_guest_id == g.pk|stringformat:"s" %}selected{% endif %}>{{ g.full_name }} ({{ g.phone }})</option>
           {% endfor %}
         </select>
+      </div>
+
+      <div id="new-guest-group" style="{% if identity_mode != 'new_guest' %}display:none;{% endif %}">
+        <div class="grid-2" style="gap:16px;">
+          <div class="form-group">
+            <label class="form-label" for="id_new_first_name">First name</label>
+            <input type="text" name="new_first_name" id="id_new_first_name" class="form-input" value="{{ new_first_name }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="id_new_last_name">Last name</label>
+            <input type="text" name="new_last_name" id="id_new_last_name" class="form-input" value="{{ new_last_name }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="id_new_phone">Mobile number</label>
+            <input type="text" name="new_phone" id="id_new_phone" class="form-input" value="{{ new_phone }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="id_new_email">Email (if available)</label>
+            <input type="email" name="new_email" id="id_new_email" class="form-input" value="{{ new_email }}">
+          </div>
+          <div class="form-group" style="grid-column:1/-1;">
+            <label class="form-label" for="id_new_id_number">ID / passport number (if available)</label>
+            <input type="text" name="new_id_number" id="id_new_id_number" class="form-input" value="{{ new_id_number }}">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group" id="plate-group" style="{% if identity_mode != 'plate' %}display:none;{% endif %} margin-bottom:0;">
+        <label class="form-label" for="id_vehicle_registration">Vehicle registration</label>
+        <input type="text" name="vehicle_registration" id="id_vehicle_registration" class="form-input">
       </div>
     </div>
 
@@ -109,11 +192,12 @@
       <div id="payment-fields" style="{% if not collect_payment %}display:none;{% endif %}">
         <div class="grid-2" style="gap:16px;">
           <div class="form-group">
-            <label class="form-label" for="id_payment_amount">Amount</label>
+            <label class="form-label" for="id_payment_amount">Amount paid now</label>
             <input type="number" min="0" step="0.01" name="payment_amount" id="id_payment_amount" class="form-input" value="{{ payment_amount_value }}">
+            <div class="form-hint">Leave unticked or at 0 if the guest is not paying anything yet — a booking is never defaulted to fully paid.</div>
           </div>
           <div class="form-group">
-            <label class="form-label" for="id_payment_method">Method</label>
+            <label class="form-label" for="id_payment_method">Payment method</label>
             <select name="payment_method" id="id_payment_method" class="form-input">
               {% for value, label in payment_method_choices %}
               <option value="{{ value }}" {% if payment_method_value == value %}selected{% endif %}>{{ label }}</option>
@@ -121,7 +205,7 @@
             </select>
           </div>
           <div class="form-group" style="grid-column:1/-1;">
-            <label class="form-label" for="id_payment_reference">Reference (optional)</label>
+            <label class="form-label" for="id_payment_reference">Payment reference (where applicable)</label>
             <input type="text" name="payment_reference" id="id_payment_reference" class="form-input" value="{{ payment_reference_value }}">
           </div>
         </div>
@@ -140,6 +224,18 @@
   document.querySelectorAll('input[name="identity_mode"]').forEach(function(radio) {
     radio.addEventListener('change', function() {
       document.getElementById('guest-select-group').style.display = (this.value === 'guest') ? '' : 'none';
+      document.getElementById('new-guest-group').style.display = (this.value === 'new_guest') ? '' : 'none';
+      document.getElementById('plate-group').style.display = (this.value === 'plate') ? '' : 'none';
+    });
+  });
+
+  var purposeHint = document.getElementById('purpose-hint');
+  document.querySelectorAll('input[name="booking_purpose"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      if (!purposeHint) return;
+      purposeHint.textContent = (this.value === 'group')
+        ? 'One payer, several allocated spaces, one booking and one invoice — this never merges with any other guest\'s booking.'
+        : 'One guest, one booking, one invoice.';
     });
   });
 
@@ -151,32 +247,60 @@
     });
   }
 
-  // Live remaining-capacity display: same room_availability_json endpoint the
-  // group-booking form already uses. Non-fatal if it fails — the server
-  // re-validates authoritatively inside the locked transaction regardless.
+  // Live summary + price summary: same room_availability_json endpoint the
+  // group-booking form already uses. Purely informational — the server
+  // always re-validates authoritatively inside the locked transaction
+  // regardless of what's shown here.
   var checkIn = document.getElementById('id_check_in_date');
   var checkOut = document.getElementById('id_check_out_date');
   var allocatedGuests = document.getElementById('id_allocated_guests');
-  var remainingEl = document.getElementById('remaining-today');
+  var maxGuests = {{ room.max_guests }};
   var roomId = {{ room.pk }};
 
-  function refreshRemaining() {
-    if (!checkIn.value || !checkOut.value) return;
+  var occupiedEl = document.getElementById('summary-occupied');
+  var remainingEl = document.getElementById('summary-remaining');
+  var newAllocationEl = document.getElementById('summary-new-allocation');
+  var afterEl = document.getElementById('summary-after');
+  var priceGuestsEl = document.getElementById('price-guests');
+  var priceGuestsPluralEl = document.getElementById('price-guests-plural');
+  var priceNightsEl = document.getElementById('price-nights');
+  var priceNightsPluralEl = document.getElementById('price-nights-plural');
+  var priceTotalEl = document.getElementById('price-total');
+
+  function nightsBetween() {
+    if (!checkIn.value || !checkOut.value) return 0;
+    var start = new Date(checkIn.value);
+    var end = new Date(checkOut.value);
+    var diff = Math.round((end - start) / 86400000);
+    return diff > 0 ? diff : 0;
+  }
+
+  function refreshSummary() {
     var guests = Math.max(parseInt(allocatedGuests.value || '1', 10), 1);
+    if (newAllocationEl) newAllocationEl.textContent = guests;
+    if (priceGuestsEl) priceGuestsEl.textContent = guests;
+    if (priceGuestsPluralEl) priceGuestsPluralEl.textContent = guests === 1 ? '' : 's';
+    var nights = nightsBetween();
+    if (priceNightsEl) priceNightsEl.textContent = nights;
+    if (priceNightsPluralEl) priceNightsPluralEl.textContent = nights === 1 ? '' : 's';
+
+    if (!checkIn.value || !checkOut.value) return;
     var params = new URLSearchParams({ check_in: checkIn.value, check_out: checkOut.value, guests: String(guests) });
     fetch('/rooms/' + roomId + '/availability.json?' + params.toString())
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (remainingEl && typeof data.remaining_capacity === 'number') {
-          remainingEl.textContent = data.remaining_capacity;
-        }
+        if (occupiedEl && typeof data.occupied_capacity === 'number') occupiedEl.textContent = data.occupied_capacity;
+        if (remainingEl && typeof data.remaining_capacity === 'number') remainingEl.textContent = data.remaining_capacity;
+        if (afterEl && typeof data.occupied_capacity === 'number') afterEl.textContent = (data.occupied_capacity + guests) + ' / ' + maxGuests;
+        if (priceTotalEl && data.allocation_subtotal !== undefined) priceTotalEl.textContent = Number(data.allocation_subtotal || 0).toFixed(2);
       })
       .catch(function() {});
   }
 
   [checkIn, checkOut, allocatedGuests].forEach(function(el) {
-    if (el) el.addEventListener('change', refreshRemaining);
+    if (el) el.addEventListener('input', refreshSummary);
   });
+  refreshSummary();
 })();
 </script>
 {% endblock %}

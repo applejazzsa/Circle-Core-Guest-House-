@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Guest Added — Circle Core Guest House{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="section-label">Bookings</div>
+    <h1 class="page-title">Guest Added to {{ room.name }}</h1>
+    <p class="page-subtitle">A separate booking, invoice and payment balance were created for this guest — every other occupant of {{ room.name }} is unaffected.</p>
+  </div>
+</div>
+
+<div style="max-width:720px;">
+  <div class="card" style="padding:20px; margin-bottom:16px; border:1px solid var(--color-green-border); background:var(--color-green-glow);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+      <div>
+        <div style="font-family:var(--font-mono); font-size:13px; color:var(--color-green-400); font-weight:600;">{{ booking.booking_reference }}</div>
+        <div style="font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--color-text-primary); margin-top:2px;">{{ booking.guest.full_name }}</div>
+      </div>
+      <span class="badge badge-green">Booked</span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:14px; font-size:13px;">
+      <div>
+        <div class="detail-label">Room</div>
+        <div style="color:var(--color-text-primary); margin-top:2px;">{{ room.name }}</div>
+      </div>
+      <div>
+        <div class="detail-label">Allocated spaces</div>
+        <div style="font-family:var(--font-mono); color:var(--color-text-primary); margin-top:2px;">{{ allocation.allocated_guests|default:booking.num_guests }}</div>
+      </div>
+      <div>
+        <div class="detail-label">Check-in</div>
+        <div style="font-family:var(--font-mono); color:var(--color-text-primary); margin-top:2px;">{{ booking.check_in_date|date:"d M Y" }}</div>
+      </div>
+      <div>
+        <div class="detail-label">Check-out</div>
+        <div style="font-family:var(--font-mono); color:var(--color-text-primary); margin-top:2px;">{{ booking.check_out_date|date:"d M Y" }}</div>
+      </div>
+      <div>
+        <div class="detail-label">Total</div>
+        <div style="font-family:var(--font-mono); color:var(--color-text-primary); margin-top:2px;">R {{ booking.total_amount|floatformat:2 }}</div>
+      </div>
+      <div>
+        <div class="detail-label">Amount paid</div>
+        <div style="font-family:var(--font-mono); color:var(--color-text-primary); margin-top:2px;">R {{ amount_paid|floatformat:2 }}</div>
+      </div>
+      <div style="grid-column:1/-1;">
+        <div class="detail-label">Outstanding balance</div>
+        <div style="font-family:var(--font-mono); font-weight:700; color:{% if outstanding_balance > 0 %}#f59e0b{% else %}var(--color-green-400){% endif %}; margin-top:2px;">R {{ outstanding_balance|floatformat:2 }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:16px 20px; margin-bottom:20px;">
+    <div class="section-label" style="margin-bottom:10px;">{{ room.name }} — current occupancy</div>
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary);">
+      <span>Occupied now</span>
+      <span style="font-family:var(--font-mono); font-weight:600; color:var(--color-text-primary);">{{ occupied_now }} / {{ room.max_guests }}</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--color-text-secondary); margin-top:6px;">
+      <span>Remaining capacity</span>
+      <span style="font-family:var(--font-mono); font-weight:600; color:var(--color-green-400);">{{ remaining_now }}</span>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:10px;">
+    <a href="{% url 'core:booking_detail' booking.pk %}" class="btn btn-secondary">View Booking</a>
+    <a href="{% url 'core:payment_add' booking.pk %}" class="btn btn-secondary">Record Payment</a>
+    <a href="{% url 'core:booking_invoice_pdf' booking.pk %}" class="btn btn-secondary" target="_blank" rel="noopener">Print Invoice</a>
+    {% if booking.status == "Pending" or booking.status == "Confirmed" %}
+    <form method="post" action="{% url 'core:booking_checkin' booking.pk %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">Check In Guest</button>
+    </form>
+    {% endif %}
+    <a href="{% url 'core:room_detail' room.pk %}" class="btn btn-ghost">Return to Room</a>
+  </div>
+</div>
+{% endblock %}
