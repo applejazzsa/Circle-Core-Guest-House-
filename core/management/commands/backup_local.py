@@ -62,6 +62,7 @@ class Command(BaseCommand):
         except FileNotFoundError:
             raise CommandError('pg_dump not found. Install postgresql-client on the server.')
 
+        dump_path.chmod(0o600)
         self.stdout.write(self.style.SUCCESS(f'Database dump saved: {dump_path}'))
 
         # ── Media zip ────────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ class Command(BaseCommand):
                 for path in media_root.rglob('*'):
                     if path.is_file():
                         archive.write(path, Path('media') / path.relative_to(media_root))
+            media_zip.chmod(0o600)
             self.stdout.write(self.style.SUCCESS(f'Media backup saved: {media_zip}'))
         else:
             self.stdout.write('No media files found - skipping media zip.')
