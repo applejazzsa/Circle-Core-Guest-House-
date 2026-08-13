@@ -80,6 +80,18 @@ class ControlOperationNotification(models.Model):
     sent_at = models.DateTimeField(null=True, blank=True)
 
 
+class ControlDeliveryWorkerHeartbeat(models.Model):
+    """Shared-schema liveness record for the product-owned control delivery worker."""
+
+    name = models.CharField(max_length=40, primary_key=True, default='control-delivery')
+    last_seen_at = models.DateTimeField()
+    last_success_at = models.DateTimeField(null=True, blank=True)
+    last_error_code = models.CharField(max_length=80, blank=True)
+
+    class Meta:
+        verbose_name = 'Control delivery worker heartbeat'
+
+
 class Lead(models.Model):
     STATUS_CHOICES = [
         ('new', 'New Lead'),

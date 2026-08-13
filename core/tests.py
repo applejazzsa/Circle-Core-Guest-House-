@@ -25,7 +25,6 @@ from django.urls import reverse
 from django.utils import timezone
 from django_tenants.test.cases import TenantTestCase
 from django_tenants.utils import (
-    get_public_schema_name,
     get_tenant_domain_model,
     get_tenant_model,
     schema_context,
@@ -89,6 +88,27 @@ class CircleCoreTenantTestCase(TenantTestCase):
     def setup_domain(cls, domain):
         domain.is_primary = True
 
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            super().tearDownClass()
+        finally:
+            # Secondary tenant schemas are created by isolation tests inside
+            # TestCase atomics. PostgreSQL cannot drop them until those atomics
+            # have closed, so remove only the known test-schema patterns here.
+            connection.set_schema_to_public()
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT nspname FROM pg_namespace
+                    WHERE nspname LIKE %s ESCAPE '\\'
+                       OR nspname LIKE %s ESCAPE '\\'
+                """, [r'%\_other', r'tx\_other\_%'])
+                for (schema_name,) in cursor.fetchall():
+                    cursor.execute(
+                        f'DROP SCHEMA IF EXISTS {connection.ops.quote_name(schema_name)} CASCADE'
+                    )
+            connection.set_schema_to_public()
+
 
 class ConcurrencyTenantTestCase(TransactionTestCase):
     """
@@ -109,7 +129,6 @@ class ConcurrencyTenantTestCase(TransactionTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        call_command("migrate_schemas", schema_name=get_public_schema_name(), interactive=False, verbosity=0)
         if cls.domain_name not in settings.ALLOWED_HOSTS:
             settings.ALLOWED_HOSTS = list(settings.ALLOWED_HOSTS) + [cls.domain_name]
 
@@ -134,9 +153,23 @@ class ConcurrencyTenantTestCase(TransactionTestCase):
     @classmethod
     def tearDownClass(cls):
         connection.set_schema_to_public()
-        if cls.domain_name in settings.ALLOWED_HOSTS:
-            settings.ALLOWED_HOSTS.remove(cls.domain_name)
-        super().tearDownClass()
+        try:
+            tenant = get_tenant_model().objects.filter(pk=getattr(cls.tenant, 'pk', None)).first()
+            if tenant is not None:
+                tenant.delete(force_drop=True)
+            # Guarantee removal even if a failed concurrent connection left the
+            # django-tenants model row/schema lifecycle partially completed.
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f'DROP SCHEMA IF EXISTS {connection.ops.quote_name(cls.schema_name)} CASCADE'
+                )
+        finally:
+            # TenantMixin schema deletion may change the search path; the next
+            # TransactionTestCase must always begin and flush in the public schema.
+            connection.set_schema_to_public()
+            if cls.domain_name in settings.ALLOWED_HOSTS:
+                settings.ALLOWED_HOSTS.remove(cls.domain_name)
+            super().tearDownClass()
 
     def _fixture_teardown(self):
         # Truncate this tenant schema's own tables between tests, but stay
@@ -587,6 +620,7 @@ class RoomAllocationModelTest(CircleCoreTenantTestCase):
             with tenant_context(other_tenant):
                 other_prop = make_other_property("Other Tenant Property")
                 other_room = Room.objects.create(
+                    pk=2147480000,
                     prop=other_prop, name="Other Tenant Room", room_type="Double",
                     max_guests=2, status="Available", cleaning_status="Clean",
                     price_per_night=Decimal("400.00"),
@@ -1142,7 +1176,7 @@ class BookingTransactionConcurrencyTest(ConcurrencyTenantTestCase):
             self.assertEqual(Booking.objects.filter(pk=booking.pk).count(), 1)
         finally:
             with schema_context("public"):
-                other_tenant.delete(allow_hard_delete=True)
+                other_tenant.delete(force_drop=True)
 
 
 # ── View tests ────────────────────────────────────────────────────────────────

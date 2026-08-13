@@ -51,6 +51,7 @@ class ProductControlAuditEvent(models.Model):
     caller_identity = models.CharField(max_length=160, blank=True)
     requested_by = models.CharField(max_length=200, blank=True)
     requester_role = models.CharField(max_length=100, blank=True)
+    reason = models.TextField(blank=True)
     action = models.CharField(max_length=100, db_index=True)
     target_reference = models.CharField(max_length=200, blank=True, db_index=True)
     request_digest = models.CharField(max_length=64, blank=True)

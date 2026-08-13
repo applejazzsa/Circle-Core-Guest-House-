@@ -36,6 +36,7 @@ class BaseProductControlBackend:
                     "properties", "multiple_locations", "background_job_retry", "maintenance_mode",
                     "compensating_operations",
                     "tenant_read", "tenant_activation", "trial_extension", "subscription_plan_change",
+                    "trial_conversion",
                     "subscription_grace_period", "subscription_cancellation", "archiving",
                     "administrator_invitations", "password_reset", "force_password_reset",
                     "user_management", "user_role_management",

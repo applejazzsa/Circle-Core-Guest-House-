@@ -22,6 +22,7 @@ def _cast_bool(value):
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-circle-core-guest-house-dev-key')
 DEBUG = config('DEBUG', default=True, cast=_cast_bool)
 ENVIRONMENT = config('ENVIRONMENT', default='development').strip().lower()
+APP_VERSION = config('APP_VERSION', default='development')
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
     default='localhost,127.0.0.1,.localhost,.circlecore.co.za',

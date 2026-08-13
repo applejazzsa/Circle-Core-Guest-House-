@@ -13,7 +13,7 @@ from django_tenants.utils import schema_context
 
 from circle_core_control_api.errors import ControlAPIError
 
-from core.models import ControlUserSecurity, Property, StaffProfile, Subscription
+from core.models import ControlManualPayment, ControlUserSecurity, Property, StaffProfile, Subscription
 from tenants.models import ControlActivationOutbox, ControlOperationNotification, GuestHouseTenant
 from tenants.product_control_backend import GuestHouseProductControlBackend
 
@@ -98,6 +98,17 @@ class GuestHouseProductControlTests(TransactionTestCase):
         current = backend.read('tenant', {'tenant_id': created['data']['tenant_id']}, None)
         self.assertEqual(current['tenant_id'], created['data']['tenant_id'])
         self.assertEqual(current['status'], 'trialing')
+        self.assertEqual(current['currency'], 'ZAR')
+        self.assertEqual(current['billing_cycle'], 'monthly')
+        self.assertEqual(current['price'], '399.00')
+        self.assertEqual(current['plan_limits']['properties'], 1)
+        self.assertIsInstance(current['plan_features'], list)
+        plans = backend.read('plans', {}, None)
+        starter = next(plan for plan in plans['plans'] if plan['code'] == 'starter')
+        self.assertEqual(plans['currency'], 'ZAR')
+        self.assertEqual(starter['prices']['monthly'], '399.00')
+        self.assertIn('limits', starter)
+        self.assertIn('features', starter)
         self.assertTrue(backend.capabilities(None)['capabilities']['tenant_read'])
         self.assertTrue(backend.capabilities(None)['capabilities']['suspension'])
 
@@ -115,6 +126,21 @@ class GuestHouseProductControlTests(TransactionTestCase):
             restored = backend.execute('reactivate_tenant', {'tenant_id': tenant_id}, {}, self.action_context({'status': 'suspended'}))
         self.assertEqual(restored['after_state']['status'], 'trialing')
 
+    def test_archive_preserves_tenant_and_restore_reuses_it(self):
+        backend = GuestHouseProductControlBackend()
+        created = backend.execute('create_tenant', {}, self.payload(), self.context())
+        tenant_id = created['data']['tenant_id']
+        with transaction.atomic():
+            archived = backend.execute('archive_tenant', {'tenant_id': tenant_id}, {}, self.action_context({'status': 'trialing'}))
+        self.assertEqual(archived['after_state']['status'], 'archived')
+        tenant = GuestHouseTenant.objects.get(pk=tenant_id)
+        self.assertIsNotNone(tenant.archived_at)
+        with transaction.atomic():
+            restored = backend.execute('restore_tenant', {'tenant_id': tenant_id}, {}, self.action_context({'status': 'archived'}))
+        self.assertEqual(restored['after_state']['tenant_id'], tenant_id)
+        self.assertEqual(restored['after_state']['status'], 'trialing')
+        self.assertTrue(GuestHouseTenant.objects.filter(pk=tenant_id, archived_at__isnull=True).exists())
+
     def test_manual_payment_is_not_treated_as_verified(self):
         backend = GuestHouseProductControlBackend()
         created = backend.execute('create_tenant', {}, self.payload(), self.context())
@@ -124,8 +150,41 @@ class GuestHouseProductControlTests(TransactionTestCase):
                 'payment_method_category': 'eft', 'internal_reference': 'MANUAL-001', 'activate_after_payment': True,
             }, self.action_context({'status': 'trialing'}))
         self.assertEqual(result['data']['verification_status'], 'pending_verification')
+        refreshed = backend.read('tenant', {'tenant_id': created['data']['tenant_id']}, None)
+        self.assertEqual(refreshed['payment_method_category'], 'eft')
+        self.assertEqual(refreshed['subscription_state'], 'trialing')
         with schema_context(GuestHouseTenant.objects.get(pk=created['data']['tenant_id']).schema_name):
             self.assertEqual(Subscription.objects.get().status, 'trial')
+
+    def test_trial_conversion_is_atomic_product_owned_and_price_checked(self):
+        backend = GuestHouseProductControlBackend()
+        created = backend.execute('create_tenant', {}, self.payload(), self.context())
+        tenant = GuestHouseTenant.objects.get(pk=created['data']['tenant_id'])
+        payload = {
+            'plan_code': 'starter', 'price': '399.00', 'billing_cycle': 'monthly',
+            'start_date': timezone.localdate().isoformat(), 'payment_state': 'paid',
+            'manual_payment_reference': 'CONVERT-001',
+            'next_billing_date': (timezone.localdate() + timedelta(days=30)).isoformat(),
+        }
+        with transaction.atomic():
+            result = backend.execute('convert_trial_to_paid', {'tenant_id': str(tenant.pk)}, payload, self.action_context({'status': 'trialing'}))
+        self.assertEqual(result['after_state']['subscription_state'], 'active')
+        self.assertEqual(result['after_state']['plan'], 'starter')
+        with schema_context(tenant.schema_name):
+            self.assertEqual(Subscription.objects.get().status, 'active')
+            self.assertEqual(ControlManualPayment.objects.get().status, 'pending_verification')
+        with transaction.atomic(), self.assertRaises(ControlAPIError) as stale:
+            backend.execute('convert_trial_to_paid', {'tenant_id': str(tenant.pk)}, payload, self.action_context({'status': 'trialing'}))
+        self.assertIn(stale.exception.error_code, {'stale_before_state', 'invalid_state'})
+
+        second_payload = self.payload(uuid.uuid4())
+        second_payload.update({'legal_or_trading_name': 'Second Lodge (Pty) Ltd', 'tenant_display_name': 'Second Lodge'})
+        second_payload['primary_administrator']['email'] = 'second-admin@example.invalid'
+        second_payload['primary_location']['property_name'] = 'Second Lodge'
+        second = backend.execute('create_tenant', {}, second_payload, self.context())
+        with transaction.atomic(), self.assertRaises(ControlAPIError) as price_error:
+            backend.execute('convert_trial_to_paid', {'tenant_id': second['data']['tenant_id']}, {**payload, 'price': '1.00', 'manual_payment_reference': 'CONVERT-002'}, self.action_context({'status': 'trialing'}))
+        self.assertEqual(price_error.exception.error_code, 'catalogue_price_mismatch')
 
     def test_identity_controls_and_product_entitlement_are_product_owned(self):
         backend = GuestHouseProductControlBackend()

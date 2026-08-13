@@ -53,9 +53,10 @@ class ControlAccountSecurityMiddleware:
 _ALWAYS_EXEMPT = [
     "/login/",
     "/logout/",
+    "/password-reset/",
+    "/password-change/",
     "/static/",
     "/media/",
-    "/admin/",
     "/command/",
 ]
 
@@ -63,7 +64,6 @@ _ALWAYS_EXEMPT = [
 _SUBSCRIPTION_EXEMPT = [
     "/subscription/",
     "/trial/",
-    "/api/",
     "/payfast/",
 ]
 
@@ -84,7 +84,7 @@ class SubscriptionMiddleware:
         if not request.user.is_authenticated:
             return self.get_response(request)
 
-        if any(request.path.startswith(p) for p in [*_ALWAYS_EXEMPT, _admin_path()]):
+        if any(request.path.startswith(p) for p in _ALWAYS_EXEMPT):
             return self.get_response(request)
 
         if any(request.path.startswith(p) for p in _SUBSCRIPTION_EXEMPT):

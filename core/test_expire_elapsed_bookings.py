@@ -573,11 +573,17 @@ class ExpireElapsedBookingsTenantFailureIsolationTest(CircleCoreTenantTestCase):
                 raise RuntimeError(f"simulated failure in tenant {tenant.schema_name}")
             return original(cmd_self, tenant, apply_changes, run_id)
 
-        with patch.object(expire_cmd.Command, "_process_tenant", flaky):
-            stdout, stderr = StringIO(), StringIO()
-            with self.assertRaises(CommandError):
-                call_command("expire_elapsed_bookings", "--apply", stdout=stdout, stderr=stderr)
-            self.assertIn("expire_isolation_broken", stderr.getvalue())
+        try:
+            with patch.object(expire_cmd.Command, "_process_tenant", flaky):
+                stdout, stderr = StringIO(), StringIO()
+                with self.assertRaises(CommandError):
+                    call_command("expire_elapsed_bookings", "--apply", stdout=stdout, stderr=stderr)
+                self.assertIn("expire_isolation_broken", stderr.getvalue())
+        finally:
+            # This row deliberately has no schema, so it must be removed explicitly.
+            # TenantTestCase schema teardown does not own synthetic public tenant rows.
+            with schema_context("public"):
+                GuestHouseTenant.objects.filter(pk=broken_tenant.pk).delete()
 
         booking.refresh_from_db()
         self.assertEqual(

@@ -116,12 +116,18 @@ def read_endpoint(request, resource, tenant_id=None, operation_id=None, audit_id
                 "operation_id": str(confirmed.operation_id or ""),
                 "correlation_id": str(confirmed.correlation_id or ""),
                 "action": confirmed.action,
+                "tenant": confirmed.target_reference,
                 "target_reference": confirmed.target_reference,
+                "administrator_reference": confirmed.requested_by,
+                "administrator_role": confirmed.requester_role,
+                "reason": confirmed.reason,
                 "outcome": confirmed.outcome,
+                "result": confirmed.outcome,
                 "error_code": confirmed.error_code,
                 "before_state": confirmed.before_state,
                 "after_state": confirmed.after_state,
                 "created_at": confirmed.created_at.isoformat(),
+                "timestamp": confirmed.created_at.isoformat(),
             }
         elif resource == "health":
             data = load_backend().health({"principal": principal})

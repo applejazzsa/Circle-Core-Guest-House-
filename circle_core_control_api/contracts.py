@@ -93,6 +93,7 @@ def validate_write_envelope(request, action):
 def validate_action_payload(action, payload):
     required_by_action = {
         "extend_trial": {"trial_days"}, "change_plan": {"plan_code", "effective_at", "proration_policy"},
+        "convert_trial_to_paid": {"plan_code", "price", "billing_cycle", "start_date", "payment_state", "next_billing_date"},
         "manual_payment": {"amount", "currency", "payment_date", "payment_method_category", "internal_reference"},
         "apply_grace_period": {"grace_days"}, "cancel_subscription": {"effective_at"},
         "invite_admin": {"user_reference"},
@@ -111,6 +112,11 @@ def validate_action_payload(action, payload):
                 raise ControlAPIError("validation_failed", "currency must be a three-letter code.", status=422)
             if not isinstance(payload.get("evidence_metadata", {}), dict):
                 raise ControlAPIError("validation_failed", "evidence_metadata must be an object.", status=400)
+        if action == "convert_trial_to_paid":
+            if payload["billing_cycle"] not in {"monthly", "annual"}:
+                raise ControlAPIError("validation_failed", "billing_cycle is not supported.", status=422)
+            if payload["payment_state"] not in {"unpaid", "pending_verification", "paid"}:
+                raise ControlAPIError("validation_failed", "payment_state is not supported.", status=422)
         return
     if action != "create_tenant":
         return

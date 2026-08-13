@@ -40,6 +40,7 @@ def record_rejection(*, action, principal=None, envelope=None, error, request_di
             caller_identity=getattr(principal, "identity", ""),
             requested_by=envelope.get("requested_by", ""),
             requester_role=envelope.get("requester_role", ""),
+            reason=envelope.get("reason", ""),
             action=action[:100],
             target_reference=str(target_reference)[:200],
             request_digest=request_digest,
@@ -130,6 +131,7 @@ def execute_write(request, principal, action, identifiers, envelope):
                 caller_identity=principal.identity,
                 requested_by=envelope["requested_by"],
                 requester_role=envelope["requester_role"],
+                reason=envelope["reason"],
                 action=action,
                 target_reference=record.target_reference,
                 request_digest=request_digest,
@@ -156,14 +158,16 @@ def execute_write(request, principal, action, identifiers, envelope):
             locked = IdempotencyRecord.objects.select_for_update().get(pk=record.pk)
             result = load_backend().execute(action, identifiers, envelope["payload"], context)
             before, after = _validate_backend_result(result)
+            audit_target_reference = str(result.get("audit_target_reference") or target_reference)[:200]
             audit = ProductControlAuditEvent.objects.create(
                 operation_id=envelope["operation_id"],
                 correlation_id=envelope["correlation_id"],
                 caller_identity=principal.identity,
                 requested_by=envelope["requested_by"],
                 requester_role=envelope["requester_role"],
+                reason=envelope["reason"],
                 action=action,
-                target_reference=str(target_reference)[:200],
+                target_reference=audit_target_reference,
                 request_digest=request_digest,
                 outcome="completed",
                 before_state=before,
@@ -207,6 +211,7 @@ def _record_failed_operation(record, principal, action, target_reference, envelo
         caller_identity=principal.identity,
         requested_by=envelope["requested_by"],
         requester_role=envelope["requester_role"],
+        reason=envelope["reason"],
         action=action,
         target_reference=str(target_reference)[:200],
         request_digest=request_digest,

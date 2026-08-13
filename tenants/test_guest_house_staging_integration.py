@@ -17,7 +17,10 @@ from circle_core_control_api.authentication import sign_request
 from circle_core_control_api.models import IdempotencyRecord, ProductControlAuditEvent
 from core.middleware import SubscriptionMiddleware
 from core.models import ControlManualPayment, Property, Subscription
-from tenants.models import ControlActivationOutbox, ControlOperationNotification, GuestHouseTenant
+from tenants.models import (
+    ControlActivationOutbox, ControlDeliveryWorkerHeartbeat,
+    ControlOperationNotification, GuestHouseTenant,
+)
 
 
 SECRET = "guest-house-staging-contract-secret-000000000000"
@@ -47,6 +50,14 @@ class GuestHouseStagingIntegrationTests(TransactionTestCase):
     """A signed, HTTP-level Smart Control simulation using only synthetic staging identities."""
 
     reset_sequences = True
+
+    def setUp(self):
+        super().setUp()
+        now = timezone.now()
+        ControlDeliveryWorkerHeartbeat.objects.update_or_create(
+            name='control-delivery',
+            defaults={'last_seen_at': now, 'last_success_at': now, 'last_error_code': ''},
+        )
 
     def tearDown(self):
         ControlActivationOutbox.objects.all().delete()
@@ -122,6 +133,10 @@ class GuestHouseStagingIntegrationTests(TransactionTestCase):
         self.assertEqual(evidence["operation_id"], str(operation_id))
         self.assertEqual(evidence["correlation_id"], str(correlation_id))
         self.assertEqual(evidence["outcome"], "completed")
+        self.assertEqual(evidence["administrator_reference"], "staging-admin@circlecore.co.za")
+        self.assertEqual(evidence["reason"], "Synthetic Guest House staging integration verification")
+        self.assertEqual(evidence["result"], "completed")
+        self.assertEqual(evidence["timestamp"], evidence["created_at"])
         return payload
 
     def test_complete_synthetic_smart_control_to_guest_house_path(self):
@@ -143,6 +158,10 @@ class GuestHouseStagingIntegrationTests(TransactionTestCase):
         created_data = self.assert_audit(created, operation_id, correlation_id)["data"]
         tenant_id, user_id = created_data["tenant_id"], created_data["administrator_id"]
         tenant = GuestHouseTenant.objects.get(pk=tenant_id)
+        self.assertEqual(created_data["guest_house_tenant_id"], tenant_id)
+        self.assertEqual(created_data["administrator_user_id"], user_id)
+        self.assertTrue(created_data["property_id"])
+        self.assertEqual(created_data["operation_id"], str(operation_id))
         self.assertEqual(created_data["activation_email_status"], "queued")
         self.assertEqual(ControlActivationOutbox.objects.get().state, "pending")
         call_command("dispatch_control_activations", limit=5, verbosity=0)
@@ -163,6 +182,17 @@ class GuestHouseStagingIntegrationTests(TransactionTestCase):
         current = self.get(f"/internal/control/v1/tenants/{tenant_id}").json()["data"]
         self.assertEqual(current["location_count"], 1)
         self.assertEqual(current["status"], "trialing")
+        self.assertTrue(current["created_at"])
+        self.assertEqual(
+            current["external_smart_control_tenant_reference"],
+            str(tenant.smart_control_reference),
+        )
+        subscription_detail = self.get(
+            f"/internal/control/v1/tenants/{tenant_id}/subscription"
+        ).json()["data"]
+        self.assertEqual(subscription_detail["tenant_id"], tenant_id)
+        self.assertEqual(subscription_detail["subscription_id"], created_data["subscription_id"])
+        self.assertEqual(subscription_detail["status"], "trial")
 
         def action(path, payload, expected):
             response, _, _, op_id, corr_id, _ = self.post(path, payload, expected=expected)
@@ -191,10 +221,28 @@ class GuestHouseStagingIntegrationTests(TransactionTestCase):
         activated = action(f"/internal/control/v1/tenants/{tenant_id}/activate", {}, current)
         current = activated["after_state"]
         self.assertEqual(current["status"], "active")
+        invitation = action(
+            f"/internal/control/v1/tenants/{tenant_id}/users/invite-admin",
+            {"user_reference": user_id}, current,
+        )
+        self.assertEqual(invitation["data"]["delivery_status"], "queued")
         reset = action(f"/internal/control/v1/users/{user_id}/send-password-reset", {"tenant_id": tenant_id}, current)
         self.assertEqual(reset["data"]["delivery_status"], "queued")
+        self.assertEqual(reset["data"]["notification"]["state"], "queued")
+        self.assertTrue(reset["data"]["notification"]["reference"])
+        self.assertTrue(reset["data"]["notification"]["requested_at"])
         self.assertNotIn("reset_token", json.dumps(reset["data"]).lower())
         self.assertNotIn("reset_url", json.dumps(reset["data"]).lower())
+        call_command("dispatch_control_activations", limit=5, verbosity=0)
+        self.assertEqual(ControlActivationOutbox.objects.get(kind="password_reset").state, "sent")
+        self.assertEqual(len(mail.outbox), 3)
+        self.assertIn("/password-reset/", mail.outbox[-1].body)
+
+        forced = action(
+            f"/internal/control/v1/users/{user_id}/force-password-reset",
+            {"tenant_id": tenant_id}, current,
+        )
+        self.assertTrue(forced["data"]["force_password_reset"])
 
         with schema_context(tenant.schema_name):
             user = get_user_model().objects.get(pk=user_id)
@@ -219,17 +267,28 @@ class GuestHouseStagingIntegrationTests(TransactionTestCase):
             preserved = (Property.objects.count(), get_user_model().objects.count(), Subscription.objects.count())
         suspended = action(f"/internal/control/v1/tenants/{tenant_id}/suspend", {}, current)
         self.assertEqual(suspended["after_state"]["status"], "suspended")
+        tenant.refresh_from_db()
+        self.assertFalse(tenant.product_access_enabled)
         request = RequestFactory().get("/bookings/")
         request.user, request.tenant, request.session = user, tenant, {}
         with schema_context(tenant.schema_name):
-            with patch("core.middleware.render", return_value=HttpResponse(status=402)) as render_blocked:
-                blocked = SubscriptionMiddleware(lambda request: HttpResponse(status=204))(request)
-            self.assertEqual(blocked.status_code, 402)
-            self.assertEqual(render_blocked.call_args.args[1], "subscription/cancelled.html")
+            for blocked_path in ("/bookings/", "/api/offline/sync/", "/admin/"):
+                request.path = blocked_path
+                with patch("core.middleware.render", return_value=HttpResponse(status=402)) as render_blocked:
+                    blocked = SubscriptionMiddleware(lambda request: HttpResponse(status=204))(request)
+                self.assertEqual(blocked.status_code, 402)
+                self.assertEqual(render_blocked.call_args.args[1], "subscription/cancelled.html")
+            for recovery_path in ("/password-reset/", "/password-change/", "/subscription/", "/payfast/initiate/"):
+                request.path = recovery_path
+                permitted = SubscriptionMiddleware(lambda request: HttpResponse(status=204))(request)
+                self.assertEqual(permitted.status_code, 204)
             self.assertEqual((Property.objects.count(), get_user_model().objects.count(), Subscription.objects.count()), preserved)
         reactivated = action(f"/internal/control/v1/tenants/{tenant_id}/reactivate", {}, suspended["after_state"])
         self.assertEqual(reactivated["after_state"]["status"], "active")
+        tenant.refresh_from_db()
+        self.assertTrue(tenant.product_access_enabled)
         with schema_context(tenant.schema_name):
+            request.path = "/bookings/"
             restored = SubscriptionMiddleware(lambda request: HttpResponse(status=204))(request)
             self.assertEqual(restored.status_code, 204)
             self.assertEqual(ControlManualPayment.objects.count(), 1)
@@ -245,12 +304,36 @@ class GuestHouseStagingIntegrationTests(TransactionTestCase):
         self.assertTrue(ProductControlAuditEvent.objects.filter(outcome="duplicate", operation_id=pay_op).exists())
         self.assertEqual(IdempotencyRecord.objects.filter(operation_id=pay_op).count(), 1)
 
+        stale, *_ = self.post(
+            f"/internal/control/v1/tenants/{tenant_id}/suspend",
+            {}, expected={"status": "trialing"},
+        )
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.json()["error_code"], "stale_before_state")
+
+        grace = action(
+            f"/internal/control/v1/tenants/{tenant_id}/subscription/grace-period",
+            {"grace_days": 5}, reactivated["after_state"],
+        )
+        self.assertEqual(grace["after_state"]["status"], "grace_period")
+        cancelled = action(
+            f"/internal/control/v1/tenants/{tenant_id}/subscription/cancel",
+            {"effective_at": timezone.now().isoformat()}, grace["after_state"],
+        )
+        self.assertEqual(cancelled["after_state"]["status"], "cancelled")
+
     def test_conflicts_invalid_plan_and_authentication_fail_closed(self):
         bad = self.tenant_payload()
         bad["plan"] = "invalid"
         response = self.post("/internal/control/v1/tenants", bad, approval=False)[0]
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["error_code"], "invalid_plan")
+
+        bad_subscription = self.tenant_payload()
+        bad_subscription["subscription_kind"] = "unknown"
+        response = self.post("/internal/control/v1/tenants", bad_subscription, approval=False)[0]
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error_code"], "validation_failed")
 
         path = "/internal/control/v1/health"
         expired = self.client.get(path, secure=True, **self.headers("GET", path, timestamp=int(time.time()) - 1000))

@@ -1,0 +1,87 @@
+name: guest-house-staging
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: ${GUEST_HOUSE_ENV_FILE:-.env.staging}
+    environment:
+      POSTGRES_DB: ${DB_NAME:?required}
+      POSTGRES_USER: ${DB_USER:?required}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?required}
+    volumes: [guest_house_staging_postgres:/var/lib/postgresql/data]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [guest_house_staging_redis:/data]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    image: circle-core-guest-house:${APP_IMAGE_TAG:-staging}
+    restart: unless-stopped
+    env_file: ${GUEST_HOUSE_ENV_FILE:-.env.staging}
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings_production
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/1
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    ports: ["127.0.0.1:8300:8000"]
+    volumes:
+      - guest_house_staging_static:/app/staticfiles
+      - guest_house_staging_media:/app/media
+      - ./runtime:/app/runtime
+    networks: [internal, staging_edge]
+
+  control-worker:
+    build: .
+    image: circle-core-guest-house:${APP_IMAGE_TAG:-staging}
+    restart: unless-stopped
+    command: ["python", "manage.py", "run_control_delivery_worker", "--poll-seconds", "10", "--settings=config.settings_production"]
+    env_file: ${GUEST_HOUSE_ENV_FILE:-.env.staging}
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings_production
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/1
+      SKIP_DATABASE_SETUP: "1"
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    volumes:
+      - guest_house_staging_static:/app/staticfiles
+      - ./runtime:/app/runtime
+    networks: [internal, staging_edge]
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "python", "manage.py", "check_control_delivery_worker", "--max-age-seconds", "90", "--settings=config.settings_production"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  internal:
+    internal: true
+  staging_edge:
+    driver: bridge
+
+volumes:
+  guest_house_staging_postgres:
+  guest_house_staging_redis:
+  guest_house_staging_static:
+  guest_house_staging_media:

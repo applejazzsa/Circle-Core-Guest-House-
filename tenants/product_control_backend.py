@@ -15,7 +15,10 @@ from django_tenants.utils import schema_context
 from circle_core_control_api.backends import BaseProductControlBackend
 from circle_core_control_api.errors import ControlAPIError
 
-from .models import ControlActivationOutbox, ControlOperationNotification, Domain, GuestHouseTenant
+from .models import (
+    ControlActivationOutbox, ControlDeliveryWorkerHeartbeat,
+    ControlOperationNotification, Domain, GuestHouseTenant,
+)
 
 
 def _mask_email(value):
@@ -58,14 +61,43 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
     PLAN_METADATA = {
         'starter': {'name': 'Starter', 'monthly': '399.00', 'annual': '3830.00', 'rooms': 8, 'users': 1, 'trial': 14},
         'professional': {'name': 'Professional', 'monthly': '799.00', 'annual': '7670.00', 'rooms': 20, 'users': 5, 'trial': 30},
-        'enterprise': {'name': 'Enterprise', 'monthly': '1499.00', 'annual': '14390.00', 'rooms': 1000, 'users': 1000, 'trial': 30},
+        'enterprise': {'name': 'Enterprise', 'monthly': '1499.00', 'annual': '14390.00', 'rooms': 9999, 'users': 9999, 'trial': 30},
     }
 
     def health(self, context):
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
             cursor.fetchone()
-        return {'status': 'healthy', 'product': 'guest-house'}
+        heartbeat = ControlDeliveryWorkerHeartbeat.objects.filter(name='control-delivery').first()
+        worker_healthy = bool(
+            heartbeat and heartbeat.last_success_at
+            and heartbeat.last_seen_at >= timezone.now() - timedelta(seconds=90)
+            and not heartbeat.last_error_code
+        )
+        failed_deliveries = (
+            ControlActivationOutbox.objects.filter(state='failed').count()
+            + ControlOperationNotification.objects.filter(state='failed').count()
+        )
+        queue_healthy = failed_deliveries == 0
+        overall_healthy = worker_healthy and queue_healthy
+        return {
+            'status': 'healthy' if overall_healthy else 'degraded',
+            'product': 'guest-house',
+            'version': getattr(settings, 'APP_VERSION', 'unknown'),
+            'components': {
+                'database': {'status': 'healthy'},
+                'control_delivery_worker': {
+                    'status': 'healthy' if worker_healthy else 'stale',
+                    'last_seen_at': heartbeat.last_seen_at.isoformat() if heartbeat else None,
+                    'last_success_at': heartbeat.last_success_at.isoformat() if heartbeat and heartbeat.last_success_at else None,
+                    'error_code': heartbeat.last_error_code if heartbeat else 'heartbeat_missing',
+                },
+                'control_delivery_queue': {
+                    'status': 'healthy' if queue_healthy else 'degraded',
+                    'failed_deliveries': failed_deliveries,
+                },
+            },
+        }
 
     def capabilities(self, context):
         return {
@@ -87,12 +119,16 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                 'maintenance_mode': False,
                 'compensating_operations': True,
                 'tenant_read': True,
+                'operation_status': True,
+                'audit_confirmation': True,
                 'tenant_activation': True,
                 'trial_extension': True,
                 'subscription_plan_change': True,
+                'trial_conversion': True,
                 'subscription_grace_period': True,
                 'subscription_cancellation': True,
                 'archiving': True,
+                'restoration': True,
                 'administrator_invitations': True,
                 'password_reset': True,
                 'force_password_reset': True,
@@ -100,6 +136,7 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                 'user_role_management': True,
             },
             'max_trial_days': 30,
+            'max_trial_extension_days': 30,
             'features': [
                 'expenses', 'full_reports', 'export', 'hourly_bookings', 'weekly_bookings',
                 'inventory', 'staff_roles', 'multi_property', 'custom_pdf_branding',
@@ -111,7 +148,7 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                     'name': 'property_type', 'label': 'Property type', 'type': 'choice',
                     'choices': ['guest_house', 'hotel', 'lodge', 'bnb', 'self_catering'], 'required': True,
                 },
-                {'name': 'number_of_rooms', 'label': 'Number of rooms', 'type': 'integer', 'min': 1, 'max': 1000, 'required': True},
+                {'name': 'number_of_rooms', 'label': 'Number of rooms', 'type': 'integer', 'min': 1, 'max': 9999, 'required': True},
                 {'name': 'physical_location', 'label': 'Physical location', 'type': 'text', 'max_length': 500, 'required': True},
             ],
             'plans': [
@@ -126,13 +163,25 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
 
     def read(self, resource, identifiers, context):
         if resource == 'plans':
+            def plan_features(plan):
+                return [
+                    field.name.removeprefix('feature_') for field in plan._meta.fields
+                    if field.name.startswith('feature_') and getattr(plan, field.name)
+                ]
+            configured = {}
+            catalogue_tenant = GuestHouseTenant.objects.exclude(schema_name='public').order_by('created_at').first()
+            if catalogue_tenant:
+                with schema_context(catalogue_tenant.schema_name):
+                    from core.models import SubscriptionPlan
+                    configured = {plan.name: plan for plan in SubscriptionPlan.objects.all()}
             return {
                 'currency': 'ZAR',
                 'plans': [
                     {
                         'code': code, 'name': item['name'],
                         'prices': {'monthly': item['monthly'], 'annual': item['annual']},
-                        'limits': {'rooms': item['rooms'], 'users': item['users']},
+                        'limits': {'rooms': item['rooms'], 'users': item['users'], 'properties': None if configured.get(code) and configured[code].feature_multi_property else 1},
+                        'features': plan_features(configured[code]) if code in configured else [],
                         'max_trial_days': item['trial'], 'billing_cycles': ['monthly', 'annual'],
                     }
                     for code, item in self.PLAN_METADATA.items()
@@ -142,6 +191,7 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
             query = (context or {}).get('query', {})
             page_size = int(query.get('page_size', 50))
             queryset = GuestHouseTenant.objects.exclude(schema_name='public').order_by('pk')
+            authoritative_count = queryset.count()
             cursor = query.get('cursor')
             if cursor:
                 try:
@@ -153,7 +203,7 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
             tenants = tenants[:page_size]
             results = [self._snapshot(tenant) for tenant in tenants]
             return {
-                'results': results, 'count': len(results),
+                'results': results, 'count': authoritative_count,
                 'next_cursor': str(tenants[-1].pk) if has_more and tenants else None,
             }
         if resource == 'tenant_users':
@@ -198,6 +248,29 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                     })
                 return {'results': results, 'count': len(results),
                         'available_roles': ['Owner', 'Manager', 'Reception', 'Cleaner', 'Viewer']}
+        if resource == 'tenant_subscription':
+            try:
+                tenant = GuestHouseTenant.objects.get(pk=identifiers.get('tenant_id'))
+            except (GuestHouseTenant.DoesNotExist, ValueError, TypeError):
+                raise ControlAPIError('tenant_not_found', 'Tenant was not found.', status=404)
+            with schema_context(tenant.schema_name):
+                from core.models import Subscription
+                subscription = Subscription.objects.select_related('plan').order_by('-pk').first()
+                if not subscription:
+                    raise ControlAPIError('subscription_not_found', 'Tenant subscription was not found.', status=404)
+                return {
+                    'subscription_id': str(subscription.pk),
+                    'tenant_id': str(tenant.pk),
+                    'status': subscription.status,
+                    'plan': subscription.plan.name,
+                    'billing_cycle': subscription.billing_cycle,
+                    'started_at': subscription.started_at.isoformat(),
+                    'expires_at': subscription.expires_at.isoformat(),
+                    'trial_ends_at': subscription.trial_ends_at.isoformat() if subscription.trial_ends_at else None,
+                    'next_billing_date': subscription.next_billing_date.isoformat() if subscription.next_billing_date else None,
+                    'grace_ends_at': subscription.control_grace_ends_at.isoformat() if subscription.control_grace_ends_at else None,
+                    'auto_renew': subscription.auto_renew,
+                }
         if resource != 'tenant':
             return super().read(resource, identifiers, context)
         tenant_id = identifiers.get('tenant_id')
@@ -258,6 +331,10 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
         if GuestHouseTenant.objects.filter(owner_email__iexact=owner_email).exists():
             raise ControlAPIError('administrator_already_exists', 'The administrator email already exists.', status=409)
         subscription_kind = payload.get('subscription_kind')
+        if subscription_kind not in {'trial', 'paid'}:
+            raise ControlAPIError(
+                'validation_failed', 'Guest House subscription_kind must be trial or paid.', status=422,
+            )
         trial_expiry = _datetime(payload.get('trial_expiry'), 'trial_expiry') if subscription_kind == 'trial' else None
         if subscription_kind == 'trial' and (not trial_expiry or trial_expiry <= timezone.now()):
             raise ControlAPIError('validation_failed', 'Trial expiry must be in the future.', status=422)
@@ -342,8 +419,10 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                 'product_enabled': True,
             },
             'data': {
-                'tenant_id': str(tenant.pk), 'administrator_id': str(user.pk),
-                'subscription_id': str(subscription.pk),
+                'tenant_id': str(tenant.pk), 'guest_house_tenant_id': str(tenant.pk),
+                'property_id': str(property_row.pk),
+                'administrator_id': str(user.pk), 'administrator_user_id': str(user.pk),
+                'subscription_id': str(subscription.pk), 'operation_id': str(context.operation_id),
                 'activation_email_status': 'queued' if outbox else 'not_requested',
                 'notification_id': str(outbox.pk) if outbox else '',
                 'created_resources': [
@@ -354,13 +433,23 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                 ],
             },
             'reversible': True, 'compensating_action': 'archive_tenant',
+            'audit_target_reference': str(tenant.pk),
             'audit_metadata': {'schema_created': True, 'plan': plan_code, 'billing_cycle': billing_cycle},
         }
 
     def _snapshot(self, tenant):
+        from circle_core_control_api.models import ProductControlAuditEvent
+        suspension_audit = ProductControlAuditEvent.objects.filter(
+            target_reference=str(tenant.pk), action='suspend_tenant', outcome='completed',
+        ).order_by('-created_at').first()
+        cancellation_audit = ProductControlAuditEvent.objects.filter(
+            target_reference=str(tenant.pk), action='cancel_subscription', outcome='completed',
+        ).order_by('-created_at').first()
+        latest_notification = ControlOperationNotification.objects.filter(tenant=tenant).order_by('-created_at').first()
         with schema_context(tenant.schema_name):
-            from core.models import Property, Subscription
+            from core.models import ControlManualPayment, Property, Subscription
             subscription = Subscription.objects.select_related('plan').order_by('-pk').first()
+            latest_payment = ControlManualPayment.objects.order_by('-payment_date', '-created_at').first()
             status = subscription.status if subscription else ('active' if tenant.is_active else 'suspended')
             if tenant.archived_at:
                 status = 'archived'
@@ -368,12 +457,31 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                 status = 'grace_period'
             elif status == 'trial':
                 status = 'trialing'
+            plan = subscription.plan if subscription else None
+            plan_features = [
+                field.name.removeprefix('feature_') for field in plan._meta.fields
+                if field.name.startswith('feature_') and getattr(plan, field.name)
+            ] if plan else []
             return {
                 'tenant_id': str(tenant.pk), 'name': tenant.name, 'status': status,
+                'created_at': tenant.created_at.isoformat(),
+                'external_smart_control_tenant_reference': str(tenant.smart_control_reference or ''),
                 'subscription_state': status, 'plan': subscription.plan.name if subscription and subscription.plan else '',
+                'billing_cycle': subscription.billing_cycle if subscription else '',
+                'price': str(getattr(plan, f'{subscription.billing_cycle}_price')) if subscription and plan else None,
+                'currency': 'ZAR',
+                'plan_limits': {'rooms': plan.max_rooms, 'users': plan.max_users, 'properties': None if plan.feature_multi_property else 1} if plan else {},
+                'plan_features': plan_features,
+                'billing_date': subscription.next_billing_date.isoformat() if subscription and subscription.next_billing_date else None,
+                'last_payment_at': subscription.last_payment_date.isoformat() if subscription and subscription.last_payment_date else None,
                 'trial_expiry': subscription.trial_ends_at.isoformat() if subscription and subscription.trial_ends_at else None,
                 'next_billing_date': subscription.next_billing_date.isoformat() if subscription and subscription.next_billing_date else None,
                 'grace_ends_at': subscription.control_grace_ends_at.isoformat() if subscription and subscription.control_grace_ends_at else None,
+                'payment_method_category': latest_payment.payment_method_category if latest_payment else '',
+                'amount_overdue': None,
+                'suspension_date': suspension_audit.created_at.isoformat() if suspension_audit else None,
+                'cancellation_date': cancellation_audit.created_at.isoformat() if cancellation_audit else None,
+                'notification_status': latest_notification.state if latest_notification else '',
                 'product_enabled': bool(tenant.is_active and tenant.product_access_enabled and not tenant.archived_at),
                 'user_count': get_user_model().objects.count(), 'location_count': Property.objects.count(),
             }
@@ -396,7 +504,8 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
         supported = {
             'extend_trial', 'activate_tenant', 'suspend_tenant', 'reactivate_tenant',
             'apply_grace_period', 'change_plan', 'manual_payment', 'cancel_subscription',
-            'archive_tenant', 'enable_product', 'disable_product', 'invite_admin', 'send_password_reset',
+            'convert_trial_to_paid',
+            'archive_tenant', 'restore_tenant', 'enable_product', 'disable_product', 'invite_admin', 'send_password_reset',
             'force_password_reset', 'unlock_user', 'revoke_sessions', 'invite_user', 'disable_user',
             'reactivate_user', 'change_user_role',
         }
@@ -434,7 +543,8 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                 if tenant.archived_at or subscription.status in {'suspended', 'cancelled'}:
                     raise ControlAPIError('invalid_state', 'Tenant cannot be suspended from its current state.', status=409, current_state=before)
                 tenant.control_previous_subscription_status = subscription.status
-                tenant.save(update_fields=['control_previous_subscription_status'])
+                tenant.product_access_enabled = False
+                tenant.save(update_fields=['control_previous_subscription_status', 'product_access_enabled'])
                 subscription.status, subscription.control_grace_ends_at = 'suspended', None
                 subscription.save(update_fields=['status', 'control_grace_ends_at'])
                 reversible, compensation = True, 'reactivate_tenant'
@@ -449,7 +559,8 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                 subscription.status = restored
                 subscription.save(update_fields=['status'])
                 tenant.control_previous_subscription_status = ''
-                tenant.save(update_fields=['control_previous_subscription_status'])
+                tenant.product_access_enabled = True
+                tenant.save(update_fields=['control_previous_subscription_status', 'product_access_enabled'])
                 reversible, compensation = True, 'suspend_tenant'
             elif action == 'apply_grace_period':
                 days = _positive_int(payload, 'grace_days', 30)
@@ -480,6 +591,59 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                     raise ControlAPIError('plan_limits_exceeded', 'Current tenant usage exceeds the requested plan limits.', status=409, current_state={**before, 'limit_conflicts': conflicts})
                 subscription.plan = plan
                 subscription.save(update_fields=['plan'])
+            elif action == 'convert_trial_to_paid':
+                if subscription.status != 'trial' or tenant.archived_at:
+                    raise ControlAPIError('invalid_state', 'Only a current trial can be converted.', status=409, current_state=before)
+                plan_code = str(payload.get('plan_code', '')).lower()
+                cycle = str(payload.get('billing_cycle', '')).lower()
+                plan_metadata = self.PLAN_METADATA.get(plan_code)
+                if not plan_metadata or cycle not in {'monthly', 'annual'}:
+                    raise ControlAPIError('invalid_plan', 'The selected Guest House plan or billing cycle is not supported.', status=422)
+                try:
+                    price = Decimal(str(payload.get('price')))
+                    catalogue_price = Decimal(plan_metadata[cycle])
+                except (InvalidOperation, TypeError):
+                    raise ControlAPIError('validation_failed', 'price is invalid.', status=400)
+                if price != catalogue_price:
+                    raise ControlAPIError('catalogue_price_mismatch', 'Price does not match the authoritative Guest House catalogue.', status=409)
+                start_date = _date(payload.get('start_date'), 'start_date')
+                next_billing_date = _date(payload.get('next_billing_date'), 'next_billing_date')
+                if not start_date or not next_billing_date or next_billing_date < start_date:
+                    raise ControlAPIError('validation_failed', 'Valid start and next billing dates are required.', status=422)
+                try:
+                    plan = SubscriptionPlan.objects.get(name=plan_code)
+                except SubscriptionPlan.DoesNotExist:
+                    raise ControlAPIError('invalid_plan', 'The selected Guest House plan is not configured.', status=422)
+                payment_state = str(payload.get('payment_state', 'unpaid'))
+                reference = str(payload.get('manual_payment_reference', '')).strip()
+                if payment_state == 'paid' and not reference:
+                    raise ControlAPIError('payment_reference_required', 'A paid conversion requires a payment reference.', status=422)
+                payment = None
+                if reference:
+                    if ControlManualPayment.objects.filter(internal_reference=reference[:100]).exists():
+                        raise ControlAPIError('payment_reference_exists', 'The manual payment reference already exists.', status=409)
+                    payment = ControlManualPayment.objects.create(
+                        subscription=subscription, amount=price, currency='ZAR', payment_date=start_date,
+                        payment_method_category='manual_conversion', internal_reference=reference[:100],
+                        next_billing_date=next_billing_date, recorded_by=context.requested_by,
+                        operation_id=context.operation_id,
+                    )
+                subscription.plan = plan
+                subscription.billing_cycle = cycle
+                subscription.status = 'active'
+                subscription.expires_at = timezone.make_aware(datetime.combine(next_billing_date, time.min))
+                subscription.next_billing_date = next_billing_date
+                subscription.control_grace_ends_at = None
+                subscription.save(update_fields=['plan', 'billing_cycle', 'status', 'expires_at', 'next_billing_date', 'control_grace_ends_at'])
+                tenant.is_active, tenant.product_access_enabled = True, True
+                tenant.save(update_fields=['is_active', 'product_access_enabled'])
+                data = {
+                    'subscription_id': str(subscription.pk), 'subscription_state': 'active',
+                    'plan': plan.name, 'billing_cycle': cycle, 'price': str(catalogue_price),
+                    'next_billing_date': next_billing_date.isoformat(),
+                    'payment_state': payment.status if payment else payment_state,
+                    'payment_reference': str(payment.pk) if payment else '',
+                }
             elif action == 'manual_payment':
                 try:
                     amount = Decimal(str(payload.get('amount')))
@@ -516,13 +680,28 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                 subscription.status, subscription.auto_renew, subscription.control_grace_ends_at = 'cancelled', False, None
                 subscription.save(update_fields=['status', 'auto_renew', 'control_grace_ends_at'])
             elif action == 'archive_tenant':
+                if tenant.archived_at:
+                    raise ControlAPIError('invalid_state', 'Tenant is already archived.', status=409, current_state=before)
                 tenant.control_previous_subscription_status = subscription.status
                 tenant.is_active, tenant.archived_at = False, timezone.now()
                 tenant.product_access_enabled = False
                 tenant.save(update_fields=['control_previous_subscription_status', 'is_active', 'archived_at', 'product_access_enabled'])
                 subscription.status, subscription.auto_renew, subscription.control_grace_ends_at = 'cancelled', False, None
                 subscription.save(update_fields=['status', 'auto_renew', 'control_grace_ends_at'])
-                reversible, compensation = True, 'activate_tenant'
+                reversible, compensation = True, 'restore_tenant'
+            elif action == 'restore_tenant':
+                if not tenant.archived_at:
+                    raise ControlAPIError('invalid_state', 'Only an archived tenant can be restored.', status=409, current_state=before)
+                restored = tenant.control_previous_subscription_status
+                if restored not in {'trial', 'active', 'expired'}:
+                    restored = 'active'
+                if restored == 'trial' and (not subscription.trial_ends_at or subscription.trial_ends_at < timezone.now()):
+                    restored = 'expired'
+                tenant.is_active, tenant.archived_at, tenant.product_access_enabled = True, None, restored in {'trial', 'active'}
+                tenant.save(update_fields=['is_active', 'archived_at', 'product_access_enabled'])
+                subscription.status = restored
+                subscription.save(update_fields=['status'])
+                reversible, compensation = True, 'archive_tenant'
             elif action in {'enable_product', 'disable_product'}:
                 if tenant.archived_at:
                     raise ControlAPIError('invalid_state', 'Product access cannot change while the tenant is archived.', status=409, current_state=before)
@@ -566,6 +745,11 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
                     message.recipient, message.state, message.attempts, message.last_error_code, message.sent_at = user.email, 'pending', 0, '', None
                     message.save()
                     data = {'notification_id': str(message.id), 'delivery_status': 'queued'}
+                    data['notification'] = {
+                        'state': 'queued',
+                        'reference': str(message.id),
+                        'requested_at': message.requested_at.isoformat(),
+                    }
                     if action == 'send_password_reset':
                         timeout = int(getattr(settings, 'PASSWORD_RESET_TIMEOUT', 259200))
                         data.update({'accepted': True, 'token_expires_at': (timezone.now() + timedelta(seconds=timeout)).isoformat()})
@@ -652,7 +836,7 @@ class GuestHouseProductControlBackend(BaseProductControlBackend):
 
         after = self._snapshot(tenant)
         notify_actions = {'extend_trial', 'activate_tenant', 'suspend_tenant', 'reactivate_tenant', 'apply_grace_period',
-                          'change_plan', 'cancel_subscription', 'archive_tenant', 'enable_product', 'disable_product'}
+                          'change_plan', 'convert_trial_to_paid', 'cancel_subscription', 'archive_tenant', 'enable_product', 'disable_product'}
         if action in notify_actions:
             behavior = str(payload.get('notification_rule', 'product_default'))
             state = 'suppressed' if behavior == 'suppress' or not tenant.owner_email else 'queued'
